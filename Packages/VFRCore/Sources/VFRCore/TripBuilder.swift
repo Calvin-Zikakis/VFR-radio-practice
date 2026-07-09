@@ -120,14 +120,20 @@ public enum TripBuilder {
         let intent = touchAndGo ? "for the option" : "to land, full stop"
         let atis = atisLetter()
         if ap.isTowered {
+            // When a "report the pattern" phase follows, the tower's improvised
+            // pattern entry must match it — a "report right base" here would
+            // contradict the scripted left-downwind report one step later.
+            let entry = detailed
+                ? "Reply with runway \(firstRunway(ap)) and this exact pattern entry: report left downwind."
+                : "Reply with pattern entry and runway \(firstRunway(ap))."
             add(.towered, "Inbound — \(ap.name) Tower",
                 "You're 10 miles from \(ap.name) at two thousand five hundred, inbound \(intent), with information \(atis). Call \(ap.name) Tower.",
-                "Towered field, you are \(ap.name) Tower. Pilot is 10 miles out at 2,500 inbound \(intent) with ATIS \(atis). Expect who they're calling, aircraft, position and altitude, the ATIS letter, and request. Reply with pattern entry and runway \(firstRunway(ap)).",
+                "Towered field, you are \(ap.name) Tower. Pilot is 10 miles out at 2,500 inbound \(intent) with ATIS \(atis). Expect who they're calling, aircraft, position and altitude, the ATIS letter, and request. \(entry)",
                 ap)
             if detailed {
                 add(.towered, "Report the pattern — \(ap.name) Tower",
                     "\(ap.name) Tower told you to report a left downwind for runway \(rwy). Make that report.",
-                    "Towered field, you are \(ap.name) Tower. Pilot was told to report left downwind. Expect callsign plus position ('left downwind runway \(firstRunway(ap))'). Reply with the landing clearance or the option, or sequence them with traffic.",
+                    "Towered field, you are \(ap.name) Tower. Pilot was told to report left downwind. Expect callsign plus position ('left downwind runway \(firstRunway(ap))'). Reply with the landing clearance or the option — or sequence them with traffic ('number two, report base'). If you sequence them, the exchange is NOT over: expect the readback, then their base report, then issue the landing clearance. Set phaseAdvance only once the landing (or option) clearance has been issued and read back — never right after asking for a report you haven't received.",
                     ap)
             }
             if !touchAndGo {

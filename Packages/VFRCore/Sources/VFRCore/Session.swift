@@ -61,8 +61,15 @@ public actor PracticeSession {
     public func submit(_ transmission: String) async throws -> Verdict? {
         guard let drill = currentDrill else { return nil }
         attempts += 1
+        // Continuity: when the session continues at the same airport, the
+        // grader is told what the script does next so its improvised replies
+        // can't contradict it (e.g. "report right base" before a scripted
+        // left-downwind report).
+        let next = index + 1 < drills.count ? drills[index + 1] : nil
+        let nextSetup = next?.airport.icao == drill.airport.icao ? next?.setup : nil
         let verdict = try await brain.evaluate(drill: drill, mode: mode,
-                                               history: history, transmission: transmission)
+                                               history: history, transmission: transmission,
+                                               nextSetup: nextSetup)
         history.append(Turn(pilot: verdict.heard, reply: verdict.radioReplyText))
 
         if !verdict.correct {

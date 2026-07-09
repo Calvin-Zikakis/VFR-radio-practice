@@ -458,7 +458,7 @@ import Foundation
 struct MockBrain: ATCEvaluating {
     let passWhenContains: String
     func evaluate(drill: Drill, mode: GradingMode, history: [Turn],
-                  transmission: String) async throws -> Verdict {
+                  transmission: String, nextSetup: String?) async throws -> Verdict {
         let ok = transmission.localizedCaseInsensitiveContains(passWhenContains)
         return Verdict(
             heard: transmission, speaker: ok ? "none" : "CTAF",
@@ -467,6 +467,35 @@ struct MockBrain: ATCEvaluating {
             expectedExample: "model call", phaseAdvance: ok, coaching: ok ? "Good." : "Try again."
         )
     }
+}
+
+/// Records the continuity hint the session hands the brain on each submit.
+final class SpyBrain: ATCEvaluating, @unchecked Sendable {
+    private(set) var nextSetups: [String?] = []
+    func evaluate(drill: Drill, mode: GradingMode, history: [Turn],
+                  transmission: String, nextSetup: String?) async throws -> Verdict {
+        nextSetups.append(nextSetup)
+        return Verdict(heard: transmission, speaker: "none", radioReplyText: "",
+                       correct: true, corrections: [], expectedExample: "",
+                       phaseAdvance: true, coaching: "")
+    }
+}
+
+@Test func sessionPassesContinuityForSameAirportOnly() async throws {
+    // Two Watsonville drills then a Palo Alto one: the first submit should
+    // carry the next drill's setup, the second (airport change) should not,
+    // and the last drill has nothing to carry.
+    let wvi = DrillLibrary.all.filter { $0.airport.icao == "KWVI" }.prefix(2)
+    let pao = DrillLibrary.all.first { $0.airport.icao == "KPAO" }!
+    let drills = Array(wvi) + [pao]
+    let spy = SpyBrain()
+    let session = PracticeSession(brain: spy, mode: .debrief, drills: drills)
+
+    for _ in drills { _ = try await session.submit("anything") }
+    #expect(spy.nextSetups.count == 3)
+    #expect(spy.nextSetups[0] == drills[1].setup)
+    #expect(spy.nextSetups[1] == nil)
+    #expect(spy.nextSetups[2] == nil)
 }
 
 @Test func sessionAdvancesOnCorrectAndDebriefsOnWrong() async throws {

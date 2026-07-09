@@ -31,8 +31,11 @@ public enum ATCBrainError: Error, LocalizedError {
 
 /// Abstraction over the grader so sessions can be tested without a network.
 public protocol ATCEvaluating: Sendable {
+    /// `nextSetup` is the next scripted prompt in the session when it continues
+    /// at the same airport — continuity context so the grader's improvised
+    /// radio replies never contradict what the script does next.
     func evaluate(drill: Drill, mode: GradingMode, history: [Turn],
-                  transmission: String) async throws -> Verdict
+                  transmission: String, nextSetup: String?) async throws -> Verdict
 }
 
 /// Talks to the Claude Messages API over raw HTTP (there is no official Swift
@@ -56,10 +59,11 @@ public struct ATCBrain: ATCEvaluating, Sendable {
     }
 
     public func evaluate(drill: Drill, mode: GradingMode, history: [Turn],
-                         transmission: String) async throws -> Verdict {
+                         transmission: String, nextSetup: String? = nil) async throws -> Verdict {
         guard !apiKey.isEmpty else { throw ATCBrainError.missingAPIKey }
 
-        let body = requestBody(drill: drill, mode: mode, history: history, transmission: transmission)
+        let body = requestBody(drill: drill, mode: mode, history: history,
+                               transmission: transmission, nextSetup: nextSetup)
         do {
             return try await send(body, historyCount: history.count)
         } catch ATCBrainError.truncated {
@@ -96,7 +100,7 @@ public struct ATCBrain: ATCEvaluating, Sendable {
     // MARK: - Request construction
 
     func requestBody(drill: Drill, mode: GradingMode, history: [Turn],
-                     transmission: String) -> [String: Any] {
+                     transmission: String, nextSetup: String? = nil) -> [String: Any] {
         var messages: [[String: Any]] = []
         for turn in history {
             messages.append(["role": "user", "content": turn.pilot])
@@ -124,7 +128,8 @@ public struct ATCBrain: ATCEvaluating, Sendable {
             // keeps the cache prefix intact across a session.
             "system": [[
                 "type": "text",
-                "text": Self.systemPrompt(drill: drill, mode: mode, difficulty: difficulty),
+                "text": Self.systemPrompt(drill: drill, mode: mode, difficulty: difficulty,
+                                          nextSetup: nextSetup),
                 "cache_control": ["type": "ephemeral"]
             ]],
             "messages": messages,
@@ -133,7 +138,8 @@ public struct ATCBrain: ATCEvaluating, Sendable {
     }
 
     static func systemPrompt(drill: Drill, mode: GradingMode,
-                             difficulty: Difficulty = .checkride) -> String {
+                             difficulty: Difficulty = .checkride,
+                             nextSetup: String? = nil) -> String {
         let a = drill.aircraft
         let ap = drill.airport
         let coachingRule = mode == .live
@@ -242,6 +248,24 @@ public struct ATCBrain: ATCEvaluating, Sendable {
             """
         }
 
+        let continuityGuidance: String
+        if let nextSetup {
+            continuityGuidance = """
+
+            CONTINUITY — THE NEXT SCRIPTED STEP: after this exchange, the session \
+            will tell the pilot: "\(nextSetup)" \
+            This is context only, so your improvised radio replies never contradict \
+            it. When you issue an instruction the next step depends on (a pattern \
+            entry, a runway, a frequency, an altitude), issue the one the next step \
+            expects — e.g. don't say "report right base" when the next step has \
+            them reporting a left downwind. Never mention the script, never grade \
+            against it, and never skip ahead to it.
+
+            """
+        } else {
+            continuityGuidance = "\n"
+        }
+
         return """
         You are a US VFR aviation radio simulator used to train a private pilot. \
         Play the role of the appropriate radio voice for the situation and, at the \
@@ -253,7 +277,7 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         CTAF/tower frequency \(ap.ctafOrTower).
         PILOT AIRCRAFT: \(a.type), callsign \(a.callsign), spoken as "\(a.phoneticCallsign)".
         SITUATION: \(drill.situation)
-
+        \(continuityGuidance)
         CRITICAL — SPEECH RECOGNITION NOISE:
         The pilot's transmission reaches you as text from imperfect on-device speech \
         recognition. Callsigns, numbers, and frequencies are frequently mangled \
