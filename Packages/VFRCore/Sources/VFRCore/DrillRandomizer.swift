@@ -13,38 +13,46 @@ import Foundation
 public enum DrillRandomizer {
 
     public static func vary(_ drills: [Drill]) -> [Drill] {
-        // One decision per airport per session: does the wind favor the
-        // reciprocal runway today? And one altitude offset for the session.
-        var flipAirport: [String: Bool] = [:]
-        for d in drills where flipAirport[d.airport.icao] == nil {
-            flipAirport[d.airport.icao] = flippableAirports.contains(d.airport.icao) && Bool.random()
+        // One decision per airport per session: which runway is the wind
+        // favoring today? And one altitude offset for the session.
+        var runwayChoice: [String: String?] = [:]
+        for d in drills where runwayChoice[d.airport.icao] == nil {
+            runwayChoice[d.airport.icao] = pickRunway(for: d.airport)
         }
         let altitudeOffset = [0, 1000, 2000].randomElement() ?? 0
 
         return drills.map {
-            vary($0, flipRunway: flipAirport[$0.airport.icao] ?? false,
+            vary($0, runway: runwayChoice[$0.airport.icao] ?? nil,
                  altitudeOffset: altitudeOffset)
         }
     }
 
     public static func vary(_ drill: Drill) -> Drill {
         vary(drill,
-             flipRunway: flippableAirports.contains(drill.airport.icao) && Bool.random(),
+             runway: pickRunway(for: drill.airport),
              altitudeOffset: [0, 1000, 2000].randomElement() ?? 0)
     }
 
-    static func vary(_ drill: Drill, flipRunway: Bool, altitudeOffset: Int) -> Drill {
+    /// Pick today's runway from the airport's real alternatives (or nil to
+    /// keep the authored one).
+    private static func pickRunway(for airport: Airport) -> String? {
+        guard let primary = airport.runwaysInUse.first,
+              let alternates = alternateRunways[airport.icao] else { return nil }
+        let choice = ([primary] + alternates).randomElement() ?? primary
+        return choice == primary ? nil : choice
+    }
+
+    static func vary(_ drill: Drill, runway: String?, altitudeOffset: Int) -> Drill {
         var d = drill
         var subs: [(String, String)] = []
 
-        // Runway flip FIRST, against the authored text — later substitutions
+        // Runway swap FIRST, against the authored text — later substitutions
         // (random squawk digits, distances) could otherwise collide with the
         // bare runway-number tokens.
-        if flipRunway, let primary = drill.airport.runwaysInUse.first,
-           let recip = reciprocal(primary) {
-            subs.append((TripBuilder.spokenRunway(primary), TripBuilder.spokenRunway(recip)))
-            subs.append((primary, recip))
-            d.airport.runwaysInUse = drill.airport.runwaysInUse.map { $0 == primary ? recip : $0 }
+        if let runway, let primary = drill.airport.runwaysInUse.first, runway != primary {
+            subs.append((TripBuilder.spokenRunway(primary), TripBuilder.spokenRunway(runway)))
+            subs.append((primary, runway))
+            d.airport.runwaysInUse = drill.airport.runwaysInUse.map { $0 == primary ? runway : $0 }
         }
 
         if altitudeOffset != 0 {
@@ -74,22 +82,20 @@ public enum DrillRandomizer {
 
     // MARK: - Runways
 
-    /// Airports whose drill texts reference only their primary runway, so the
-    /// reciprocal flip is safe. KMRY is excluded: its taxi drills name crossing
-    /// runways, and a blind flip would collide with them. KSFO is Bravo-context
-    /// only.
-    static let flippableAirports: Set<String> = ["KWVI", "KPAO", "E16", "KCVH", "KSNS", "KLVK", "KHAF"]
-
-    /// "20" → "2", "31" → "13", "25R" → "7L" (number + 18 mod 36, L/R swapped).
-    static func reciprocal(_ runway: String) -> String? {
-        let digits = runway.prefix { $0.isNumber }
-        guard let n = Int(digits), n >= 1, n <= 36 else { return nil }
-        let suffix = String(runway.dropFirst(digits.count))
-        let flippedSuffix = suffix == "L" ? "R" : suffix == "R" ? "L" : suffix
-        var m = (n + 18) % 36
-        if m == 0 { m = 36 }
-        return "\(m)\(flippedSuffix)"
-    }
+    /// The real alternate runways each airport can be "using" today, besides
+    /// the authored primary. Only airports whose drill texts reference a single
+    /// runway are listed — KMRY is excluded because its taxi drills name
+    /// crossing runways (a blind swap would collide with them); KSFO is
+    /// Bravo-context only.
+    static let alternateRunways: [String: [String]] = [
+        "KWVI": ["2", "9", "27"],   // 2/20 plus the 9/27 crosswind runway
+        "KPAO": ["13"],
+        "E16": ["14"],
+        "KCVH": ["13"],
+        "KSNS": ["13"],
+        "KLVK": ["7L"],
+        "KHAF": ["12"],
+    ]
 
     // MARK: - Altitudes
 

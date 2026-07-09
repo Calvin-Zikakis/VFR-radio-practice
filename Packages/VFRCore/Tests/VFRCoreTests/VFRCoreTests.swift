@@ -196,19 +196,22 @@ import Foundation
 
 // MARK: - Drill randomizer (runways & altitudes)
 
-@Test func runwayReciprocalsAreComputedCorrectly() {
-    #expect(DrillRandomizer.reciprocal("20") == "2")
-    #expect(DrillRandomizer.reciprocal("31") == "13")
-    #expect(DrillRandomizer.reciprocal("28R") == "10L")
-    #expect(DrillRandomizer.reciprocal("25R") == "7L")
-    #expect(DrillRandomizer.reciprocal("30") == "12")
-    #expect(DrillRandomizer.reciprocal("32") == "14")
-    #expect(DrillRandomizer.reciprocal("36") == "18")
+@Test func watsonvilleVariesAmongItsRealRunways() {
+    // KWVI has 2/20 and the 9/27 crosswind — variation must stay in that set.
+    #expect(Set(DrillRandomizer.alternateRunways["KWVI"] ?? []) == ["2", "9", "27"])
+    let taxi = DrillLibrary.drills(for: .untowered).first { $0.id == "u-taxi" }!
+    for choice in ["2", "9", "27"] {
+        let varied = DrillRandomizer.vary(taxi, runway: choice, altitudeOffset: 0)
+        #expect(varied.airport.runwaysInUse == [choice])
+        #expect(!varied.setup.contains("two zero"))
+        #expect(varied.setup.contains("runway \(TripBuilder.spokenRunway(choice))"))
+        #expect(varied.situation.contains("runway \(choice)"))
+    }
 }
 
-@Test func runwayFlipRewritesTextAndAirportConsistently() {
+@Test func runwaySwapRewritesTextAndAirportConsistently() {
     let taxi = DrillLibrary.drills(for: .untowered).first { $0.id == "u-taxi" }!
-    let flipped = DrillRandomizer.vary(taxi, flipRunway: true, altitudeOffset: 0)
+    let flipped = DrillRandomizer.vary(taxi, runway: "2", altitudeOffset: 0)
     // Watsonville 20 becomes 2 — spoken, digit, and prompt-facing runway list.
     #expect(!flipped.setup.contains("two zero"))
     #expect(flipped.setup.contains("runway two"))
@@ -221,7 +224,7 @@ import Foundation
     var drill = DrillLibrary.drills(for: .flightFollowing).first { $0.id == "ff-request" }!
     drill.setup = "Climbing through two thousand five hundred to four thousand five hundred."
     drill.situation = "Pilot at 2,500 climbing to 4,500."
-    let shifted = DrillRandomizer.vary(drill, flipRunway: false, altitudeOffset: 1000)
+    let shifted = DrillRandomizer.vary(drill, runway: nil, altitudeOffset: 1000)
     // 2,500 → 3,500 exactly once; it must NOT chain through the 3,500 → 4,500 pair.
     #expect(shifted.setup.contains("three thousand five hundred"))
     #expect(shifted.setup.contains("five thousand five hundred"))
