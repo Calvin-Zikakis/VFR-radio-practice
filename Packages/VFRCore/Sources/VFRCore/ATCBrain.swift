@@ -94,7 +94,11 @@ public struct ATCBrain: ATCEvaluating, Sendable {
 
         return [
             "model": model,
-            "max_tokens": 1500,
+            // Generous ceiling on purpose: billing is per token GENERATED, not
+            // per max_tokens, so a normal ~300-token verdict costs the same
+            // either way — but a verdict that hits the cap is truncated JSON,
+            // a failed parse, and a re-billed retry. Never lowball this.
+            "max_tokens": 8000,
             // NOTE: no `temperature` — Claude 5 models reject it (HTTP 400,
             // "deprecated for this model"). JSON stability comes from the
             // prompt constraints + the app-side speech sanitizer instead.
@@ -306,12 +310,14 @@ public struct ATCBrain: ATCEvaluating, Sendable {
 
         GRADING FIELDS:
         `correct` is true only if the intended phraseology was appropriate and \
-        complete for this situation. List concrete issues in `corrections` (each a \
-        short phrase, e.g. "Missing your altitude"). `expectedExample` is one ideal \
-        version of THE SINGLE CALL just graded — one short transmission, never a \
-        multi-step script, stage directions, or commentary; in a multi-step drill, \
-        show only the immediate next call. Set `phaseAdvance` true once the pilot \
-        has satisfied this drill step. \(coachingRule)
+        complete for this situation. List concrete issues in `corrections` (at \
+        most three, each a short phrase, e.g. "Missing your altitude"). \
+        `expectedExample` is one ideal version of THE SINGLE CALL just graded — \
+        one short transmission, never a multi-step script, stage directions, or \
+        commentary; in a multi-step drill, show only the immediate next call. \
+        Keep the ENTIRE response tight — every field is a short spoken line; the \
+        whole JSON should be well under two hundred words. Set `phaseAdvance` \
+        true once the pilot has satisfied this drill step. \(coachingRule)
         """
     }
 
@@ -340,6 +346,11 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         }
         if let stop = root["stop_reason"] as? String, stop == "refusal" {
             throw ATCBrainError.refusal("safety classifier declined the request")
+        }
+        // Truncated output can't be valid JSON — name the real cause instead of
+        // surfacing a confusing parse error.
+        if let stop = root["stop_reason"] as? String, stop == "max_tokens" {
+            throw ATCBrainError.badResponse("grader response hit the output token limit — say the call again.")
         }
         guard let content = root["content"] as? [[String: Any]] else {
             throw ATCBrainError.badResponse("no content array")
