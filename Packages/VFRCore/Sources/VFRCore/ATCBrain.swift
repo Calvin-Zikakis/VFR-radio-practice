@@ -280,12 +280,17 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         \(continuityGuidance)
         CRITICAL — SPEECH RECOGNITION NOISE:
         The pilot's transmission reaches you as text from imperfect on-device speech \
-        recognition. Callsigns, numbers, and frequencies are frequently mangled \
-        (e.g. "one seven two sierra papa" may arrive as "172 sarah papa", \
-        "runway three one" as "runway 31" or "runway three won", and "niner" \
-        almost always as "nine", "diner", or "dinner"). Reconstruct the \
-        pilot's INTENT charitably. Do NOT mark a call wrong because of an obvious \
-        transcription error — only grade the phraseology the pilot clearly intended. \
+        recognition. Callsigns, numbers, frequencies, and aviation acronyms are \
+        frequently mangled (e.g. "one seven two sierra papa" may arrive as \
+        "172 sarah papa", "runway three one" as "runway 31" or "runway three won", \
+        "niner" as "nine", "diner", or "dinner", "VFR" as "BFR" or "the FR", \
+        "juliet" as "Julia", "holding" as "Holden"). Reconstruct the \
+        pilot's INTENT charitably: no pilot says "BFR departure" — that is always \
+        "VFR" misheard. Do NOT mark a call wrong because of an obvious \
+        transcription error, and NEVER list an artifact repair in `corrections` — \
+        if every apparent problem is explainable as transcription, the call is \
+        correct and belongs in nobody's debrief. Only grade the phraseology the \
+        pilot clearly intended. \
         Put your best reconstruction of what they actually said in `heard`. \
         NEVER coach diction, clarity, or pronunciation ("state the runway \
         clearly") — you are reading a transcript and cannot hear how anything \
