@@ -87,14 +87,15 @@ public enum DrillRandomizer {
     /// runway are listed — KMRY is excluded because its taxi drills name
     /// crossing runways (a blind swap would collide with them); KSFO is
     /// Bravo-context only.
+    // Verified against AirNav (FAA data), 2026-07.
     static let alternateRunways: [String: [String]] = [
-        "KWVI": ["2", "9", "27"],   // 2/20 plus the 9/27 crosswind runway
-        "KPAO": ["13"],
-        "E16": ["14"],
-        "KCVH": ["13"],
-        "KSNS": ["13"],
-        "KLVK": ["7L"],
-        "KHAF": ["12"],
+        "KWVI": ["2", "9", "27"],       // 2/20 + 9/27 crosswind
+        "KPAO": ["13"],                 // single runway 13/31
+        "E16": ["14"],                  // single runway 14/32
+        "KCVH": ["13", "6", "24"],      // 13/31 + 6/24
+        "KSNS": ["13", "8", "26"],      // 13/31 + 8/26
+        "KLVK": ["7L", "7R", "25L"],    // 7L/25R + 7R/25L
+        "KHAF": ["12"],                 // single runway 12/30
     ]
 
     // MARK: - Altitudes

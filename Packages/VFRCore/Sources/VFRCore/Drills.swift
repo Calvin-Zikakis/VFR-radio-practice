@@ -46,7 +46,7 @@ public enum DrillLibrary {
     static let paloAlto = Airport(
         icao: "KPAO", name: "Palo Alto",
         ctafOrTower: "one one eight point six",
-        elevationFt: 5, runwaysInUse: ["31"], isTowered: true
+        elevationFt: 7, runwaysInUse: ["31"], isTowered: true
     )
 
     static let watsonville = Airport(
@@ -69,24 +69,25 @@ public enum DrillLibrary {
         elevationFt: 13, runwaysInUse: ["28R"], isTowered: true
     )
 
-    // NOTE: verify CTAF frequencies against current charts before relying on
-    // them — they don't affect phraseology grading, only what's spoken.
+    // Frequencies/elevations/runways verified against AirNav (FAA data),
+    // 2026-07. They don't affect phraseology grading, only what's spoken —
+    // but real numbers keep the muscle memory honest.
     static let southCounty = Airport(
         icao: "E16", name: "South County",   // San Martin
-        ctafOrTower: "one two three point zero",
-        elevationFt: 281, runwaysInUse: ["32"]
+        ctafOrTower: "one two two point seven",
+        elevationFt: 284, runwaysInUse: ["32"]
     )
 
     static let hollister = Airport(
         icao: "KCVH", name: "Hollister",
-        ctafOrTower: "one two two point seven",
+        ctafOrTower: "one two three point zero",
         elevationFt: 230, runwaysInUse: ["31"]
     )
 
     static let salinas = Airport(
         icao: "KSNS", name: "Salinas",       // towered (part-time tower)
-        ctafOrTower: "one one nine point seven five",
-        elevationFt: 85, runwaysInUse: ["31"], isTowered: true
+        ctafOrTower: "one one niner point five two five",
+        elevationFt: 84, runwaysInUse: ["31"], isTowered: true
     )
 
     static let livermore = Airport(
@@ -97,7 +98,7 @@ public enum DrillLibrary {
 
     static let halfMoonBay = Airport(
         icao: "KHAF", name: "Half Moon Bay",
-        ctafOrTower: "one two two point seven",
+        ctafOrTower: "one two two point eight",
         elevationFt: 66, runwaysInUse: ["30"]
     )
 
