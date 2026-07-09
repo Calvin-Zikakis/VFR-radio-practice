@@ -129,55 +129,11 @@ struct ContentView: View {
     private var setup: some View {
         VStack(spacing: 0) {
             ScrollView {
-                VStack(spacing: 18) {
-                    VStack(spacing: 4) {
-                        Text("Practice radio calls, out loud.")
-                            .font(.title3.weight(.semibold)).foregroundStyle(.primary)
-                        Text("Swipe or tap to pick a mode, then start talking.")
-                            .font(.footnote).foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 4)
-
+                VStack(spacing: 16) {
                     if let snap = resumeSnapshot { resumeCard(snap) }
 
-                    section("MODE") {
-                        chipRow(SessionMode.allCases, selection: $sessionMode) { $0.displayName }
-                    }
-
-                    switch sessionMode {
-                    case .single:
-                        section("SCENARIO") {
-                            chipRow(ScenarioType.allCases, selection: $scenario) { scenarioLabel($0) }
-                            browseDrillsButton
-                        }
-                    case .trip:
-                        tripBuilder
-                    case .mix:
-                        callTypePicker
-                    }
-
-                    // Input & feedback are both two-option pickers — pair them
-                    // on one row to keep the screen compact.
-                    HStack(alignment: .top, spacing: 14) {
-                        section("INPUT") {
-                            chipRow(InteractionMode.allCases,
-                                    selection: settingBinding(\.interactionMode)) { $0.displayName }
-                        }
-                        section("FEEDBACK") {
-                            chipRow(GradingMode.allCases,
-                                    selection: settingBinding(\.gradingMode)) { $0.displayName }
-                        }
-                    }
-
-                    if sessionMode == .single {
-                        Toggle(isOn: settingBinding(\.randomizeDrills)) {
-                            Label("Shuffle order", systemImage: "shuffle")
-                                .font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                        }
-                        .tint(Theme.accent)
-                        .card(padding: 14)
-                    }
+                    sessionCard
+                    preferencesCard
 
                     Text("\(sessionCallCount) \(sessionMode == .single ? "drills" : "calls") · say “next”, “repeat”, “pause”, or “stop” anytime")
                         .font(.caption).foregroundStyle(.tertiary)
@@ -204,6 +160,118 @@ struct ContentView: View {
                     withAnimation(.snappy(duration: 0.2)) { sessionMode = modes[next] }
                 }
         )
+    }
+
+    // MARK: - Home cards
+
+    /// Everything about what you'll fly: mode, scenario/route/mix, browse.
+    private var sessionCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Picker("Mode", selection: $sessionMode) {
+                ForEach(SessionMode.allCases, id: \.self) { Text($0.displayName).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            switch sessionMode {
+            case .single:
+                scenarioTiles
+                browseDrillsButton
+            case .trip:
+                tripBuilder
+            case .mix:
+                callTypePicker
+            }
+        }
+        .card()
+    }
+
+    /// Three tiles, one per environment — icon, name, and what talks back.
+    /// A grid (not an HStack) so the columns are exactly equal width no matter
+    /// how long each label is.
+    private var scenarioTiles: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3),
+                  spacing: 8) {
+            scenarioTile(.untowered, icon: "wave.3.right", name: "Untowered", detail: "CTAF")
+            scenarioTile(.towered, icon: "building.2.fill", name: "Towered", detail: "ATC")
+            scenarioTile(.flightFollowing, icon: "dot.radiowaves.up.forward", name: "Following", detail: "NorCal")
+        }
+    }
+
+    private func scenarioTile(_ s: ScenarioType, icon: String, name: String, detail: String) -> some View {
+        let selected = scenario == s
+        return Button {
+            withAnimation(.snappy(duration: 0.15)) { scenario = s }
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.body.weight(.semibold))
+                    .frame(height: 22)   // icons have different intrinsic sizes; pin the slot
+                Text(name)
+                    .font(.footnote.weight(.semibold))
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(selected ? Theme.accent.opacity(0.8) : Color.secondary.opacity(0.7))
+            }
+            .frame(maxWidth: .infinity, minHeight: 78)   // every tile the exact same box
+            .padding(.vertical, 6)
+            .background(selected ? Theme.accent.opacity(0.15) : Theme.chipFill,
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(selected ? Theme.accent.opacity(0.7) : .clear, lineWidth: 1.5))
+            .foregroundStyle(selected ? Theme.accent : .secondary)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Settings-style rows for the set-and-forget choices.
+    private var preferencesCard: some View {
+        VStack(spacing: 0) {
+            prefPickerRow("Input", icon: "mic.fill",
+                          selection: settingBinding(\.interactionMode),
+                          options: InteractionMode.allCases) { $0.displayName }
+            Divider().padding(.leading, 30)
+            prefPickerRow("Feedback", icon: "text.bubble.fill",
+                          selection: settingBinding(\.gradingMode),
+                          options: GradingMode.allCases) { $0.displayName }
+            if sessionMode == .single {
+                Divider().padding(.leading, 30)
+                HStack {
+                    Label("Shuffle order", systemImage: "shuffle")
+                        .font(.subheadline)
+                    Spacer()
+                    Toggle("", isOn: settingBinding(\.randomizeDrills))
+                        .labelsHidden()
+                        .tint(Theme.accent)
+                }
+                .padding(.vertical, 8)
+            }
+        }
+        .card(padding: 14)
+    }
+
+    private func prefPickerRow<T: Hashable>(_ title: String, icon: String,
+                                            selection: Binding<T>, options: [T],
+                                            label: @escaping (T) -> String) -> some View {
+        HStack {
+            Label(title, systemImage: icon)
+                .font(.subheadline)
+            Spacer()
+            Menu {
+                Picker(title, selection: selection) {
+                    ForEach(options, id: \.self) { Text(label($0)).tag($0) }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(label(selection.wrappedValue))
+                        .font(.subheadline)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2)
+                }
+                .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 10)
     }
 
     /// Card offering to pick an interrupted session back up.
@@ -289,9 +357,8 @@ struct ContentView: View {
                 .font(.headline)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
-                .background(Theme.accent, in: Capsule())
+                .background(Theme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .foregroundStyle(.white)
-                .shadow(color: Theme.accent.opacity(0.3), radius: 12, y: 4)
             }
             .buttonStyle(.plain)
             .disabled(!canStart)
@@ -365,8 +432,9 @@ struct ContentView: View {
                 .lineLimit(1).minimumScaleFactor(0.7)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
-                .background(fill, in: Capsule())
-                .overlay(Capsule().strokeBorder(stroke, lineWidth: 1))
+                .background(fill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(stroke, lineWidth: 1))
                 .foregroundStyle(on ? Theme.accent : .secondary)
         }
         .buttonStyle(.plain)
@@ -389,7 +457,8 @@ struct ContentView: View {
                         Label("Add stop", systemImage: "plus.circle.fill")
                             .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.accent)
                             .frame(maxWidth: .infinity).padding(.vertical, 11)
-                            .background(Theme.accent.opacity(0.1), in: Capsule())
+                            .background(Theme.accent.opacity(0.1),
+                                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -398,17 +467,16 @@ struct ContentView: View {
                 VStack(spacing: 12) {
                     Toggle(isOn: $tripFF) {
                         Label("Flight following (NorCal)", systemImage: "dot.radiowaves.up.forward")
-                            .font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                            .font(.subheadline).foregroundStyle(.primary)
                     }
                     .tint(Theme.accent)
                     Divider()
                     Toggle(isOn: $tripPattern) {
                         Label("Pattern work / touch-and-goes", systemImage: "arrow.triangle.turn.up.right.circle")
-                            .font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                            .font(.subheadline).foregroundStyle(.primary)
                     }
                     .tint(Theme.accent)
                 }
-                .card(padding: 14)
             }
 
             browseTripButton
@@ -545,7 +613,7 @@ struct ContentView: View {
         }
         .card(padding: 14)
         .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(glowColor ?? .clear, lineWidth: 2.5)
         )
         .shadow(color: (glowColor ?? .clear).opacity(0.75), radius: 22)
@@ -602,7 +670,7 @@ struct ContentView: View {
                 Button { controller.restart() } label: {
                     Label("Run Again", systemImage: "arrow.clockwise")
                         .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .background(Theme.accent, in: Capsule())
+                        .background(Theme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
@@ -612,6 +680,10 @@ struct ContentView: View {
                     iconButton("arrow.counterclockwise", tint: .secondary) { controller.repeatBriefing() }
                     iconButton("forward.fill", tint: .secondary) { controller.skipCurrent() }
                 }
+                if controller.phase == .thinking {
+                    // Abort the in-flight grading and take the call again.
+                    iconButton("arrow.uturn.backward", tint: Theme.accent) { controller.redoCall() }
+                }
                 if controller.phase == .paused {
                     iconButton("play.fill", tint: Theme.success) { controller.resumeSession() }
                 } else {
@@ -620,8 +692,8 @@ struct ContentView: View {
                 Button(role: .destructive) { controller.stop() } label: {
                     Label("Exit", systemImage: "rectangle.portrait.and.arrow.right")
                         .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 13)
-                        .background(Theme.failure.opacity(0.15), in: Capsule())
-                        .overlay(Capsule().strokeBorder(Theme.failure.opacity(0.5), lineWidth: 1))
+                        .background(Theme.failure.opacity(0.12),
+                                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .foregroundStyle(Theme.failure)
                 }
                 .buttonStyle(.plain)
@@ -661,10 +733,44 @@ struct ContentView: View {
         .accessibilityLabel("Aircraft \(ac.callsign), \(ac.type). Tap to hear the spoken callsign.")
     }
 
+    /// Distinct drills that got flagged (one drill can log several notes).
+    private var flaggedCount: Int {
+        Set(controller.debrief.map(\.drillTitle)).count
+    }
+
+    private var debriefExport: String {
+        var s = "VFR Radio Practice — Debrief · \(Date().formatted(date: .abbreviated, time: .shortened))\n"
+        s += "\(max(0, controller.totalDrills - flaggedCount)) of \(controller.totalDrills) calls clean\n"
+        for entry in controller.debrief {
+            s += "\n• \(entry.drillTitle)\n"
+            s += "  You said: \(entry.pilotSaid)\n"
+            for c in entry.corrections { s += "  – \(c)\n" }
+            s += "  Model call: \(entry.expectedExample)\n"
+        }
+        return s
+    }
+
     private var debriefBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
             Divider()
-            Text("DEBRIEF").font(.caption.weight(.bold)).tracking(1).foregroundStyle(.secondary)
+            HStack {
+                Text("DEBRIEF").font(.caption.weight(.bold)).tracking(1).foregroundStyle(.secondary)
+                Spacer()
+                ShareLink(item: debriefExport) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                        .font(.caption.weight(.semibold))
+                }
+            }
+
+            // Scorecard: how the session went at a glance.
+            HStack(spacing: 10) {
+                scorePill(count: max(0, controller.totalDrills - flaggedCount),
+                          label: "clean", color: Theme.success, icon: "checkmark.circle.fill")
+                scorePill(count: flaggedCount,
+                          label: "to review", color: flaggedCount == 0 ? Theme.success : Theme.amber,
+                          icon: "flag.fill")
+            }
+
             if controller.debrief.isEmpty {
                 Label("All calls were on the money. Nicely flown.", systemImage: "checkmark.seal.fill")
                     .font(.callout).foregroundStyle(Theme.success)
@@ -687,6 +793,18 @@ struct ContentView: View {
             }
         }
         .padding(.top, 4)
+    }
+
+    private func scorePill(count: Int, label: String, color: Color, icon: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon).font(.caption)
+            Text("\(count)").font(.headline.weight(.bold))
+            Text(label).font(.caption)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .foregroundStyle(color)
     }
 
     private func bubble(_ line: HandsFreeController.Line) -> some View {
@@ -745,36 +863,6 @@ struct ContentView: View {
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private func chipRow<T: Hashable>(_ options: [T], selection: Binding<T>,
-                                      label: @escaping (T) -> String) -> some View {
-        HStack(spacing: 8) {
-            ForEach(options, id: \.self) { opt in
-                let selected = selection.wrappedValue == opt
-                Button {
-                    withAnimation(.snappy(duration: 0.2)) { selection.wrappedValue = opt }
-                } label: {
-                    Text(label(opt))
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1).minimumScaleFactor(0.5)
-                        .frame(maxWidth: .infinity).padding(.horizontal, 4).padding(.vertical, 11)
-                        .background(selected ? Theme.accent.opacity(0.18) : Theme.chipFill, in: Capsule())
-                        .overlay(Capsule().strokeBorder(selected ? Theme.accent.opacity(0.8) : Theme.stroke, lineWidth: 1))
-                        .foregroundStyle(selected ? Theme.accent : .secondary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private func scenarioLabel(_ s: ScenarioType) -> String {
-        switch s {
-        case .untowered: return "Untowered"
-        case .towered: return "Towered"
-        case .flightFollowing: return "Flight Following"
-        }
     }
 
     private func settingBinding<T>(_ keyPath: ReferenceWritableKeyPath<SettingsStore, T>) -> Binding<T> {

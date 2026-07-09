@@ -63,7 +63,7 @@ final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
     }
 
     func speak(_ text: String, as role: VoiceRole = .controller) async {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = Self.sanitizeForSpeech(text)
         guard !trimmed.isEmpty else { return }
 
         do { try AudioSession.activatePlayAndRecord() }
@@ -106,6 +106,21 @@ final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
         if fxEngine.isRunning { fxEngine.stop() }
         finishEffect()
         finishSpeaking()
+    }
+
+    /// The grader very occasionally leaks JSON syntax into a string field
+    /// (e.g. `…readback correct.corrections.: [],`). Never read that aloud:
+    /// cut at the first JSON-ish character and strip stray quotes.
+    static func sanitizeForSpeech(_ text: String) -> String {
+        var t = text
+        if let i = t.firstIndex(where: { "{}[]".contains($0) }) {
+            t = String(t[..<i])
+        }
+        t = t.replacingOccurrences(of: "\"", with: "")
+        // A leaked field name right at the cut point ("….corrections.:") —
+        // drop a trailing fragment of punctuation-glued tokens.
+        while let last = t.last, ":.,;- ".contains(last) { t.removeLast() }
+        return t.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func makeUtterance(_ text: String, role: VoiceRole) -> AVSpeechUtterance {

@@ -1,4 +1,6 @@
 import Foundation
+import AVFoundation
+import UIKit
 import VFRCore
 
 /// Orchestrates a practice session in either input mode:
@@ -34,6 +36,10 @@ final class HandsFreeController: ObservableObject {
     let speaker = RadioSpeaker()
 
     private var session: PracticeSession?
+    /// The in-flight grading call, so "redo" can abort it without waiting.
+    private var gradeTask: Task<Verdict?, Error>?
+    /// Bumped by `redoCall()`; a graded turn whose id is stale gets discarded.
+    private var turnID = 0
     private var mode: GradingMode = .live
     private var interaction: InteractionMode = .handsFree
     private var pause: Double = 2.0
@@ -49,6 +55,31 @@ final class HandsFreeController: ObservableObject {
     private var runTask: Task<Void, Never>?
 
     var isRunning: Bool { phase != .idle && phase != .finished }
+
+    /// How many drills this session holds (for the finish scorecard).
+    var totalDrills: Int { sessionDrills.count }
+
+    init() {
+        // Auto-pause when the audio session is interrupted (phone call, Siri,
+        // another app grabbing audio) and resume when the system says it's ok.
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(), queue: .main
+        ) { [weak self] note in
+            let typeRaw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt ?? 0
+            let optRaw = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if typeRaw == AVAudioSession.InterruptionType.began.rawValue {
+                    if self.isRunning, self.phase != .paused { self.pauseSession() }
+                } else if typeRaw == AVAudioSession.InterruptionType.ended.rawValue,
+                          AVAudioSession.InterruptionOptions(rawValue: optRaw).contains(.shouldResume),
+                          self.phase == .paused {
+                    self.resumeSession()
+                }
+            }
+        }
+    }
 
     // MARK: - Lifecycle
 
@@ -165,6 +196,9 @@ final class HandsFreeController: ObservableObject {
         sessionDrills = (applyVariation && settings.varyDetails) ? DrillRandomizer.vary(made) : made
         session = PracticeSession(brain: brain, mode: mode, drills: sessionDrills,
                                   startIndex: startIndex, debrief: restoredDebrief)
+        // Don't let the screen lock mid-session — it kills the microphone,
+        // and this app's whole point is long hands-free stretches.
+        UIApplication.shared.isIdleTimerDisabled = true
         runTask = Task { [weak self] in await self?.begin() }
     }
 
@@ -232,9 +266,21 @@ final class HandsFreeController: ObservableObject {
     func stop() {
         runTask?.cancel()
         runTask = nil
+        gradeTask?.cancel()
+        gradeTask = nil
         speech.cancel()
         speaker.stop()
+        UIApplication.shared.isIdleTimerDisabled = false
         phase = .idle   // always return to the home screen
+    }
+
+    /// Abort the in-flight grading and take the call again — no waiting for
+    /// the response you already know you flubbed.
+    func redoCall() {
+        guard phase == .thinking else { return }
+        turnID += 1          // whatever comes back for the old turn is discarded
+        gradeTask?.cancel()  // abort the network call outright
+        append(.system, "Redo — say it again.")
     }
 
     // MARK: - Push-to-talk entry points
@@ -372,9 +418,17 @@ final class HandsFreeController: ObservableObject {
         }
 
         phase = .thinking
+        let myTurn = turnID
         let gradedDrill = await session.currentDrill
         do {
-            guard let verdict = try await session.submit(text) else { return true }
+            // Grade in a child task so `redoCall()` can cancel it mid-flight.
+            let task = Task { try await session.submit(text) }
+            gradeTask = task
+            defer { gradeTask = nil }
+            let graded = try await task.value
+            // Redone while grading: throw the stale verdict away and re-listen.
+            guard myTurn == turnID else { return await settleAfterTurn() }
+            guard let verdict = graded else { return true }
             print("VFR: verdict correct=\(verdict.correct) advance=\(verdict.phaseAdvance) speaker=\(verdict.speaker) reply=\"\(verdict.radioReplyText)\" coaching=\"\(verdict.coaching)\" corrections=\(verdict.corrections)")
             lastVerdict = verdict
             // Green if the call passed (advanced), red if it needs another try —
@@ -415,6 +469,11 @@ final class HandsFreeController: ObservableObject {
                 }
             }
         } catch {
+            // A redo cancels the network call — that lands here. Quietly go
+            // back to listening; it's not an error.
+            if myTurn != turnID || error is CancellationError {
+                return await settleAfterTurn()
+            }
             // Debug: surface the actual error (API status/body or raw model text)
             // in the transcript instead of a generic message.
             let detail = error.localizedDescription
@@ -448,6 +507,7 @@ final class HandsFreeController: ObservableObject {
         phase = .finished
         debrief = await session?.debrief ?? []
         ResumeStore.clear()   // a finished session isn't resumable
+        UIApplication.shared.isIdleTimerDisabled = false
         await speakInstructor(debriefSummary())
     }
 

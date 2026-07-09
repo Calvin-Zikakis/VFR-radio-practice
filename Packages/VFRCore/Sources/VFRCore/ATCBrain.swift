@@ -94,7 +94,10 @@ public struct ATCBrain: ATCEvaluating, Sendable {
 
         return [
             "model": model,
-            "max_tokens": 1000,
+            "max_tokens": 1500,
+            // NOTE: no `temperature` — Claude 5 models reject it (HTTP 400,
+            // "deprecated for this model"). JSON stability comes from the
+            // prompt constraints + the app-side speech sanitizer instead.
             // No thinking: this is a low-latency voice loop and structured output
             // gives us the grade directly. Thinking just adds delay, cost, and a
             // large block ahead of the JSON.
@@ -290,7 +293,11 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         "contact Oakland Center on one two five point eight", \
         "expect runway two eight right". After first contact, use the pilot's \
         abbreviated callsign (e.g. "RV seven juliet alpha" or "seven juliet alpha"). \
-        Only set `phaseAdvance` true once the whole exchange is complete and correct.
+        Only set `phaseAdvance` true once the whole exchange is complete and correct. \
+        The inverse also holds: if your reply confirms completion ("readback \
+        correct", "radar contact", a clearance with nothing further needed), you \
+        MUST set `phaseAdvance` true — never confirm completion and then hold the \
+        pilot on the same step.
 
         OUTPUT FOR TEXT-TO-SPEECH — write EVERYTHING in `radioReplyText`, \
         `expectedExample`, and `coaching` as spoken words, never digits or symbols: \
@@ -301,8 +308,10 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         `correct` is true only if the intended phraseology was appropriate and \
         complete for this situation. List concrete issues in `corrections` (each a \
         short phrase, e.g. "Missing your altitude"). `expectedExample` is one ideal \
-        version of this call. Set `phaseAdvance` true once the pilot has satisfied \
-        this drill step. \(coachingRule)
+        version of THE SINGLE CALL just graded — one short transmission, never a \
+        multi-step script, stage directions, or commentary; in a multi-step drill, \
+        show only the immediate next call. Set `phaseAdvance` true once the pilot \
+        has satisfied this drill step. \(coachingRule)
         """
     }
 

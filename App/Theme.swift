@@ -17,8 +17,9 @@ enum Theme {
     /// Text on top of an accent-filled control (e.g. the listening PTT button).
     static let onAccent = Color.white
 
-    /// Subtle fills and hairlines that read as "glass" on both schemes.
-    static let chipFill = Color(light: 0x000000, dark: 0xFFFFFF).opacity(0.05)
+    /// System fills — the same colors native controls use.
+    static let chipFill = Color(uiColor: .tertiarySystemFill)
+    static let cardFill = Color(uiColor: .secondarySystemGroupedBackground)
     static let stroke = Color(light: 0x000000, dark: 0xFFFFFF).opacity(0.10)
 
     // MARK: - Background
@@ -52,17 +53,14 @@ extension Color {
     }
 }
 
-/// Glassy rounded card that works on both schemes.
+/// Grouped-style card, exactly like a Settings/Health section: flat secondary
+/// background, 16pt corners, no border.
 struct CardModifier: ViewModifier {
     var padding: CGFloat = 16
     func body(content: Content) -> some View {
         content
             .padding(padding)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(Theme.stroke, lineWidth: 1)
-            )
+            .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
