@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+DerivedData/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/VFRCore/.build/
+
+# Never commit secrets (API key lives in the device Keychain at runtime)
+*.env

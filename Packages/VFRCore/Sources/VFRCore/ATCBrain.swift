@@ -1,0 +1,370 @@
+import Foundation
+
+/// One completed exchange, used to give the brain conversational context
+/// across a multi-step drill.
+public struct Turn: Sendable, Equatable, Codable {
+    public var pilot: String   // what the pilot transmitted (as interpreted)
+    public var reply: String   // what the radio said back
+    public init(pilot: String, reply: String) {
+        self.pilot = pilot
+        self.reply = reply
+    }
+}
+
+public enum ATCBrainError: Error, LocalizedError {
+    case missingAPIKey
+    case http(status: Int, body: String)
+    case refusal(String)
+    case badResponse(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .missingAPIKey: return "No Anthropic API key set. Add one in Settings."
+        case .http(let status, let body): return "API error \(status): \(body)"
+        case .refusal(let s): return "Request declined: \(s)"
+        case .badResponse(let s): return "Unexpected response: \(s)"
+        }
+    }
+}
+
+/// Abstraction over the grader so sessions can be tested without a network.
+public protocol ATCEvaluating: Sendable {
+    func evaluate(drill: Drill, mode: GradingMode, history: [Turn],
+                  transmission: String) async throws -> Verdict
+}
+
+/// Talks to the Claude Messages API over raw HTTP (there is no official Swift
+/// SDK). Stateless: the caller supplies drill + prior turns each call, which
+/// keeps the stable prompt prefix cacheable.
+public struct ATCBrain: ATCEvaluating, Sendable {
+    public var apiKey: String
+    public var model: String
+    public var difficulty: Difficulty
+    private let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
+    private let session: URLSession
+
+    /// Haiku 4.5 is the default: cheap, low-latency, and strong enough for
+    /// phraseology grading. Bump to `claude-sonnet-5` for stricter grading.
+    public init(apiKey: String, model: String = "claude-haiku-4-5",
+                difficulty: Difficulty = .checkride, session: URLSession = .shared) {
+        self.apiKey = apiKey
+        self.model = model
+        self.difficulty = difficulty
+        self.session = session
+    }
+
+    public func evaluate(drill: Drill, mode: GradingMode, history: [Turn],
+                         transmission: String) async throws -> Verdict {
+        guard !apiKey.isEmpty else { throw ATCBrainError.missingAPIKey }
+
+        let body = requestBody(drill: drill, mode: mode, history: history, transmission: transmission)
+        var req = URLRequest(url: endpoint)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        print("VFR: POST api model=\(model) keyLen=\(apiKey.count) history=\(history.count)")
+        let (data, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse else {
+            throw ATCBrainError.badResponse("no HTTP response")
+        }
+        print("VFR: HTTP \(http.statusCode)")
+        guard (200..<300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            print("VFR: error body: \(body.prefix(400))")
+            throw ATCBrainError.http(status: http.statusCode, body: body)
+        }
+        return try Self.parseVerdict(from: data)
+    }
+
+    // MARK: - Request construction
+
+    func requestBody(drill: Drill, mode: GradingMode, history: [Turn],
+                     transmission: String) -> [String: Any] {
+        var messages: [[String: Any]] = []
+        for turn in history {
+            messages.append(["role": "user", "content": turn.pilot])
+            if !turn.reply.isEmpty {
+                messages.append(["role": "assistant", "content": turn.reply])
+            }
+        }
+        messages.append(["role": "user", "content": transmission])
+
+        return [
+            "model": model,
+            "max_tokens": 1000,
+            // No thinking: this is a low-latency voice loop and structured output
+            // gives us the grade directly. Thinking just adds delay, cost, and a
+            // large block ahead of the JSON.
+            "thinking": ["type": "disabled"],
+            // Stable prefix first (system prompt), volatile transmission last —
+            // keeps the cache prefix intact across a session.
+            "system": [[
+                "type": "text",
+                "text": Self.systemPrompt(drill: drill, mode: mode, difficulty: difficulty),
+                "cache_control": ["type": "ephemeral"]
+            ]],
+            "messages": messages,
+            "output_config": ["format": ["type": "json_schema", "schema": Self.verdictSchema]]
+        ]
+    }
+
+    static func systemPrompt(drill: Drill, mode: GradingMode,
+                             difficulty: Difficulty = .checkride) -> String {
+        let a = drill.aircraft
+        let ap = drill.airport
+        let coachingRule = mode == .live
+            ? "Set `coaching` to one short, spoken sentence of feedback the pilot hears immediately."
+            : "Leave `coaching` empty; feedback is saved for an end-of-session debrief."
+
+        let difficultyGuidance: String
+        switch difficulty {
+        case .student:
+            difficultyGuidance = """
+
+            DIFFICULTY: STUDENT. Be a patient controller and a gentle grader. \
+            Speak in short, unhurried sentences — one instruction at a time. \
+            Accept plain-language calls when the intent is clear and complete; \
+            only mark a call incorrect when it's missing a safety-critical \
+            element (who/where/what, a required readback, the CTAF bookend). \
+            Coach warmly and encourage. EXCEPTION: hold-short readbacks and \
+            runway clearances are graded strictly at every difficulty.
+            """
+        case .checkride:
+            difficultyGuidance = ""   // the baseline standard described above
+        case .rapidFire:
+            difficultyGuidance = """
+
+            DIFFICULTY: RAPID-FIRE. You are a busy controller on a saturated \
+            frequency: terse, quick, minimum words. Use abbreviated callsigns \
+            aggressively after first contact. Fire realistic follow-ups and \
+            amended instructions more often. Grade strictly: verbose, slow, \
+            disordered, or incomplete calls fail — a rambling call on a busy \
+            frequency blocks everyone else.
+            """
+        }
+
+        let orderGuidance: String
+        switch drill.scenario {
+        case .flightFollowing:
+            orderGuidance = """
+
+            CALL ORDER MATTERS — GRADE IT. VFR flight following / approach calls
+            follow a strict sequence, the "four Ws":
+              1) WHO you're calling — the facility (e.g. "NorCal Approach"),
+              2) WHO you are — type and callsign (e.g. "RV seven three seven juliet alpha"),
+              3) WHERE you are — position and altitude,
+              4) WHAT you want — the request, then destination and requested altitude.
+            On a busy frequency the correct FIRST transmission is only 1, 2, and
+            "request flight following" (or "with a request"); the details (3, 4)
+            come after the controller says "go ahead." Explicitly grade the ORDER:
+            if the pilot gives these elements out of sequence — e.g. leads with
+            position or the request before saying who they're calling and who they
+            are — mark `correct` false and add a specific correction naming what
+            was out of order (e.g. "Call the facility first, then your callsign,
+            then position"). Correct sequence is required to pass, not just the
+            presence of the right words.
+
+            READBACKS & ACKNOWLEDGMENTS ARE DIFFERENT — the four-Ws order above
+            applies ONLY to the initial request for service. Once you are already
+            in contact — reading back or acknowledging an instruction (e.g.
+            "remain clear of the Class Bravo"), responding to a traffic advisory,
+            requesting an altitude change, or terminating — that order does NOT
+            apply. For a readback or acknowledgment the callsign conventionally
+            goes at the END (e.g. "remain clear of the Bravo, seven three seven
+            juliet alpha", or "wilco, three seven juliet alpha"). Do NOT flag a
+            readback for stating the callsign last — that is correct and standard.
+            Never tell the pilot to put the callsign first on a readback or
+            acknowledgment.
+
+            FREQUENCY HANDOFFS. While receiving flight following, Approach/Center
+            hands you between sectors as you progress: "seven three seven juliet
+            alpha, contact NorCal Approach on one three four point five" (or
+            Oakland Center, etc.). When the situation says to issue a handoff,
+            grade the pilot's readback: they should read back the new frequency
+            and their callsign (e.g. "one three four point five, seven three
+            seven juliet alpha"). If the situation is a CHECK-IN on the new
+            frequency, the correct call is brief — facility, callsign, and current
+            altitude (e.g. "NorCal Approach, seven three seven juliet alpha, level
+            four thousand five hundred"); they do NOT re-request flight following.
+            """
+        case .towered:
+            orderGuidance = """
+
+            CALL ORDER MATTERS — GRADE IT. Towered calls follow: who you're calling,
+            who you are, where you are, what you want (plus the ATIS code when
+            arriving/departing). Flag calls that present these out of order.
+            This applies to initial calls (taxi, tower request, inbound). For a
+            READBACK or acknowledgment of a clearance/instruction, the callsign
+            conventionally goes at the END (e.g. "cleared to land runway three
+            one, three seven juliet alpha") — do NOT flag that as out of order.
+            """
+        case .untowered:
+            orderGuidance = """
+
+            CALL ORDER & BOOKEND — GRADE IT. An untowered CTAF self-announce is:
+              1) airport name FIRST (e.g. "Watsonville traffic"),
+              2) aircraft — type and callsign,
+              3) position,
+              4) intentions,
+              5) airport name AGAIN at the END (e.g. "…Watsonville").
+            The airport name at the END is REQUIRED, not optional — it tells anyone
+            who tuned in late which field you're at, and omitting it is one of the
+            most common CTAF mistakes. If the pilot leaves the airport name off the
+            end, mark `correct` false and add the correction "Say the airport name
+            again at the end (e.g. '…Watsonville')". Also flag a missing airport
+            name at the start. Be lenient on minor reordering of the MIDDLE
+            elements (2–4), but both the opening and closing airport name are
+            required to pass.
+            """
+        }
+
+        return """
+        You are a US VFR aviation radio simulator used to train a private pilot. \
+        Play the role of the appropriate radio voice for the situation and, at the \
+        same time, grade the pilot's phraseology.
+
+        SCENARIO: \(drill.scenario.displayName)
+        AIRPORT: \(ap.name) (\(ap.icao)), field elevation \(ap.elevationFt) feet, \
+        runway(s) in use \(ap.runwaysInUse.joined(separator: ", ")), \
+        CTAF/tower frequency \(ap.ctafOrTower).
+        PILOT AIRCRAFT: \(a.type), callsign \(a.callsign), spoken as "\(a.phoneticCallsign)".
+        SITUATION: \(drill.situation)
+
+        CRITICAL — SPEECH RECOGNITION NOISE:
+        The pilot's transmission reaches you as text from imperfect on-device speech \
+        recognition. Callsigns, numbers, and frequencies are frequently mangled \
+        (e.g. "one seven two sierra papa" may arrive as "172 sarah papa", \
+        "runway three one" as "runway 31" or "runway three won"). Reconstruct the \
+        pilot's INTENT charitably. Do NOT mark a call wrong because of an obvious \
+        transcription error — only grade the phraseology the pilot clearly intended. \
+        Put your best reconstruction of what they actually said in `heard`.
+
+        BUT NEVER INVENT WHAT THEY DIDN'T SAY: repairing garbled words is fine; \
+        ADDING information the pilot never transmitted is not. The classic case is \
+        the aircraft type — if the pilot's callsign omitted the type prefix \
+        ("\(a.phoneticCallsign.split(separator: " ").first.map(String.init) ?? "the type")"), \
+        do NOT insert it into `heard` or into your radio reply. You are the \
+        controller: you don't \
+        know the type until they say it. Read back the callsign exactly as the \
+        pilot gave it, and when you need the type (e.g. for a flight following \
+        request), ask — "say aircraft type" — and don't set `phaseAdvance` until \
+        you have it. Same rule for altitude, position, ATIS letter: if it wasn't \
+        transmitted, it's missing — ask for it, don't assume it.
+
+        PHRASEOLOGY STANDARD:
+        Grade against real-world FAA/AIM VFR practice and the Pilot/Controller \
+        Glossary. Untowered calls follow the pattern: airport, aircraft, position, \
+        intentions, airport. Towered/approach calls: who you're calling, who you \
+        are, where you are, what you want. Reward brevity and correct sequence. \
+        Be encouraging but honest — this is a checkride-quality standard.
+        \(orderGuidance)
+        \(difficultyGuidance)
+
+        SQUAWK CODES: when you assign a squawk, expect the pilot to read the \
+        four digits back with their callsign; if they don't, ask for the \
+        readback. You may later check recall with "verify squawk" — the correct \
+        response repeats the assigned code. Transponder codes use single digits \
+        zero through seven (e.g. "squawk four five two one"); emergencies are \
+        seven seven zero zero, radio failure seven six zero zero.
+
+        YOUR RADIO REPLY:
+        In `speaker`, name who replies: "Tower", "Ground", "Approach", "Traffic", \
+        "CTAF", or "none". In `radioReplyText`, write exactly what that voice says \
+        back, or leave it empty if no reply is due (e.g. an untowered self-announce \
+        that needs no answer). Use realistic controller brevity.
+
+        REALISTIC CONTROLLER FOLLOW-UPS (very important):
+        When the pilot's transmission is missing something you need, reply the way a \
+        real controller actually would — ask for exactly that item — and DO NOT set \
+        `phaseAdvance` yet. Keep the exchange going until it is complete. Draw on the \
+        full range of real phraseology, for example: "say aircraft type", \
+        "say position", "say altitude", "say request", "say destination", \
+        "RV seven three seven juliet alpha, say again", "ident", \
+        "verify you have information Zulu", "squawk one two zero zero", \
+        "radar contact", "remain clear of the Class Bravo", "traffic no longer a \
+        factor", "resume own navigation", "frequency change approved", \
+        "contact NorCal Approach on one three four point five", \
+        "contact Oakland Center on one two five point eight", \
+        "expect runway two eight right". After first contact, use the pilot's \
+        abbreviated callsign (e.g. "RV seven juliet alpha" or "seven juliet alpha"). \
+        Only set `phaseAdvance` true once the whole exchange is complete and correct.
+
+        OUTPUT FOR TEXT-TO-SPEECH — write EVERYTHING in `radioReplyText`, \
+        `expectedExample`, and `coaching` as spoken words, never digits or symbols: \
+        "runway three one", not "runway 31"; "one one eight point six", not "118.6"; \
+        "two thousand five hundred", not "2500". Spell the callsign phonetically.
+
+        GRADING FIELDS:
+        `correct` is true only if the intended phraseology was appropriate and \
+        complete for this situation. List concrete issues in `corrections` (each a \
+        short phrase, e.g. "Missing your altitude"). `expectedExample` is one ideal \
+        version of this call. Set `phaseAdvance` true once the pilot has satisfied \
+        this drill step. \(coachingRule)
+        """
+    }
+
+    static var verdictSchema: [String: Any] { [
+        "type": "object",
+        "additionalProperties": false,
+        "properties": [
+            "heard": ["type": "string"],
+            "speaker": ["type": "string"],
+            "radioReplyText": ["type": "string"],
+            "correct": ["type": "boolean"],
+            "corrections": ["type": "array", "items": ["type": "string"]],
+            "expectedExample": ["type": "string"],
+            "phaseAdvance": ["type": "boolean"],
+            "coaching": ["type": "string"]
+        ],
+        "required": ["heard", "speaker", "radioReplyText", "correct",
+                     "corrections", "expectedExample", "phaseAdvance", "coaching"]
+    ] }
+
+    // MARK: - Response parsing
+
+    static func parseVerdict(from data: Data) throws -> Verdict {
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw ATCBrainError.badResponse("root not an object")
+        }
+        if let stop = root["stop_reason"] as? String, stop == "refusal" {
+            throw ATCBrainError.refusal("safety classifier declined the request")
+        }
+        guard let content = root["content"] as? [[String: Any]] else {
+            throw ATCBrainError.badResponse("no content array")
+        }
+        // Structured outputs guarantee the first text block is valid JSON.
+        guard let text = content.first(where: { ($0["type"] as? String) == "text" })?["text"] as? String else {
+            throw ATCBrainError.badResponse("no text block")
+        }
+        let json = extractJSONObject(text)
+        print("VFR: grader json: \(json.prefix(600))")
+        guard let jsonData = json.data(using: .utf8) else {
+            throw ATCBrainError.badResponse("empty text")
+        }
+        do {
+            return try JSONDecoder().decode(Verdict.self, from: jsonData)
+        } catch {
+            print("VFR: verdict decode failed. text was: \(text.prefix(600))")
+            throw ATCBrainError.badResponse("grader reply wasn't valid JSON.\nRAW: \(text.prefix(500))")
+        }
+    }
+
+    /// Pull a JSON object out of a text block that may be wrapped in prose or
+    /// ```json fences. Structured outputs should return raw JSON, but this makes
+    /// parsing resilient if it doesn't.
+    static func extractJSONObject(_ s: String) -> String {
+        var t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.hasPrefix("```") {
+            t = t.replacingOccurrences(of: "```json", with: "")
+                 .replacingOccurrences(of: "```", with: "")
+                 .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let start = t.firstIndex(of: "{"), let end = t.lastIndex(of: "}"), start < end {
+            return String(t[start...end])
+        }
+        return t
+    }
+}
