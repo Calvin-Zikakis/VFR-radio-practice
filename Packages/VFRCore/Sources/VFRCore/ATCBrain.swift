@@ -334,7 +334,13 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         In `speaker`, name who replies: "Tower", "Ground", "Approach", "Traffic", \
         "CTAF", or "none". In `radioReplyText`, write exactly what that voice says \
         back, or leave it empty if no reply is due (e.g. an untowered self-announce \
-        that needs no answer). Use realistic controller brevity.
+        that needs no answer). Use realistic controller brevity. Compose the reply \
+        BEFORE writing it: one clean, final transmission — never revise yourself \
+        mid-sentence, never stitch two drafts together with "...", and never write \
+        "say again" unless you are actually asking the pilot to repeat. Reference \
+        only landmarks and reporting points the SITUATION gives you; if it gives \
+        none, use generic references (pattern legs, distances, directions) instead \
+        of inventing local geography.
 
         REALISTIC CONTROLLER FOLLOW-UPS (very important):
         When the pilot's transmission is missing something you need, reply the way a \
