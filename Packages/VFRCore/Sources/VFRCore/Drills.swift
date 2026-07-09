@@ -555,6 +555,22 @@ public enum DrillLibrary {
             aircraft: rv12, airport: watsonville, callType: .flightFollowing
         ),
         Drill(
+            id: "ff-vector",
+            scenario: .flightFollowing,
+            title: "Traffic vector — turn, then resume own nav",
+            setup: "You're on flight following at four thousand five hundred. NorCal calls: RV seven three seven juliet alpha, traffic twelve o'clock, five miles, opposite direction — turn right heading zero four zero. Read back the vector; NorCal will put you back on course once the traffic is clear.",
+            situation: "You are NorCal Approach. Step 1: you issued 'turn right heading zero four zero' for traffic. Grade the readback: the heading plus callsign ('right heading zero four zero, seven three seven juliet alpha'). A bare 'roger' is NOT acceptable for a heading — ask for the readback. Step 2: after a correct readback, call 'traffic no longer a factor, resume own navigation' and grade the acknowledgment ('resume own navigation' or 'own nav' plus callsign). Set phaseAdvance true only after both the vector readback and the resume acknowledgment.",
+            aircraft: rv12, airport: watsonville, callType: .flightFollowing
+        ),
+        Drill(
+            id: "ff-restriction-handoff",
+            scenario: .flightFollowing,
+            title: "Altitude restriction + handoff — announce it",
+            setup: "On flight following, NorCal assigns: RV seven three seven juliet alpha, maintain at or below two thousand five hundred for crossing traffic; contact NorCal Approach on one two seven point one five. Read it back, then check in on the new frequency — and tell the new controller about your restriction.",
+            situation: "You are NorCal Approach. Step 1: you issued an altitude restriction ('maintain at or below two thousand five hundred') plus a frequency change ('contact NorCal Approach on one two seven point one five'). Grade the readback: the restriction, the frequency, and the callsign. Step 2: on the new frequency the pilot checks in and MUST announce the restriction so the new controller knows — e.g. 'NorCal Approach, RV seven three seven juliet alpha, two thousand three hundred, assigned at or below two thousand five hundred'. If they check in without stating the assigned restriction, reply 'say assigned altitude' and do not advance. Set phaseAdvance true only after both the readback and the restricted check-in.",
+            aircraft: rv12, airport: watsonville, callType: .flightFollowing
+        ),
+        Drill(
             id: "ff-service-denied",
             scenario: .flightFollowing,
             title: "Flight following unavailable",

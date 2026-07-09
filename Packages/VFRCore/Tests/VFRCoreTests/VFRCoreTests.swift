@@ -194,6 +194,74 @@ import Foundation
         .contains { $0.title.contains("Squawk") })
 }
 
+// MARK: - Drill randomizer (runways & altitudes)
+
+@Test func runwayReciprocalsAreComputedCorrectly() {
+    #expect(DrillRandomizer.reciprocal("20") == "2")
+    #expect(DrillRandomizer.reciprocal("31") == "13")
+    #expect(DrillRandomizer.reciprocal("28R") == "10L")
+    #expect(DrillRandomizer.reciprocal("25R") == "7L")
+    #expect(DrillRandomizer.reciprocal("30") == "12")
+    #expect(DrillRandomizer.reciprocal("32") == "14")
+    #expect(DrillRandomizer.reciprocal("36") == "18")
+}
+
+@Test func runwayFlipRewritesTextAndAirportConsistently() {
+    let taxi = DrillLibrary.drills(for: .untowered).first { $0.id == "u-taxi" }!
+    let flipped = DrillRandomizer.vary(taxi, flipRunway: true, altitudeOffset: 0)
+    // Watsonville 20 becomes 2 — spoken, digit, and prompt-facing runway list.
+    #expect(!flipped.setup.contains("two zero"))
+    #expect(flipped.setup.contains("runway two"))
+    #expect(!flipped.situation.contains("runway 20"))
+    #expect(flipped.situation.contains("runway 2"))
+    #expect(flipped.airport.runwaysInUse == ["2"])
+}
+
+@Test func altitudeShiftIsConsistentAndNeverChains() {
+    var drill = DrillLibrary.drills(for: .flightFollowing).first { $0.id == "ff-request" }!
+    drill.setup = "Climbing through two thousand five hundred to four thousand five hundred."
+    drill.situation = "Pilot at 2,500 climbing to 4,500."
+    let shifted = DrillRandomizer.vary(drill, flipRunway: false, altitudeOffset: 1000)
+    // 2,500 → 3,500 exactly once; it must NOT chain through the 3,500 → 4,500 pair.
+    #expect(shifted.setup.contains("three thousand five hundred"))
+    #expect(shifted.setup.contains("five thousand five hundred"))
+    #expect(shifted.situation.contains("3,500"))
+    #expect(shifted.situation.contains("5,500"))
+    #expect(!shifted.situation.contains("4,500"))
+}
+
+@Test func sessionVariationFlipsAnAirportConsistentlyAcrossDrills() {
+    // All KWVI untowered drills in one session must agree on the runway.
+    for _ in 0..<10 {
+        let varied = DrillRandomizer.vary(DrillLibrary.drills(for: .untowered))
+        let wvi = varied.filter { $0.airport.icao == "KWVI" }
+        let runways = Set(wvi.map { $0.airport.runwaysInUse.first ?? "" })
+        #expect(runways.count == 1, "one runway per airport per session")
+    }
+}
+
+// MARK: - New FF interactions
+
+@Test func vectorAndRestrictionDrillsExist() {
+    let ff = DrillLibrary.drills(for: .flightFollowing)
+    let vector = ff.first { $0.id == "ff-vector" }
+    let restriction = ff.first { $0.id == "ff-restriction-handoff" }
+    #expect(vector != nil && vector!.situation.contains("resume own navigation"))
+    #expect(restriction != nil && restriction!.situation.contains("announce the restriction")
+            || restriction!.situation.contains("ANNOUNCE the restriction"))
+}
+
+@Test func tripIncludesTrafficVectorWhenFFOn() {
+    let plan = TripPlan(stops: DrillLibrary.defaultTripStops,
+                        flightFollowing: true, patternWork: false)
+    let drills = TripBuilder.drills(for: plan, aircraft: DrillLibrary.defaultAircraft)
+    #expect(drills.contains { $0.title == "Traffic vector" })
+    let noFF = TripBuilder.drills(for: TripPlan(stops: plan.stops, flightFollowing: false,
+                                                patternWork: false),
+                                  aircraft: DrillLibrary.defaultAircraft)
+    #expect(!noFF.contains { $0.title == "Traffic vector" })
+}
+
 // MARK: - System prompt
 
 @Test func systemPromptCarriesTheKeyFacts() {
