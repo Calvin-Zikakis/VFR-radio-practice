@@ -354,6 +354,17 @@ final class HandsFreeController: ObservableObject {
     private func briefCurrent() async {
         guard let drill = await session?.currentDrill else { await finish(); return }
         currentSetup = drill.setup
+        // Bias the recognizer toward this drill's proper nouns so it stops
+        // hearing "Julia" for "juliet" and "Reid Hillview" as random words.
+        speech.contextualPhrases = [
+            drill.aircraft.phoneticCallsign,
+            drill.aircraft.callsign,
+            drill.airport.name,
+            "\(drill.airport.name) traffic",
+            "\(drill.airport.name) Tower",
+            "\(drill.airport.name) Ground",
+            "NorCal Approach",
+        ] + drill.airport.runwaysInUse.map { "runway \(TripBuilder.spokenRunway($0))" }
         progressText = await progressLabel()
         append(.instructor, drill.setup)
         phase = .briefing

@@ -23,6 +23,31 @@ final class SpeechRecognizer: NSObject, ObservableObject {
     @Published private(set) var isListening = false
     @Published private(set) var partialText = ""
 
+    /// Session-specific phrases (callsign, airport names) the controller sets
+    /// so the recognizer biases toward them instead of guessing homophones.
+    var contextualPhrases: [String] = []
+
+    /// Radio vocabulary the on-device recognizer reliably mangles without a
+    /// bias list: "VFR" → "BFR", "niner" → "diner", "juliet" → "Julia",
+    /// "holding short" → "Holden short".
+    private static let aviationVocabulary: [String] = [
+        "VFR", "IFR", "CTAF", "ATIS", "UNICOM",
+        "niner", "juliet", "alpha", "bravo", "charlie", "delta", "echo",
+        "foxtrot", "golf", "hotel", "india", "kilo", "lima", "mike",
+        "november", "oscar", "papa", "quebec", "romeo", "sierra", "tango",
+        "uniform", "victor", "whiskey", "x-ray", "yankee", "zulu",
+        "holding short", "line up and wait", "cleared for takeoff",
+        "cleared to land", "left downwind", "right downwind", "left base",
+        "right base", "final", "crosswind", "upwind", "go around",
+        "touch and go", "full stop", "the option", "traffic in sight",
+        "negative contact", "looking for traffic", "squawk", "ident",
+        "radar contact", "flight following", "frequency change approved",
+        "altimeter", "wilco", "unable", "say again", "roger",
+        "taxiing", "back-taxi", "midfield", "straight-in", "overhead",
+        "departing", "inbound", "outbound", "maintain", "climbing", "descending",
+        "minimum fuel", "mayday", "pan-pan", "resume own navigation"
+    ]
+
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     private let audioEngine = AVAudioEngine()
     private var request: SFSpeechAudioBufferRecognitionRequest?
@@ -138,6 +163,7 @@ final class SpeechRecognizer: NSObject, ObservableObject {
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
+        request.contextualStrings = Self.aviationVocabulary + contextualPhrases
         self.request = request
 
         print("VFR: startEngine — activating audio session")

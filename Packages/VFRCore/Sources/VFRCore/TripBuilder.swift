@@ -214,7 +214,7 @@ public enum TripBuilder {
     }
 
     /// "31" → "three one", "28R" → "two eight right", "20" → "two zero".
-    static func spokenRunway(_ r: String) -> String {
+    public static func spokenRunway(_ r: String) -> String {
         let map: [Character: String] = [
             "0": "zero", "1": "one", "2": "two", "3": "three", "4": "four",
             "5": "five", "6": "six", "7": "seven", "8": "eight", "9": "niner",
