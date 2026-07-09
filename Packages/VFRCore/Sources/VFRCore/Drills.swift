@@ -608,9 +608,9 @@ public enum DrillLibrary {
         Drill(
             id: "ff-squawk-verify",
             scenario: .flightFollowing,
-            title: "Squawk assignment — read back and verify",
-            setup: "NorCal Approach assigns: RV seven three seven juliet alpha, squawk four five two one. Read it back — and stay sharp: they'll verify it a moment later.",
-            situation: "You are NorCal Approach. Step 1: you assigned 'squawk four five two one' — grade the readback: the four digits plus callsign ('four five two one, seven three seven juliet alpha'). Step 2: after a correct readback, test recall — say 'seven juliet alpha, verify squawk four five two one' (or ask 'say assigned squawk') and grade that they repeat the correct code. Only set phaseAdvance true once they've both read the code back and correctly verified it. If they read back wrong digits, correct them immediately — a wrong squawk is how you become somebody else on the scope.",
+            title: "Squawk assignment readback",
+            setup: "NorCal Approach assigns: RV seven three seven juliet alpha, squawk four five two one and ident. Read it back.",
+            situation: "You are NorCal Approach. You assigned 'squawk four five two one and ident'. Grade the readback: the four digits plus callsign ('four five two one and ident, seven three seven juliet alpha'). If they read back wrong digits, correct them immediately — a wrong squawk is how you become somebody else on the scope. Advance on a correct readback; after it, reply 'radar contact'.",
             aircraft: rv12, airport: watsonville, callType: .flightFollowing
         ),
         Drill(

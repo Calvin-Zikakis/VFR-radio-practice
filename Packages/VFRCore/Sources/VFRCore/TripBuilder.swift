@@ -50,7 +50,6 @@ public enum TripBuilder {
 
         if plan.flightFollowing {
             flightFollowingRequest(from: origin, destination: destination.name, add: add)
-            squawkVerify(near: origin, add: add)
             trafficAdvisory(near: origin, add: add)
             trafficVector(near: origin, add: add)
             frequencyHandoff(near: origin, add: add)
@@ -176,13 +175,6 @@ public enum TripBuilder {
         add(.flightFollowing, "Traffic advisory",
             "You're on flight following with NorCal Approach. NorCal calls: traffic, two o'clock, three miles, opposite direction, a Cirrus, altitude indicates three thousand five hundred. Respond appropriately.",
             "You are NorCal Approach. You just issued a traffic advisory (2 o'clock, 3 miles, opposite direction, a Cirrus at 3,500). Grade the pilot's response: callsign plus 'looking', 'traffic in sight', or 'negative contact'. Reply only if a follow-up is warranted.",
-            ap)
-    }
-
-    private static func squawkVerify(near ap: Airport, add: Add) {
-        add(.flightFollowing, "Squawk readback & verify",
-            "NorCal Approach assigns: squawk four five two one. Read it back — and be ready, they may verify it a moment later.",
-            "You are NorCal Approach. You assigned 'squawk four five two one' as part of flight following. Step 1: grade the readback — the four digits plus callsign. Step 2: after a correct readback, say 'verify squawk four five two one' (or 'say assigned squawk') and grade that they repeat the correct code. Only set phaseAdvance true once both are done; if the digits come back wrong, correct them immediately.",
             ap)
     }
 

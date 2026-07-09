@@ -183,11 +183,13 @@ import Foundation
     #expect(checkride.contains("verify squawk"))
 }
 
-@Test func tripsIncludeSquawkVerifyWithFlightFollowing() {
+@Test func tripsHaveNoStandaloneSquawkPhase() {
+    // The FF-request phase already assigns and reads back a squawk; a separate
+    // verify-it-again phase was redundant (user feedback) and was removed.
     let plan = TripPlan(stops: DrillLibrary.defaultTripStops,
                         flightFollowing: true, patternWork: false)
     let drills = TripBuilder.drills(for: plan, aircraft: DrillLibrary.defaultAircraft)
-    #expect(drills.contains { $0.title.contains("Squawk") })
+    #expect(!drills.contains { $0.title.contains("Squawk") })
     let noFF = TripPlan(stops: DrillLibrary.defaultTripStops,
                         flightFollowing: false, patternWork: false)
     #expect(!TripBuilder.drills(for: noFF, aircraft: DrillLibrary.defaultAircraft)
