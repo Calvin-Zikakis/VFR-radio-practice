@@ -139,11 +139,56 @@ public enum DrillLibrary {
     /// drill's default aircraft so an entire session uses one consistent plane
     /// (you fly one airplane per flight), and the on-screen banner can name it.
     public static func drills(for scenario: ScenarioType, aircraft: Aircraft) -> [Drill] {
-        drills(for: scenario).map { drill in
-            var d = drill
-            d.aircraft = aircraft
-            return d
+        drills(for: scenario).map { retarget($0, to: aircraft) }
+    }
+
+    /// Re-aim a drill at a different airplane: swaps the `aircraft` field AND
+    /// rewrites any quoted callsigns in the briefing/situation text (many
+    /// drills quote ATC addressing the pilot — "Tower says: RV seven three
+    /// seven juliet alpha, …" — which must match the plane actually flown).
+    static func retarget(_ drill: Drill, to plane: Aircraft) -> Drill {
+        var d = drill
+        let old = drill.aircraft
+        d.aircraft = plane
+        guard old.callsign != plane.callsign else { return d }
+
+        var subs: [(String, String)] = [
+            (old.phoneticCallsign, plane.phoneticCallsign),                 // "RV seven three seven juliet alpha"
+            (bareCallsign(old), bareCallsign(plane)),                       // "seven three seven juliet alpha"
+            (shortCallsign(old), shortCallsign(plane)),                     // "seven juliet alpha"
+            (old.callsign, plane.callsign),                                 // "N737JA"
+        ]
+        // Tail number without the leading N ("737JA") appears in a few texts.
+        if old.callsign.hasPrefix("N") && plane.callsign.hasPrefix("N") {
+            subs.append((String(old.callsign.dropFirst()), String(plane.callsign.dropFirst())))
         }
+        for (from, to) in subs where from != to && !from.isEmpty {
+            d.setup = d.setup.replacingOccurrences(of: from, with: to)
+            d.situation = d.situation.replacingOccurrences(of: from, with: to)
+        }
+        return d
+    }
+
+    private static let digitWords: Set<String> = [
+        "zero", "one", "two", "three", "four", "five",
+        "six", "seven", "eight", "niner", "nine"]
+
+    /// The phonetic without its type prefix ("RV …" → "…"). If the phonetic
+    /// starts straight into digits (no prefix), it's returned unchanged.
+    static func bareCallsign(_ a: Aircraft) -> String {
+        let words = a.phoneticCallsign.split(separator: " ").map(String.init)
+        guard let first = words.first, !digitWords.contains(first.lowercased()) else {
+            return a.phoneticCallsign
+        }
+        return words.dropFirst().joined(separator: " ")
+    }
+
+    /// The abbreviated form controllers use after first contact — the last
+    /// three phonetic elements ("seven juliet alpha").
+    static func shortCallsign(_ a: Aircraft) -> String {
+        let words = a.phoneticCallsign.split(separator: " ").map(String.init)
+        guard words.count >= 3 else { return a.phoneticCallsign }
+        return words.suffix(3).joined(separator: " ")
     }
 
     /// Classify a library drill into a `CallType`. Prefers the drill's explicit
@@ -169,11 +214,7 @@ public enum DrillLibrary {
     /// all flown in `aircraft`. Used by the "mix" session mode.
     public static func drills(matching types: Set<CallType>, aircraft: Aircraft) -> [Drill] {
         all.filter { types.contains(callType(for: $0)) }
-           .map { drill in
-               var d = drill
-               d.aircraft = aircraft
-               return d
-           }
+           .map { retarget($0, to: aircraft) }
     }
 
     // MARK: - Untowered (CTAF self-announce)

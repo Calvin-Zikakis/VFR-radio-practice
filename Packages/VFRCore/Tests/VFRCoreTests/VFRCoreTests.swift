@@ -291,6 +291,49 @@ import Foundation
     #expect(DrillRandomizer.alternateRunways["KRHV"] == nil)
 }
 
+// MARK: - Aircraft retargeting
+
+@Test func retargetRewritesQuotedCallsignsEverywhere() {
+    let cirrus = Aircraft(callsign: "N523CD",
+                          phoneticCallsign: "Cirrus five two three charlie delta",
+                          type: "Cirrus SR22")
+    // Every drill and every generated trip phase, flown as the Cirrus, must
+    // never mention the RV's callsign in any form.
+    let rvForms = ["seven three seven juliet alpha", "seven juliet alpha", "N737JA", "737JA"]
+    var texts: [String] = []
+    for scenario in ScenarioType.allCases {
+        for d in DrillLibrary.drills(for: scenario, aircraft: cirrus) {
+            texts.append(d.setup); texts.append(d.situation)
+            #expect(d.aircraft.callsign == "N523CD")
+        }
+    }
+    let trip = TripPlan(stops: DrillLibrary.defaultTripStops, flightFollowing: true, patternWork: true)
+    for d in TripBuilder.drills(for: trip, aircraft: cirrus) {
+        texts.append(d.setup); texts.append(d.situation)
+    }
+    for text in texts {
+        for form in rvForms {
+            #expect(!text.contains(form), "leaked RV callsign form '\(form)' in: \(text.prefix(80))")
+        }
+    }
+    // And the LUAW briefing now addresses the Cirrus.
+    let luaw = DrillLibrary.drills(for: .towered, aircraft: cirrus).first { $0.id == "t-luaw" }!
+    #expect(luaw.setup.contains("Cirrus five two three charlie delta"))
+}
+
+@Test func retargetLeavesOtherTrafficAlone() {
+    let cirrus = Aircraft(callsign: "N523CD",
+                          phoneticCallsign: "Cirrus five two three charlie delta",
+                          type: "Cirrus SR22")
+    // The wake-turbulence drill's "Boeing seven three seven" is traffic, not
+    // the pilot — it must survive retargeting.
+    let wake = DrillLibrary.drills(for: .towered, aircraft: cirrus).first { $0.id == "t-wake-turbulence" }!
+    #expect(wake.setup.contains("Boeing seven three seven"))
+    // The negotiation drill's Cherokee traffic keeps its own callsign.
+    let negotiate = DrillLibrary.drills(for: .untowered, aircraft: cirrus).first { $0.id == "u-negotiate-traffic" }!
+    #expect(negotiate.situation.contains("Cherokee four eight two zero lima"))
+}
+
 // MARK: - System prompt
 
 @Test func systemPromptCarriesTheKeyFacts() {

@@ -51,8 +51,8 @@ public enum TripBuilder {
         if plan.flightFollowing {
             flightFollowingRequest(from: origin, destination: destination.name, add: add)
             trafficAdvisory(near: origin, add: add)
-            trafficVector(near: origin, add: add)
-            frequencyHandoff(near: origin, add: add)
+            trafficVector(near: origin, plane: aircraft, add: add)
+            frequencyHandoff(near: origin, plane: aircraft, add: add)
         }
 
         // Intermediate stops: arrive, touch-and-go, continue.
@@ -178,17 +178,19 @@ public enum TripBuilder {
             ap)
     }
 
-    private static func trafficVector(near ap: Airport, add: Add) {
+    private static func trafficVector(near ap: Airport, plane: Aircraft, add: Add) {
+        let cs = DrillLibrary.bareCallsign(plane)
         add(.flightFollowing, "Traffic vector",
-            "NorCal calls: seven three seven juliet alpha, traffic twelve o'clock, five miles, opposite direction — turn right heading zero four zero. Read back the vector; you'll be put back on course once clear.",
+            "NorCal calls: \(cs), traffic twelve o'clock, five miles, opposite direction — turn right heading zero four zero. Read back the vector; you'll be put back on course once clear.",
             "You are NorCal Approach. Step 1: you issued 'turn right heading zero four zero' for traffic — grade the readback (heading plus callsign; a bare 'roger' is not acceptable for a heading). Step 2: after a correct readback, call 'traffic no longer a factor, resume own navigation' and grade the acknowledgment (own nav plus callsign). Set phaseAdvance true only after both steps.",
             ap)
     }
 
-    private static func frequencyHandoff(near ap: Airport, add: Add) {
+    private static func frequencyHandoff(near ap: Airport, plane: Aircraft, add: Add) {
+        let cs = DrillLibrary.bareCallsign(plane)
         add(.flightFollowing, "Frequency handoff",
-            "NorCal Approach calls: seven three seven juliet alpha, contact NorCal Approach now on one three four point five. Read back the handoff, then check in on the new frequency.",
-            "You are NorCal Approach handing the pilot to the next sector as they progress. Step 1: read back the new frequency and callsign ('one three four point five, seven three seven juliet alpha'). Step 2, on the new frequency, a brief check-in: facility, callsign, and current altitude — no re-request of flight following. Set phaseAdvance true only once they've read back the handoff AND checked in; otherwise ask for the missing part.",
+            "NorCal Approach calls: \(cs), contact NorCal Approach now on one three four point five. Read back the handoff, then check in on the new frequency.",
+            "You are NorCal Approach handing the pilot to the next sector as they progress. Step 1: read back the new frequency and callsign ('one three four point five, \(cs)'). Step 2, on the new frequency, a brief check-in: facility, callsign, and current altitude — no re-request of flight following. Set phaseAdvance true only once they've read back the handoff AND checked in; otherwise ask for the missing part.",
             ap)
     }
 
