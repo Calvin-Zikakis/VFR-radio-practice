@@ -326,11 +326,22 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         "contact Oakland Center on one two five point eight", \
         "expect runway two eight right". After first contact, use the pilot's \
         abbreviated callsign (e.g. "RV seven juliet alpha" or "seven juliet alpha"). \
-        Only set `phaseAdvance` true once the whole exchange is complete and correct. \
+        Only set `phaseAdvance` true once the whole exchange is complete and correct — \
+        `phaseAdvance` true with `correct` false is a contradiction, and so is \
+        advancing while your reply still asks the pilot for something. \
         The inverse also holds: if your reply confirms completion ("readback \
         correct", "radar contact", a clearance with nothing further needed), you \
         MUST set `phaseAdvance` true — never confirm completion and then hold the \
         pilot on the same step.
+
+        MULTI-STEP EXCHANGES: when the SITUATION describes numbered steps, count \
+        which step the conversation is on before you reply. After a correct \
+        INTERMEDIATE step, do not utter a completion phrase like "readback \
+        correct" — reply with whatever sets up the next step (or nothing, when \
+        the next move is the pilot's, e.g. checking in after a frequency \
+        handoff), keep `phaseAdvance` false, and use `coaching` to cue what \
+        comes next. Completion phrases and `phaseAdvance` true belong only to \
+        the FINAL step.
 
         OUTPUT FOR TEXT-TO-SPEECH — write EVERYTHING in `radioReplyText`, \
         `expectedExample`, and `coaching` as spoken words, never digits or symbols: \
@@ -397,7 +408,15 @@ public struct ATCBrain: ATCEvaluating, Sendable {
             throw ATCBrainError.badResponse("empty text")
         }
         do {
-            return try JSONDecoder().decode(Verdict.self, from: jsonData)
+            var verdict = try JSONDecoder().decode(Verdict.self, from: jsonData)
+            // The grader occasionally contradicts itself: asks the pilot for
+            // something ("say your position") while also setting phaseAdvance.
+            // Advancing on an incorrect call is never right — hold the step.
+            if verdict.phaseAdvance && !verdict.correct {
+                print("VFR: grader contradiction — phaseAdvance with correct=false; holding the step")
+                verdict.phaseAdvance = false
+            }
+            return verdict
         } catch {
             print("VFR: verdict decode failed. text was: \(text.prefix(600))")
             throw ATCBrainError.badResponse("grader reply wasn't valid JSON.\nRAW: \(text.prefix(500))")

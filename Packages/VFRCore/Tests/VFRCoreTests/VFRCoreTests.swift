@@ -425,6 +425,26 @@ import Foundation
     #expect(verdict.speaker == "none")
 }
 
+@Test func contradictoryAdvanceIsClamped() throws {
+    // Seen live: 'say your position' asked over the radio, correct=false,
+    // yet phaseAdvance=true — and the session moved on mid-exchange. An
+    // incorrect call must never advance the step.
+    let inner = """
+    {"heard":"NorCal Approach, RV seven three seven juliet alpha, request flight following",\
+    "speaker":"Approach","radioReplyText":"Seven juliet alpha, say your position.",\
+    "correct":false,"corrections":["Missing your position"],\
+    "expectedExample":"NorCal Approach, RV seven three seven juliet alpha, over Watsonville \
+    at two thousand five hundred, request flight following","phaseAdvance":true,\
+    "coaching":"Give your position."}
+    """
+    let response = """
+    {"stop_reason":"end_turn","content":[{"type":"text","text":\(jsonString(inner))}]}
+    """
+    let verdict = try ATCBrain.parseVerdict(from: Data(response.utf8))
+    #expect(!verdict.correct)
+    #expect(!verdict.phaseAdvance)
+}
+
 @Test func refusalStopReasonThrows() {
     let response = #"{"stop_reason":"refusal","content":[]}"#
     #expect(throws: ATCBrainError.self) {
