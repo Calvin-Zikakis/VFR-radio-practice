@@ -14,6 +14,7 @@
 		4C678DE006D5F5D0D8667514 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6820C4B1007D38D72E98042 /* SettingsStore.swift */; };
 		6071DD026BF8346A8040A6B7 /* AudioSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = DACBE9656E1F9AFF21D0129E /* AudioSession.swift */; };
 		92486D5E91E2B75FD0117737 /* HandsFreeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 389D3CD7438804B418DD948B /* HandsFreeController.swift */; };
+		AEACCC466D19AB7720E885A1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9F0697D7CFD1743A27B2D0F8 /* Assets.xcassets */; };
 		E657D5AAB9CE49CFBAF502B0 /* VFRCore in Frameworks */ = {isa = PBXBuildFile; productRef = 847E4BC1CE040F18CE10D7E8 /* VFRCore */; };
 		F9B7B5D2DBE5050CC6EC167B /* RadioSpeaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B025A48443AC6C2CBA67234 /* RadioSpeaker.swift */; };
 		FA17CAEF1A5634AF950CB5AF /* StatsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9F0D949BB7AE692C0CED2D /* StatsStore.swift */; };
@@ -31,6 +32,7 @@
 		7E70FCEF93CC3DA145A82541 /* SpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognizer.swift; sourceTree = "<group>"; };
 		8423831423582AB0BFB831AF /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		9E9E03E2C0CAD2FD391D00B9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		9F0697D7CFD1743A27B2D0F8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A6820C4B1007D38D72E98042 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		AC602D218986132C8C717C76 /* VFRRadioPracticeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VFRRadioPracticeApp.swift; sourceTree = "<group>"; };
 		DACBE9656E1F9AFF21D0129E /* AudioSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSession.swift; sourceTree = "<group>"; };
@@ -62,6 +64,7 @@
 		CE21B9545EF5D71B5AF62D0B /* App */ = {
 			isa = PBXGroup;
 			children = (
+				9F0697D7CFD1743A27B2D0F8 /* Assets.xcassets */,
 				DACBE9656E1F9AFF21D0129E /* AudioSession.swift */,
 				4B1E25DB4BA138BE0C43E3CB /* ContentView.swift */,
 				389D3CD7438804B418DD948B /* HandsFreeController.swift */,
@@ -102,6 +105,7 @@
 			buildConfigurationList = 5CCD07176F2DF331D9D24C6E /* Build configuration list for PBXNativeTarget "VFRRadioPractice" */;
 			buildPhases = (
 				B9F1F53F11294E0806B97A4D /* Sources */,
+				ED64D725AC4B3885172262A4 /* Resources */,
 				679222D4CF349A696D5842DD /* Frameworks */,
 			);
 			buildRules = (
@@ -152,6 +156,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		ED64D725AC4B3885172262A4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AEACCC466D19AB7720E885A1 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B9F1F53F11294E0806B97A4D /* Sources */ = {
