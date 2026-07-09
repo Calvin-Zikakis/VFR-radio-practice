@@ -102,11 +102,29 @@ public enum DrillLibrary {
         elevationFt: 66, runwaysInUse: ["30"]
     )
 
+    static let reidHillview = Airport(
+        icao: "KRHV", name: "Reid-Hillview",
+        ctafOrTower: "one one niner point eight",
+        elevationFt: 135, runwaysInUse: ["31R"], isTowered: true   // parallel 31L/31R
+    )
+
+    static let sanCarlos = Airport(
+        icao: "KSQL", name: "San Carlos",
+        ctafOrTower: "one one niner point zero",
+        elevationFt: 6, runwaysInUse: ["30"], isTowered: true
+    )
+
+    static let marina = Airport(
+        icao: "KOAR", name: "Marina",
+        ctafOrTower: "one two two point seven",
+        elevationFt: 137, runwaysInUse: ["29"]
+    )
+
     /// Airports you can route a trip through (landable stops; excludes the SFO
     /// Bravo context, which is used only for clearance drills).
     public static let routableAirports: [Airport] =
-        [watsonville, southCounty, hollister, halfMoonBay,
-         salinas, paloAlto, livermore, monterey]
+        [watsonville, southCounty, hollister, halfMoonBay, marina,
+         salinas, paloAlto, livermore, monterey, reidHillview, sanCarlos]
 
     /// A sensible starter route: untowered → towered → back to untowered.
     public static let defaultTripStops: [Airport] = [watsonville, paloAlto, watsonville]
@@ -272,6 +290,14 @@ public enum DrillLibrary {
             setup: "You're on left downwind for runway two zero at Watsonville. A Pilatus announces: Watsonville traffic, Pilatus on the RNAV two zero, five mile final, straight-in runway two zero, Watsonville. Respond so you can sequence safely.",
             situation: "Uncontrolled field (Watsonville). An IFR Pilatus is on a 5-mile straight-in final for runway 20 off the RNAV approach; the pilot is on left downwind for the same runway. Play the Pilatus if a reply is warranted. Grade the pilot's response: announce their position in the pattern, state whether they have the traffic in sight, and state a clear intention that resolves the conflict (e.g. extend downwind and follow the Pilatus, or state they're turning base ahead with adequate spacing — following is the safer choice to coach). The call should be addressed as a CTAF self-announce with the airport name bookend. Coach: straight-in IFR traffic doesn't own the pattern, but courtesy and predictability win.",
             aircraft: rv12, airport: watsonville, callType: .pattern
+        ),
+        Drill(
+            id: "u-oar-inbound",
+            scenario: .untowered,
+            title: "Marina — under the Class Charlie shelf",
+            setup: "You're 10 miles north of Marina at one thousand five hundred, inbound to land. Marina is untowered, but it sits under the Monterey Class Charlie shelf — you're staying below it, so it's a normal CTAF arrival. Make your inbound call.",
+            situation: "Uncontrolled field (Marina, KOAR), which lies beneath the Monterey Class C shelf. The pilot is inbound at 1,500, below the shelf, so no NorCal contact is required — this is a standard CTAF self-announce: airport, aircraft, position and altitude, intentions, airport again (bookend required). If the pilot announces an altitude that would put them IN the shelf, note in coaching that above the shelf floor they'd need two-way contact with NorCal first. No controller reply; pattern traffic may respond.",
+            aircraft: rv12, airport: marina, callType: .arrival
         ),
         Drill(
             id: "u-straightin-etiquette",
@@ -447,6 +473,38 @@ public enum DrillLibrary {
             aircraft: rv12, airport: monterey, callType: .emergency
         ),
         Drill(
+            id: "t-rhv-parallel",
+            scenario: .towered,
+            title: "Parallel runways — Reid-Hillview",
+            setup: "You're 10 miles south of Reid-Hillview at two thousand five hundred, inbound to land with the current information. Reid-Hillview has parallel runways three one left and three one right. Call the tower — and listen carefully for WHICH parallel you get.",
+            situation: "Towered field, you are Reid-Hillview Tower (KRHV, parallel runways 31L/31R). After the pilot's inbound call, clear them: 'make right traffic runway three one right, report midfield'. The readback MUST name the correct parallel — 'three one right', not just 'three one'. If they read back the wrong parallel or drop the left/right, correct them immediately ('negative, runway three one RIGHT') and don't advance. Mention traffic landing the parallel ('traffic is a Cessna on final for the left') to exercise parallel awareness. Advance once they've read back the correct full runway.",
+            aircraft: rv12, airport: reidHillview, callType: .arrival
+        ),
+        Drill(
+            id: "t-sql-spacing",
+            scenario: .towered,
+            title: "Busy Delta — San Carlos spacing",
+            setup: "You're inbound to San Carlos from the south at one thousand five hundred with the current information — a busy Class Delta tucked under the San Francisco Bravo shelf. Call the tower, and be ready: they're going to need spacing.",
+            situation: "Towered field, you are San Carlos Tower (KSQL) and the pattern is FULL. Step 1: after the pilot's inbound call, issue a rapid spacing instruction: 'right three sixty for spacing, report re-entering the forty-five'. Grade the readback: the 360 direction plus callsign; a bare 'roger' gets 'read back the three sixty'. Step 2: after a correct readback, clear them: 'runway three zero, cleared to land, number three following a Cirrus on base'. Grade that readback: runway, clearance, and sequence acknowledgment. Keep your transmissions fast and clipped — this is a busy frequency. Advance only after both readbacks.",
+            aircraft: rv12, airport: sanCarlos, callType: .pattern
+        ),
+        Drill(
+            id: "t-svfr",
+            scenario: .towered,
+            title: "Special VFR — Monterey marine layer",
+            setup: "The marine layer has Monterey reporting a niner hundred overcast — the field is IFR, but visibility underneath is good. You want to depart VFR to the east where it's clear. Call Monterey Ground and request a Special VFR departure.",
+            situation: "Towered field, you are Monterey Ground (Class C surface area, field IFR: ceiling 900 overcast, visibility 5). The pilot must REQUEST Special VFR — it is never offered by ATC. Grade the request: who they're calling, callsign, position, and an explicit 'request Special VFR departure to the east'. Then issue the clearance: 'cleared out of the Monterey Class Charlie surface area to the east, maintain Special VFR conditions at or below one thousand five hundred, report leaving the surface area', plus a squawk of four five two one. Grade the readback: 'maintain Special VFR conditions', the boundary report, and the squawk. Advance after a correct readback. Coach the rules if asked: SVFR needs 1 mile visibility and clear of clouds, pilot must request it, and it only applies within the surface area.",
+            aircraft: rv12, airport: monterey, callType: .bravo
+        ),
+        Drill(
+            id: "t-lahso",
+            scenario: .towered,
+            title: "LAHSO — accept or decline",
+            setup: "You're on final for runway three one at Salinas. Tower says: RV seven three seven juliet alpha, runway three one, cleared to land, hold short of runway two six, traffic departing runway two six. You may accept with a full readback — or decline. Your call.",
+            situation: "Towered field, you are Salinas Tower (KSNS, intersecting runways 31 and 26) issuing a land-and-hold-short clearance. TWO correct answers, grade whichever the pilot chooses. ACCEPT: the readback must be verbatim and complete — 'cleared to land runway three one, hold short of runway two six' plus callsign; a partial readback ('cleared to land, 737JA') is NOT acceptable for LAHSO, demand the full hold-short readback. DECLINE: 'unable hold short, RV seven three seven juliet alpha' is completely legitimate — reply 'roger, runway three one, cleared to land, no restriction' and expect a normal readback. Either path advances once done correctly. In coaching, note the teaching point: pilots may ALWAYS decline LAHSO, and students generally should unless they know their landing distance cold.",
+            aircraft: rv12, airport: salinas, callType: .readback
+        ),
+        Drill(
             id: "t-radio-failure",
             scenario: .towered,
             title: "Radio failure — transmit in the blind",
@@ -586,6 +644,22 @@ public enum DrillLibrary {
             setup: "You're on flight following, southbound toward a Military Operations Area on your route. Ask NorCal whether it's active before you fly into it.",
             situation: "You are NorCal Approach. The pilot on flight following wants the status of the MOA ahead (call it the Hunter MOA). Expect: callsign plus a clear question — 'request status of the Hunter MOA' or 'is the Hunter MOA active'. Reply realistically: 'Hunter MOA is active from three thousand to one one thousand; suggest routing west of the boundary' (or cold, your choice — pick active so they practice the follow-up). If active, expect them to state a plan: deviate around it or stay below/above the active altitudes. VFR flight through an active MOA is legal but unwise; coach that asking is exactly what flight following is for.",
             aircraft: rv12, airport: salinas, callType: .flightFollowing
+        ),
+        Drill(
+            id: "ff-diversion",
+            scenario: .flightFollowing,
+            title: "Weather diversion on flight following",
+            setup: "You're on flight following to Livermore at four thousand five hundred, but a wall of low clouds is filling the valley ahead. You've decided to divert to Salinas. Tell NorCal what you're doing.",
+            situation: "You are NorCal Approach. The pilot on flight following (destination Livermore) is diverting for weather. Expect: callsign, the request ('request direct Salinas, diverting for weather' or similar), and ideally a new altitude if they need one. A good diversion call is decisive — they tell you the new plan, they don't ask permission to stay safe. Reply: 'RV seven juliet alpha, roger, proceed direct Salinas, maintain VFR, Salinas altimeter three zero zero one' and update their destination. If they don't state a reason, ask 'say reason for the diversion' — weather info helps the next pilot. Advance once the diversion request and any readback are complete. Coach the big lesson: divert EARLY, tell ATC immediately, and never let a destination fixation argue with a cloud deck.",
+            aircraft: rv12, airport: salinas, callType: .flightFollowing
+        ),
+        Drill(
+            id: "ff-min-fuel",
+            scenario: .flightFollowing,
+            title: "Minimum fuel vs emergency fuel",
+            setup: "Headwinds ate your reserve: you'll land at Salinas with about thirty minutes of fuel — legal, but with no margin for delays. You're on flight following with NorCal. Make the call that tells them — and know the difference between 'minimum fuel' and an emergency.",
+            situation: "You are NorCal Approach. The pilot should declare MINIMUM FUEL: callsign plus 'minimum fuel' (e.g. 'RV seven three seven juliet alpha, minimum fuel'). Reply: 'RV seven juliet alpha, roger, no delay expected, Salinas is twelve o'clock, one five miles'. KEY TEACHING POINT — grade their understanding of the distinction: 'minimum fuel' is an ADVISORY that they can accept no undue delay; it grants NO priority. If they need priority handling, they must declare 'emergency fuel' (or mayday), which does. If the pilot declares an emergency here, that's acceptable too if they characterize it correctly — grade the phraseology either way. If they just tell you their fuel state without the words 'minimum fuel', ask 'say intentions' and coach the standard phrase. Advance after a correct declaration.",
+            aircraft: rv12, airport: salinas, callType: .emergency
         ),
         Drill(
             id: "ff-emergency-declare",

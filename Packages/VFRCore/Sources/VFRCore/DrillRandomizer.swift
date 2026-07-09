@@ -49,7 +49,8 @@ public enum DrillRandomizer {
         // Runway swap FIRST, against the authored text — later substitutions
         // (random squawk digits, distances) could otherwise collide with the
         // bare runway-number tokens.
-        if let runway, let primary = drill.airport.runwaysInUse.first, runway != primary {
+        if let runway, let primary = drill.airport.runwaysInUse.first, runway != primary,
+           !runwaySwapExempt.contains(drill.id) {
             subs.append((TripBuilder.spokenRunway(primary), TripBuilder.spokenRunway(runway)))
             subs.append((primary, runway))
             d.airport.runwaysInUse = drill.airport.runwaysInUse.map { $0 == primary ? runway : $0 }
@@ -87,7 +88,14 @@ public enum DrillRandomizer {
     /// runway are listed — KMRY is excluded because its taxi drills name
     /// crossing runways (a blind swap would collide with them); KSFO is
     /// Bravo-context only.
-    // Verified against AirNav (FAA data), 2026-07.
+    /// Drills whose text names more than one runway at the airport — swapping
+    /// the primary would collide with the other (e.g. LAHSO's hold-short
+    /// runway 26 at Salinas).
+    static let runwaySwapExempt: Set<String> = ["t-lahso"]
+
+    // Verified against AirNav (FAA data), 2026-07. KRHV is excluded like KMRY:
+    // its parallel-runway drill names both 31L and 31R, so a blind swap would
+    // corrupt the briefing.
     static let alternateRunways: [String: [String]] = [
         "KWVI": ["2", "9", "27"],       // 2/20 + 9/27 crosswind
         "KPAO": ["13"],                 // single runway 13/31
@@ -96,6 +104,8 @@ public enum DrillRandomizer {
         "KSNS": ["13", "8", "26"],      // 13/31 + 8/26
         "KLVK": ["7L", "7R", "25L"],    // 7L/25R + 7R/25L
         "KHAF": ["12"],                 // single runway 12/30
+        "KSQL": ["12"],                 // single runway 12/30
+        "KOAR": ["11"],                 // single runway 11/29
     ]
 
     // MARK: - Altitudes

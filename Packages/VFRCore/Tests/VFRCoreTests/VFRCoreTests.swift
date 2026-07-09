@@ -265,6 +265,30 @@ import Foundation
     #expect(!noFF.contains { $0.title == "Traffic vector" })
 }
 
+@Test func newScenarioBatchExists() {
+    let all = DrillLibrary.all
+    func drill(_ id: String) -> Drill? { all.first { $0.id == id } }
+    #expect(drill("t-rhv-parallel")?.situation.contains("31L/31R") == true)
+    #expect(drill("t-sql-spacing")?.situation.contains("three sixty") == true)
+    #expect(drill("t-svfr")?.situation.contains("Special VFR") == true)
+    #expect(drill("t-lahso")?.situation.contains("unable hold short") == true)
+    #expect(drill("u-oar-inbound")?.airport.icao == "KOAR")
+    #expect(drill("ff-diversion")?.situation.contains("diverting for weather") == true)
+    #expect(drill("ff-min-fuel")?.situation.contains("minimum fuel") == true)
+}
+
+@Test func newAirportsAreRoutableAndLahsoIsSwapExempt() {
+    let icaos = Set(DrillLibrary.routableAirports.map(\.icao))
+    #expect(icaos.isSuperset(of: ["KRHV", "KSQL", "KOAR"]))
+    // LAHSO names both Salinas runways; the runway swap must leave it alone.
+    #expect(DrillRandomizer.runwaySwapExempt.contains("t-lahso"))
+    let lahso = DrillLibrary.all.first { $0.id == "t-lahso" }!
+    let varied = DrillRandomizer.vary(lahso, runway: "13", altitudeOffset: 0)
+    #expect(varied.setup.contains("three one") && varied.situation.contains("two six"))
+    // KRHV must not be in the variation pool (parallel-runway text).
+    #expect(DrillRandomizer.alternateRunways["KRHV"] == nil)
+}
+
 // MARK: - System prompt
 
 @Test func systemPromptCarriesTheKeyFacts() {
