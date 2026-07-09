@@ -431,9 +431,10 @@ final class HandsFreeController: ObservableObject {
             guard let verdict = graded else { return true }
             print("VFR: verdict correct=\(verdict.correct) advance=\(verdict.phaseAdvance) speaker=\(verdict.speaker) reply=\"\(verdict.radioReplyText)\" coaching=\"\(verdict.coaching)\" corrections=\(verdict.corrections)")
             lastVerdict = verdict
-            // Green if the call passed (advanced), red if it needs another try —
-            // a call can advance with minor notes, which should still read as a pass.
-            lastResult = ResultFlash(success: verdict.phaseAdvance)
+            // Red means exactly one thing: "say that again." A call can be
+            // correct without advancing (mid-step of a multi-turn exchange) or
+            // advance despite minor notes — both of those are green.
+            lastResult = ResultFlash(success: verdict.correct || verdict.phaseAdvance)
             if let gradedDrill {
                 StatsStore.shared.record(callType: DrillLibrary.callType(for: gradedDrill),
                                          passed: verdict.phaseAdvance)
