@@ -119,6 +119,12 @@ final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
         if let i = t.firstIndex(where: { "{}[]".contains($0) }) {
             t = String(t[..<i])
         }
+        // Degenerate grader output has been seen appending meta-notes chained
+        // with arrows ("…Watsonville.-> ACTUALLY use corrections field below").
+        // No legitimate spoken line contains "->": cut there too.
+        if let r = t.range(of: "->") {
+            t = String(t[..<r.lowerBound])
+        }
         t = t.replacingOccurrences(of: "\"", with: "")
         // A leaked field name right at the cut point ("….corrections.:") —
         // drop a trailing fragment of punctuation-glued tokens.

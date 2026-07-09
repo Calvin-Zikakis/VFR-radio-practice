@@ -23,10 +23,16 @@ targets:
       properties:
         CFBundleDisplayName: VFR Radio
         UILaunchScreen: {}
+        # iOS requires apps that don't opt into full-screen to support all
+        # orientations (runtime warning as of iOS 26, enforced later).
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSMicrophoneUsageDescription: "VFR Radio listens to your radio calls so it can respond and grade your phraseology."

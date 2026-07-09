@@ -16,6 +16,7 @@ public enum ATCBrainError: Error, LocalizedError {
     case http(status: Int, body: String)
     case refusal(String)
     case badResponse(String)
+    case truncated
 
     public var errorDescription: String? {
         switch self {
@@ -23,6 +24,7 @@ public enum ATCBrainError: Error, LocalizedError {
         case .http(let status, let body): return "API error \(status): \(body)"
         case .refusal(let s): return "Request declined: \(s)"
         case .badResponse(let s): return "Unexpected response: \(s)"
+        case .truncated: return "grader response hit the output token limit — say the call again."
         }
     }
 }
@@ -58,6 +60,18 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         guard !apiKey.isEmpty else { throw ATCBrainError.missingAPIKey }
 
         let body = requestBody(drill: drill, mode: mode, history: history, transmission: transmission)
+        do {
+            return try await send(body, historyCount: history.count)
+        } catch ATCBrainError.truncated {
+            // Hitting an 8000-token cap on a ~300-token verdict means the model
+            // degenerated into rambling, not that the pilot did anything wrong.
+            // A fresh sample almost always parses — retry before bothering them.
+            print("VFR: grader rambled into the token cap — retrying once")
+            return try await send(body, historyCount: history.count)
+        }
+    }
+
+    private func send(_ body: [String: Any], historyCount: Int) async throws -> Verdict {
         var req = URLRequest(url: endpoint)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -65,7 +79,7 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        print("VFR: POST api model=\(model) keyLen=\(apiKey.count) history=\(history.count)")
+        print("VFR: POST api model=\(model) keyLen=\(apiKey.count) history=\(historyCount)")
         let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else {
             throw ATCBrainError.badResponse("no HTTP response")
@@ -244,10 +258,25 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         The pilot's transmission reaches you as text from imperfect on-device speech \
         recognition. Callsigns, numbers, and frequencies are frequently mangled \
         (e.g. "one seven two sierra papa" may arrive as "172 sarah papa", \
-        "runway three one" as "runway 31" or "runway three won"). Reconstruct the \
+        "runway three one" as "runway 31" or "runway three won", and "niner" \
+        almost always as "nine", "diner", or "dinner"). Reconstruct the \
         pilot's INTENT charitably. Do NOT mark a call wrong because of an obvious \
         transcription error — only grade the phraseology the pilot clearly intended. \
-        Put your best reconstruction of what they actually said in `heard`.
+        Put your best reconstruction of what they actually said in `heard`. \
+        NEVER coach diction, clarity, or pronunciation ("state the runway \
+        clearly") — you are reading a transcript and cannot hear how anything \
+        was said; that kind of correction is always a transcription artifact, \
+        not a pilot error.
+
+        GRADE ONLY THE CURRENT TRANSMISSION: `heard` is your reconstruction of \
+        THIS transmission — never copy an earlier attempt from the conversation. \
+        If the transmission is not a radio call at all (a side comment aimed at \
+        the app — "that's wrong", "what?", "why did I fail?" — or stray cockpit \
+        speech), do not grade it as one: set `correct` false, `phaseAdvance` \
+        false, leave `radioReplyText` empty, and answer briefly in `coaching`. \
+        A pilot disputing your last grade never passes the step by disputing; \
+        if you realize the last grade was unfair, admit it in `coaching` and \
+        invite them to simply make the call again.
 
         BUT NEVER INVENT WHAT THEY DIDN'T SAY: repairing garbled words is fine; \
         ADDING information the pilot never transmitted is not. The classic case is \
@@ -315,6 +344,9 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         `expectedExample` is one ideal version of THE SINGLE CALL just graded — \
         one short transmission, never a multi-step script, stage directions, or \
         commentary; in a multi-step drill, show only the immediate next call. \
+        Every string field is read aloud verbatim, so it must contain ONLY \
+        speakable words — no arrows, notes-to-self, field names, or \
+        instructions to the app. \
         Keep the ENTIRE response tight — every field is a short spoken line; the \
         whole JSON should be well under two hundred words. Set `phaseAdvance` \
         true once the pilot has satisfied this drill step. \(coachingRule)
@@ -348,9 +380,9 @@ public struct ATCBrain: ATCEvaluating, Sendable {
             throw ATCBrainError.refusal("safety classifier declined the request")
         }
         // Truncated output can't be valid JSON — name the real cause instead of
-        // surfacing a confusing parse error.
+        // surfacing a confusing parse error. `evaluate` retries this one once.
         if let stop = root["stop_reason"] as? String, stop == "max_tokens" {
-            throw ATCBrainError.badResponse("grader response hit the output token limit — say the call again.")
+            throw ATCBrainError.truncated
         }
         guard let content = root["content"] as? [[String: Any]] else {
             throw ATCBrainError.badResponse("no content array")
