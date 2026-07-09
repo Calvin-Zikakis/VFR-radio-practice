@@ -583,6 +583,30 @@ public enum DrillLibrary {
             aircraft: rv12, airport: watsonville
         ),
         Drill(
+            id: "ff-negative-contact",
+            scenario: .flightFollowing,
+            title: "Can't find the traffic — ask for help",
+            setup: "You're on flight following at four thousand five hundred. NorCal calls: RV seven three seven juliet alpha, traffic one o'clock, five miles, converging, a Bonanza, altitude indicates four thousand five hundred. You scan hard and see nothing. Respond — and when the traffic keeps closing, don't just keep hoping.",
+            situation: "You are NorCal Approach. Step 1: you issued a traffic advisory — 1 o'clock, 5 miles, converging, a Bonanza at 4,500, the pilot's own altitude. Expect 'negative contact' or 'looking' plus callsign. Step 2: update the traffic — 'seven juliet alpha, traffic now one o'clock, two miles, converging, same altitude' — and grade the response: still not seeing converging same-altitude traffic inside two miles, the right answer is 'negative contact, request vectors' (asking for a turn away is equally good); a bare 'still looking' earns coaching. If they request vectors, reply 'turn left heading three one zero' and expect a readback of the heading with callsign. Set phaseAdvance true after the step-2 response, plus the readback if you issued a vector. Coach: converging, same altitude, can't see it — maneuver or ask, never just hope it misses.",
+            aircraft: rv12, airport: watsonville, callType: .advisory
+        ),
+        Drill(
+            id: "ff-traffic-alert",
+            scenario: .flightFollowing,
+            title: "Traffic alert — act now",
+            setup: "You're on flight following at three thousand five hundred when NorCal calls, urgent: traffic alert, RV seven three seven juliet alpha, twelve o'clock, one mile, opposite direction, same altitude — advise you turn right immediately. Act.",
+            situation: "You are NorCal Approach and you just issued a SAFETY ALERT — urgent, not a routine advisory. The right response is immediate action plus a short acknowledgment: 'turning right, seven three seven juliet alpha' ('traffic in sight' also works if they pick it up in the turn). Grade for brevity and an action word — a long careful readback wastes the second that matters, and a bare 'roger' with no stated action is not enough. Advance on a correct urgent response and reply 'traffic no longer a factor, resume own navigation'. Coach: a traffic alert means maneuver FIRST — the controller is telling you a collision is possible right now.",
+            aircraft: rv12, airport: watsonville, callType: .advisory
+        ),
+        Drill(
+            id: "ff-traffic-insight",
+            scenario: .flightFollowing,
+            title: "Traffic in sight — close the loop",
+            setup: "A minute ago NorCal called traffic for you — a Skylane, ten o'clock, five miles, opposite direction, five hundred below — and you answered 'looking'. You've just picked it up, left and low, passing well clear. Let NorCal know.",
+            situation: "You are NorCal Approach. Earlier you issued a traffic advisory (a Skylane, 10 o'clock, 5 miles, opposite direction, 500 below) and the pilot replied 'looking'. Now they should close the loop unprompted: 'traffic in sight' plus callsign. Reply 'roger'. Grade for the standard phrase — 'I see him' or 'got the traffic' earns coaching toward 'traffic in sight'. Coach why the report matters: once you say the traffic is in sight, the controller can quit babysitting that pair, and it sets up 'maintain visual separation' if they need it.",
+            aircraft: rv12, airport: watsonville, callType: .advisory
+        ),
+        Drill(
             id: "ff-from-towered",
             scenario: .flightFollowing,
             title: "Flight following out of a towered field",

@@ -122,6 +122,17 @@ import Foundation
     #expect(snsClosed.scenario == .untowered)
 }
 
+@Test func advisoryMixIsAViableSession() {
+    // "Traffic advisory" used to hold a single drill, which made picking it in
+    // a mix session pointless. The batch of three brings it to four.
+    let plane = DrillLibrary.defaultAircraft
+    let advisory = DrillLibrary.drills(matching: [.advisory], aircraft: plane)
+    #expect(advisory.count >= 4)
+    for id in ["ff-traffic", "ff-negative-contact", "ff-traffic-alert", "ff-traffic-insight"] {
+        #expect(advisory.contains { $0.id == id }, "missing \(id)")
+    }
+}
+
 // MARK: - Drill randomizer
 
 @Test func randomizerKeepsSetupAndSituationConsistent() {
