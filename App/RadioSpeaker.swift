@@ -49,17 +49,20 @@ final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
         super.init()
         synth.delegate = self
 
-        // Gentle bandpass ~250–3400 Hz (wider than true comm radio so the voice
-        // stays intelligible) + a light radio distortion for crunch. Configured
-        // once; the graph is wired lazily when we know the buffer format.
+        // Light radio color, tuned by ear: a wide ~200–4800 Hz band (true comm
+        // radio is 300–3000, but that much filtering sounds robotic on a
+        // synthesized voice) + just a whisper of the radio distortion. Most of
+        // the "over the air" feel comes from the static bed, not the filter.
+        // Configured once; the graph is wired lazily when we know the format.
         eq.bands[0].filterType = .highPass
-        eq.bands[0].frequency = 250
+        eq.bands[0].frequency = 200
         eq.bands[0].bypass = false
         eq.bands[1].filterType = .lowPass
-        eq.bands[1].frequency = 3400
+        eq.bands[1].frequency = 4800
         eq.bands[1].bypass = false
+        eq.globalGain = -2   // headroom: resonant filters overshoot near cutoff
         distortion.loadFactoryPreset(.speechRadioTower)
-        distortion.wetDryMix = 12   // subtle
+        distortion.wetDryMix = 4    // barely there — 12 sounded ring-modulated
     }
 
     func speak(_ text: String, as role: VoiceRole = .controller) async {
@@ -128,6 +131,9 @@ final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
         // Instructor and controller have independent rates (Settings sliders).
         utterance.rate = role == .instructor ? speechRate : controllerRate
         utterance.postUtteranceDelay = 0.1
+        // Below full scale: enhanced/premium voices at 1.0 clip on the iPhone
+        // loudspeaker (audible crackle on loud syllables).
+        utterance.volume = 0.85
         utterance.voice = resolvedVoice()
         return utterance
     }
@@ -240,6 +246,9 @@ final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
             [voicePlayer, noisePlayer, eq, distortion].forEach { fxEngine.detach($0) }
         }
         [voicePlayer, noisePlayer, eq, distortion].forEach { fxEngine.attach($0) }
+        // Same headroom as the clean path: filters + distortion add gain, and
+        // summed peaks over full scale hard-clip (crackle at loud syllables).
+        voicePlayer.volume = 0.8
         let mixer = fxEngine.mainMixerNode
         fxEngine.connect(voicePlayer, to: eq, format: format)
         fxEngine.connect(eq, to: distortion, format: format)
