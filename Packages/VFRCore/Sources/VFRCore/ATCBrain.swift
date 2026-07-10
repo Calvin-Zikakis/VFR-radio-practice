@@ -82,6 +82,12 @@ public struct ATCBrain: ATCEvaluating, Sendable {
             // retry once before bothering them.
             vfrLog("degenerate grader sample (\(error)) — retrying once")
             return try await send(body, historyCount: history.count)
+        } catch let error as URLError where error.code == .timedOut {
+            // A network/server hiccup shouldn't make the pilot repeat a long
+            // readback. The per-request ceiling is short (see `send`), so one
+            // retry is a small wait and usually lands fast on the warm cache.
+            vfrLog("grader request timed out — retrying once")
+            return try await send(body, historyCount: history.count)
         }
     }
 
@@ -92,6 +98,10 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         req.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        // Grades normally land in ~8s; the default 60s ceiling meant a hung
+        // request stalled the whole voice loop for a full minute before failing.
+        // Give up sooner and let `evaluate` retry once (warm cache, usually fast).
+        req.timeoutInterval = 30
 
         vfrLog("POST api model=\(model) keyLen=\(apiKey.count) history=\(historyCount)")
         let (data, response) = try await session.data(for: req)

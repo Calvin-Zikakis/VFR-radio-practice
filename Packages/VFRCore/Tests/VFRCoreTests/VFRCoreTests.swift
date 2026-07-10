@@ -744,6 +744,33 @@ final class SequenceBrain: ATCEvaluating, @unchecked Sendable {
                                && $0.followUpReadback == true })
 }
 
+@Test func readbackDrillAdvancesWhenReplyEchoesTheClearance() async throws {
+    // Seen live (looping): on the injected readback drill the grader confirmed
+    // "readback correct" and echoed the clearance — which contains "cross
+    // runway" — and the pending-readback clamp wrongly held the step forever.
+    // A readback drill's reply is an acknowledgment, not a new instruction.
+    let request = DrillRandomizer.resolveInstructions(
+        [DrillLibrary.all.first { $0.id == "t-sns-taxi" }!])[0]
+    let brain = SequenceBrain([
+        // The request advances; the app supplies the authored clearance.
+        Verdict(heard: "request", speaker: "Ground", radioReplyText: "",
+                correct: true, corrections: [], expectedExample: "",
+                phaseAdvance: true, coaching: ""),
+        // The readback is correct; the confirmation echoes "cross runway".
+        Verdict(heard: "readback", speaker: "Ground",
+                radioReplyText: "RV seven juliet alpha, readback correct, taxi via alpha, cross runway two six.",
+                correct: true, corrections: [], expectedExample: "",
+                phaseAdvance: true, coaching: ""),
+    ])
+    let session = PracticeSession(brain: brain, mode: .live, drills: [request])
+    _ = try await session.submit("the request")
+    #expect(await session.currentDrill?.injectedReadback == true)
+    let readback = try await session.submit("the readback")
+    // It advanced — the echo did not trip the clamp; session is complete.
+    #expect(readback?.phaseAdvance == true)
+    #expect(await session.currentDrill == nil)
+}
+
 @Test func pendingReadbackStillHoldsNonChainedDrills() async throws {
     // Without the follow-up flag, advancing while the reply demands a
     // readback (cross/hold short) is a contradiction — the step holds.

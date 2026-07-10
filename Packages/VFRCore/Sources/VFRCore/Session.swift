@@ -100,11 +100,17 @@ public actor PracticeSession {
             verdict.radioReplyText = instruction
         }
 
-        // A crossing or hold-short in the radio reply always demands a
-        // readback. When an injected follow-up drill will grade it, that's
-        // fine; anywhere else, advancing past it is a grader contradiction
-        // (seen live) — hold the step.
-        if verdict.phaseAdvance, !willInject {
+        // A crossing or hold-short the grader ISSUES as a new instruction
+        // demands its own readback, so advancing past it is a contradiction —
+        // UNLESS an injected follow-up will grade that readback, or this drill
+        // is itself a readback. On a readback drill the grader's reply confirms
+        // the pilot and routinely echoes the very clearance ("readback correct,
+        // …cross runway one niner left"); that's an acknowledgment, not a new
+        // instruction, and must be allowed to advance (seen live: the echo
+        // tripped this clamp and looped the readback forever).
+        let isReadbackDrill = drill.injectedReadback == true
+            || DrillLibrary.callType(for: drill) == .readback
+        if verdict.phaseAdvance, !willInject, !isReadbackDrill {
             let reply = verdict.radioReplyText.lowercased()
             if reply.contains("cross runway") || reply.contains("hold short") {
                 vfrLog("grader contradiction — advance while reply demands a readback; holding the step")
@@ -146,7 +152,7 @@ public actor PracticeSession {
             scenario: drill.scenario,
             title: "Read back your instructions",
             setup: "\(voice) has just given you your instructions. Read them back — and if you missed part of it, ask them to say again.",
-            situation: "You are \(voice). You just issued exactly this instruction: '\(instruction)'. Grade the pilot's readback against it — every element that requires a readback must be VERBATIM: runway instructions (assigned runway, route, crossings, hold shorts), squawk codes, frequencies, altitude restrictions, and clearances, plus the callsign. Advisory extras in your instruction (traffic, weather, 'radar contact') need no readback. If anything required is missing or wrong, say exactly which item to read back and do not advance. If the pilot asks you to say again, repeat the instruction verbatim and do not advance. Set phaseAdvance true only on a complete, correct readback.",
+            situation: "You are \(voice). You just issued exactly this instruction: '\(instruction)'. Grade the pilot's readback against it — every element that requires a readback must be VERBATIM: runway instructions (assigned runway, route, crossings, hold shorts), squawk codes, frequencies, altitude restrictions, and clearances, plus the callsign. Advisory extras in your instruction (traffic, weather, 'radar contact') need no readback. If anything required is missing or wrong, say exactly which item to read back and do not advance. If the pilot asks you to say again, repeat the instruction verbatim and do not advance. On a complete, correct readback, set phaseAdvance true and reply BRIEFLY — just 'readback correct' with the callsign (e.g. 'readback correct, seven juliet alpha'); do NOT re-read the whole clearance back to the pilot, and never issue a NEW instruction here.",
             aircraft: drill.aircraft,
             airport: drill.airport,
             callType: .readback,
