@@ -574,6 +574,20 @@ struct FixedBrain: ATCEvaluating {
     }
 }
 
+@Test func sentinelVerdictThrowsDegenerate() {
+    // Seen live: every field "n/a" — spoken aloud twice as "n/a".
+    let inner = """
+    {"heard":"n/a","speaker":"n/a","radioReplyText":"n/a","correct":false,\
+    "corrections":[],"expectedExample":"n/a","phaseAdvance":false,"coaching":"n/a"}
+    """
+    let response = """
+    {"stop_reason":"end_turn","content":[{"type":"text","text":\(jsonString(inner))}]}
+    """
+    #expect(throws: ATCBrainError.self) {
+        try ATCBrain.parseVerdict(from: Data(response.utf8))
+    }
+}
+
 @Test func scrubStripsInvisiblePadding() {
     #expect(ATCBrain.scrub("say your position.\u{200B}\u{200B} \u{200B}") == "say your position.")
 }

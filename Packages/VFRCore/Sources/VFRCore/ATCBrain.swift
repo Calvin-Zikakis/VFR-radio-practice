@@ -303,9 +303,12 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         frequently mangled (e.g. "one seven two sierra papa" may arrive as \
         "172 sarah papa", "runway three one" as "runway 31" or "runway three won", \
         "niner" as "nine", "diner", or "dinner", "VFR" as "BFR" or "the FR", \
-        "juliet" as "Julia", "holding" as "Holden"). Reconstruct the \
+        "juliet" as "Julia", "holding" as "Holden" — and facility names garble \
+        hard: "Palo Alto Ground" arrives as "pull the ground" or "ball of \
+        ground"). Reconstruct the \
         pilot's INTENT charitably: no pilot says "BFR departure" — that is always \
-        "VFR" misheard. Do NOT mark a call wrong because of an obvious \
+        "VFR" misheard, and a garble where this airport's facility name belongs \
+        is always the facility name. Do NOT mark a call wrong because of an obvious \
         transcription error, and NEVER list an artifact repair in `corrections` — \
         if every apparent problem is explainable as transcription, the call is \
         correct and belongs in nobody's debrief. Only grade the phraseology the \
@@ -424,7 +427,8 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         commentary; in a multi-step drill, show only the immediate next call. \
         Every string field is read aloud verbatim, so it must contain ONLY \
         speakable words — no arrows, notes-to-self, field names, or \
-        instructions to the app. \
+        instructions to the app, and never filler like "n/a" or "placeholder": \
+        write real content, or an empty string when nothing is due. \
         Keep the ENTIRE response tight — every field is a short spoken line; the \
         whole JSON should be well under two hundred words. Set `phaseAdvance` \
         true once the pilot has satisfied this drill step. \(coachingRule)
@@ -477,16 +481,20 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         do {
             var verdict = try JSONDecoder().decode(Verdict.self, from: jsonData)
             // Degenerate samples pad fields with invisible characters (seen:
-            // a reply plus ~300 zero-width spaces). Scrub every string.
-            verdict.heard = scrub(verdict.heard)
+            // a reply plus ~300 zero-width spaces) or fill them with sentinels
+            // (seen: every field "n/a", another time heard "placeholder").
+            // Scrub every string; collapse sentinels to empty ("none" stays a
+            // legitimate speaker value, so speaker is scrubbed only).
+            verdict.heard = meaningful(scrub(verdict.heard))
             verdict.speaker = scrub(verdict.speaker)
-            verdict.radioReplyText = scrub(verdict.radioReplyText)
-            verdict.expectedExample = scrub(verdict.expectedExample)
-            verdict.coaching = scrub(verdict.coaching)
-            verdict.corrections = verdict.corrections.map(scrub).filter { !$0.isEmpty }
-            // Stub verdict (seen live: heard "placeholder", everything else
-            // empty, correct=false) — useless to the pilot; retry instead.
-            if verdict.heard == "placeholder"
+            verdict.radioReplyText = meaningful(scrub(verdict.radioReplyText))
+            verdict.expectedExample = meaningful(scrub(verdict.expectedExample))
+            verdict.coaching = meaningful(scrub(verdict.coaching))
+            verdict.corrections = verdict.corrections.map { meaningful(scrub($0)) }.filter { !$0.isEmpty }
+            // Stub verdict: no reconstruction of what was heard, or an
+            // incorrect verdict with zero feedback of any kind — useless to
+            // the pilot; retry instead.
+            if verdict.heard.isEmpty
                 || (!verdict.correct && verdict.coaching.isEmpty && verdict.corrections.isEmpty
                     && verdict.expectedExample.isEmpty && verdict.radioReplyText.isEmpty) {
                 throw ATCBrainError.degenerate
@@ -508,6 +516,14 @@ public struct ATCBrain: ATCEvaluating, Sendable {
             vfrLog("verdict decode failed. text was: \(text.prefix(600))")
             throw ATCBrainError.badResponse("grader reply wasn't valid JSON.\nRAW: \(text.prefix(500))")
         }
+    }
+
+    /// Collapse sentinel filler ("n/a", "placeholder") to empty so stub
+    /// detection catches it.
+    static func meaningful(_ s: String) -> String {
+        let junk: Set<String> = ["n/a", "na", "n.a.", "placeholder", "null",
+                                 "-", "--", "unknown", "tbd"]
+        return junk.contains(s.lowercased()) ? "" : s
     }
 
     /// Strip invisible padding (zero-width spaces and friends) and outer
