@@ -29,7 +29,9 @@ public actor PracticeSession {
 
     private let brain: any ATCEvaluating
     private let mode: GradingMode
-    private let drills: [Drill]
+    /// Mutable: passing a `followUpReadback` drill inserts a synthesized
+    /// readback drill right after it.
+    private var drills: [Drill]
     private var index = 0
     private var attempts = 0
     private var history: [Turn] = []
@@ -50,6 +52,11 @@ public actor PracticeSession {
         index < drills.count ? drills[index] : nil
     }
 
+    /// The live drill list, including any injected readback follow-ups —
+    /// snapshots must save this (not the original set) so resuming lands on
+    /// the right drill.
+    public var liveDrills: [Drill] { drills }
+
     public var isFinished: Bool { index >= drills.count }
 
     public var progress: Progress {
@@ -67,18 +74,54 @@ public actor PracticeSession {
         // left-downwind report).
         let next = index + 1 < drills.count ? drills[index + 1] : nil
         let nextSetup = next?.airport.icao == drill.airport.icao ? next?.setup : nil
-        let verdict = try await brain.evaluate(drill: drill, mode: mode,
+        var verdict = try await brain.evaluate(drill: drill, mode: mode,
                                                history: history, transmission: transmission,
                                                nextSetup: nextSetup)
+
+        // A crossing or hold-short in the radio reply always demands a
+        // readback. On a follow-up drill that readback is the injected next
+        // drill; anywhere else, advancing past it is a grader contradiction
+        // (seen live) — hold the step.
+        if verdict.phaseAdvance, drill.followUpReadback != true {
+            let reply = verdict.radioReplyText.lowercased()
+            if reply.contains("cross runway") || reply.contains("hold short") {
+                vfrLog("grader contradiction — advance while reply demands a readback; holding the step")
+                verdict.phaseAdvance = false
+            }
+        }
+
         history.append(Turn(pilot: verdict.heard, reply: verdict.radioReplyText))
 
         if !verdict.correct {
             recordDebrief(drill: drill, verdict: verdict)
         }
         if verdict.phaseAdvance {
+            if drill.followUpReadback == true, !verdict.radioReplyText.isEmpty {
+                let followUp = readbackFollowUp(for: drill, verdict: verdict)
+                drills.insert(followUp, at: index + 1)
+                vfrLog("injected readback drill for '\(drill.id)'")
+            }
             advance()
         }
         return verdict
+    }
+
+    /// The synthesized drill that grades the pilot's readback of the exact
+    /// instruction the grader just issued. Inherits the parent drill's
+    /// (already randomized) context; the clearance text itself is the content.
+    private func readbackFollowUp(for drill: Drill, verdict: Verdict) -> Drill {
+        let voice = ["Ground", "Tower", "Approach"].contains(verdict.speaker)
+            ? "\(drill.airport.name) \(verdict.speaker)"
+            : (verdict.speaker == "none" ? "\(drill.airport.name) Ground" : verdict.speaker)
+        return Drill(
+            id: "\(drill.id)-readback",
+            scenario: drill.scenario,
+            title: "Read back your instructions",
+            setup: "\(voice) has just given you your instructions. Read them back before you move — and if you missed part of it, ask them to say again.",
+            situation: "Towered field, you are \(voice). You just issued exactly this instruction: '\(verdict.radioReplyText)'. Grade the pilot's readback against it: every runway instruction VERBATIM (the assigned runway, the route, any crossing or hold short), plus the callsign. If anything is missing or wrong, say exactly which item to read back and do not advance. If the pilot asks you to say again, repeat the instruction verbatim and do not advance. Set phaseAdvance true only on a complete, correct readback.",
+            aircraft: drill.aircraft,
+            airport: drill.airport,
+            callType: .readback)
     }
 
     /// Skip the current drill without grading (e.g. voice command "skip").

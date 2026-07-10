@@ -498,16 +498,9 @@ public struct ATCBrain: ATCEvaluating, Sendable {
                 vfrLog("grader contradiction — phaseAdvance with correct=false; holding the step")
                 verdict.phaseAdvance = false
             }
-            // A crossing or hold-short instruction in the radio reply ALWAYS
-            // demands a readback — seen live: 'cross runway one niner left'
-            // issued in the same breath as phaseAdvance, and the session moved
-            // on with the clearance hanging unread-back.
-            let reply = verdict.radioReplyText.lowercased()
-            if verdict.phaseAdvance,
-               reply.contains("cross runway") || reply.contains("hold short") {
-                vfrLog("grader contradiction — advance while reply demands a readback; holding the step")
-                verdict.phaseAdvance = false
-            }
+            // NOTE: the crossing/hold-short pending-readback clamp lives in
+            // PracticeSession.submit — it needs the drill to know whether an
+            // injected follow-up drill will grade that readback.
             return verdict
         } catch let error as ATCBrainError {
             throw error   // e.g. .degenerate — keep it retryable, don't rebrand

@@ -366,9 +366,9 @@ public enum DrillLibrary {
             id: "t-taxi",
             scenario: .towered,
             title: "Request taxi (Ground)",
-            setup: "You're at Palo Alto ground with information Tango, parked at the transient ramp, ready to taxi for a VFR departure to the south. Call ground for taxi — and read back the instructions you get before you move.",
-            situation: "Towered field, you are Palo Alto Ground. Runway 31 in use; taxiways here are alpha (parallel) and bravo/charlie (ramp exits). Step 1: grade the request — who they're calling, aircraft, position, the ATIS letter (current is information Tango; a different letter gets 'verify you have information Tango'), request, direction of flight. Then issue a real taxi clearance with a route, e.g. 'runway three one, taxi via bravo, alpha'. Step 2: grade the readback of YOUR clearance — the runway and the route with callsign; a bare 'roger' or 'wilco' is not a readback of a taxi clearance. Set phaseAdvance true only after a correct readback.",
-            aircraft: skyhawk, airport: paloAlto
+            setup: "You're at Palo Alto ground with information Tango, parked at the transient ramp, ready to taxi for a VFR departure to the south. Call ground for taxi.",
+            situation: "Towered field, you are Palo Alto Ground. Runway 31 in use; taxiways here are alpha (parallel) and bravo/charlie (ramp exits). Grade the request — who they're calling, aircraft, position, the ATIS letter (current is information Tango; a different letter gets 'verify you have information Tango'), request, direction of flight. Once the request is complete, reply with a real taxi clearance with a route (e.g. 'runway three one, taxi via bravo, alpha' — vary the route) AND set phaseAdvance true: the pilot's readback of your clearance is graded as the next exercise, not by you.",
+            aircraft: skyhawk, airport: paloAlto, followUpReadback: true
         ),
         Drill(
             id: "t-tower-departure",
@@ -407,8 +407,8 @@ public enum DrillLibrary {
             scenario: .towered,
             title: "VFR departure request (Ground)",
             setup: "You're parked on the transient ramp at Monterey with information Zulu, ready to taxi for a VFR departure to the south. Call ground, then read back your taxi instructions.",
-            situation: "Towered field, you are Monterey Ground (Class C). Step 1: grade the request — who they're calling, aircraft, position on the field (transient ramp), ATIS code, and the request with direction of flight. A requested altitude is OPTIONAL — fine if offered, but never require it or ask for it when direction of flight is given. Then issue a taxi clearance with a route (e.g. 'runway two eight right, taxi via alpha') plus a VFR squawk and departure frequency if appropriate. Step 2: grade the readback — runway, route, and any squawk with callsign. Set phaseAdvance true only after a correct readback.",
-            aircraft: rv12, airport: monterey
+            situation: "Towered field, you are Monterey Ground (Class C). Grade the request — who they're calling, aircraft, position on the field (transient ramp), ATIS code, and the request with direction of flight. A requested altitude is OPTIONAL — fine if offered, but never require it or ask for it when direction of flight is given. Once the request is complete, reply with a taxi clearance with a route (e.g. 'runway two eight right, taxi via alpha' — vary the route) plus a VFR squawk and departure frequency if appropriate, AND set phaseAdvance true: the pilot's readback of your clearance is graded as the next exercise, not by you.",
+            aircraft: rv12, airport: monterey, followUpReadback: true
         ),
         Drill(
             id: "t-pattern-touchgo",
@@ -423,16 +423,16 @@ public enum DrillLibrary {
             scenario: .towered,
             title: "After landing (taxi to parking)",
             setup: "You've landed at Palo Alto and are clear of runway three one. The tower said contact ground. Call Palo Alto Ground to taxi to the transient ramp, then read back the route you're given.",
-            situation: "Towered field, you are Palo Alto Ground. Pilot has just cleared the runway. Step 1: grade the call — who they're calling, aircraft, position (clear of 31 / on the taxiway), request to taxi to transient parking. Then issue a taxi clearance with a route (e.g. 'taxi to the transient ramp via alpha, charlie'). Step 2: grade the readback of the route with callsign. Set phaseAdvance true only after a correct readback.",
-            aircraft: skyhawk, airport: paloAlto
+            situation: "Towered field, you are Palo Alto Ground. Pilot has just cleared the runway. Grade the call — who they're calling, aircraft, position (clear of 31 / on the taxiway), request to taxi to transient parking. Once the call is complete, reply with a taxi clearance with a route (e.g. 'taxi to the transient ramp via alpha, charlie' — vary the route) AND set phaseAdvance true: the pilot's readback of your clearance is graded as the next exercise, not by you.",
+            aircraft: skyhawk, airport: paloAlto, followUpReadback: true
         ),
         Drill(
             id: "t-sns-taxi",
             scenario: .towered,
             title: "Request taxi — Salinas Ground",
             setup: "You're at Salinas with information Foxtrot, parked at the ramp, ready to taxi for a VFR departure to the north. Call Salinas Ground — then read back the taxi instructions you get; runway two six crosses your route.",
-            situation: "Towered field, you are Salinas Ground (KSNS, part-time tower — it is open). Runway 31 in use; runway 26 crosses the taxi route; taxiways alpha and bravo. Step 1: grade the request — who they're calling, aircraft, position, the ATIS letter (current is information Foxtrot; a different letter gets 'verify you have information Foxtrot'), request, direction of flight. Then issue a taxi clearance and PICK ONE at random: (a) crossing approved — 'runway three one, taxi via alpha, cross runway two six', or (b) not approved — 'runway three one, taxi via alpha, hold short of runway two six'. Step 2: grade the readback — runway, route, and the cross or hold-short VERBATIM with callsign (hold-short readbacks are strict at every difficulty). If you chose (b), the exchange continues: after a correct hold-short readback, the pilot taxis and holds; when they report holding short (or on your own initiative), issue 'cross runway two six' and grade that readback too. Set phaseAdvance true only when the pilot has read back everything up to and including the crossing.",
-            aircraft: rv12, airport: salinas
+            situation: "Towered field, you are Salinas Ground (KSNS, part-time tower — it is open). Runway 31 in use; runway 26 crosses the taxi route; taxiways alpha and bravo. Grade the request — who they're calling, aircraft, position, the ATIS letter (current is information Foxtrot; a different letter gets 'verify you have information Foxtrot'), request, direction of flight. Once the request is complete, reply with a taxi clearance, PICKING ONE at random: (a) crossing approved — 'runway three one, taxi via alpha, cross runway two six', or (b) not approved — 'runway three one, taxi via alpha, hold short of runway two six' — AND set phaseAdvance true: the pilot's readback of your clearance is graded as the next exercise, not by you.",
+            aircraft: rv12, airport: salinas, followUpReadback: true
         ),
         Drill(
             id: "t-sns-inbound",
@@ -519,8 +519,8 @@ public enum DrillLibrary {
             scenario: .towered,
             title: "Taxi in from three two left",
             setup: "You've landed on runway three two left at Concord and exited at hotel. Call ground for taxi to transient parking on the south side, then read back the instructions before you move.",
-            situation: "Towered field, you are Concord Ground (transient parking is on the south side; the route from hotel goes down juliet and crosses runway 19L at charted hot spot two). Step 1: grade the request — Ground, aircraft, position (clear of three two left at hotel), request taxi to transient parking. Then PICK ONE at random: (a) 'transient parking, taxi via juliet, cross runway one niner left', or (b) 'transient parking, taxi via juliet, hold short of runway one niner left'. Step 2: grade the readback — route, and the cross or hold-short VERBATIM with callsign; if a runway instruction is missing, ask for that item and do not advance. If you chose (b), continue the exchange: after a correct hold-short readback the pilot taxis and holds; when they report holding short (or on your own initiative), issue 'cross runway one niner left, continue to transient parking' and grade that readback. Set phaseAdvance true only when everything through the crossing has been read back.",
-            aircraft: rv12, airport: concord, callType: .taxi
+            situation: "Towered field, you are Concord Ground (transient parking is on the south side; the route from hotel goes down juliet and crosses runway 19L at charted hot spot two). Grade the request — Ground, aircraft, position (clear of three two left at hotel), request taxi to transient parking. Once the request is complete, reply with the clearance, PICKING ONE at random: (a) 'transient parking, taxi via juliet, cross runway one niner left', or (b) 'transient parking, taxi via juliet, hold short of runway one niner left' — AND set phaseAdvance true: the pilot's readback of your clearance is graded as the next exercise, not by you.",
+            aircraft: rv12, airport: concord, callType: .taxi, followUpReadback: true
         ),
         Drill(
             id: "t-ccr-runway-change",

@@ -221,7 +221,9 @@ final class HandsFreeController: ObservableObject {
         let snap = SessionSnapshot(
             label: sessionLabel,
             mode: mode,
-            drills: sessionDrills,
+            // Live list, not the original: injected readback drills must
+            // survive a resume or the saved index points at the wrong drill.
+            drills: await session.liveDrills,
             drillIndex: progress.drillIndex,
             aircraft: aircraft,
             debrief: await session.debrief,

@@ -491,21 +491,49 @@ import Foundation
     #expect(!verdict.phaseAdvance)
 }
 
-@Test func advanceWithPendingReadbackIsClamped() throws {
-    // Seen live: 'cross runway one niner left' issued in the same verdict as
-    // phaseAdvance=true — the crossing readback never got graded.
-    let inner = """
-    {"heard":"Concord Ground, RV seven three seven juliet alpha, holding short runway one niner left",\
-    "speaker":"Ground","radioReplyText":"RV seven juliet alpha, cross runway one niner left, continue via papa.",\
-    "correct":true,"corrections":[],"expectedExample":"Concord Ground, RV seven three seven juliet alpha, \
-    holding short runway one niner left.","phaseAdvance":true,"coaching":"Good call."}
-    """
-    let response = """
-    {"stop_reason":"end_turn","content":[{"type":"text","text":\(jsonString(inner))}]}
-    """
-    let verdict = try ATCBrain.parseVerdict(from: Data(response.utf8))
-    #expect(verdict.correct)
-    #expect(!verdict.phaseAdvance)
+/// Mock returning one fixed verdict, for driving session-level logic.
+struct FixedBrain: ATCEvaluating {
+    let verdict: Verdict
+    func evaluate(drill: Drill, mode: GradingMode, history: [Turn],
+                  transmission: String, nextSetup: String?) async throws -> Verdict {
+        verdict
+    }
+}
+
+@Test func taxiRequestChainsIntoInjectedReadbackDrill() async throws {
+    let request = DrillLibrary.all.first { $0.id == "t-sns-taxi" }!
+    #expect(request.followUpReadback == true)
+    let clearance = "RV seven juliet alpha, runway three one, taxi via alpha, hold short of runway two six."
+    let brain = FixedBrain(verdict: Verdict(
+        heard: "Salinas Ground, RV seven three seven juliet alpha, ramp, information Foxtrot, request taxi, VFR north",
+        speaker: "Ground", radioReplyText: clearance, correct: true,
+        corrections: [], expectedExample: "", phaseAdvance: true, coaching: ""))
+    let session = PracticeSession(brain: brain, mode: .live, drills: [request])
+
+    _ = try await session.submit("the request")
+    let current = await session.currentDrill
+    #expect(current?.id == "t-sns-taxi-readback")
+    // The injected drill grades against the exact improvised clearance.
+    #expect(current?.situation.contains(clearance) == true)
+    #expect(await session.progress.totalDrills == 2)
+    #expect(await session.liveDrills.count == 2)
+}
+
+@Test func pendingReadbackStillHoldsNonChainedDrills() async throws {
+    // Without the follow-up flag, advancing while the reply demands a
+    // readback (cross/hold short) is a contradiction — the step holds.
+    let drill = DrillLibrary.all.first { $0.id == "t-ccr-holdshort-request" }!
+    #expect(drill.followUpReadback != true)
+    let brain = FixedBrain(verdict: Verdict(
+        heard: "holding short", speaker: "Ground",
+        radioReplyText: "RV seven juliet alpha, cross runway one niner left, continue via papa.",
+        correct: true, corrections: [], expectedExample: "",
+        phaseAdvance: true, coaching: ""))
+    let session = PracticeSession(brain: brain, mode: .live, drills: [drill])
+
+    let verdict = try await session.submit("holding short call")
+    #expect(verdict?.phaseAdvance == false)
+    #expect(await session.progress.drillIndex == 0)
 }
 
 @Test func stubVerdictThrowsDegenerate() {

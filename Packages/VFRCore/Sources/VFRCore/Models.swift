@@ -130,10 +130,16 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
     /// Explicit call-type tag. When nil, `DrillLibrary.callType(for:)` derives
     /// one from the drill id (legacy drills).
     public var callType: CallType?
+    /// When true, passing this drill injects a synthesized follow-up drill
+    /// that grades the pilot's readback of the exact instruction the grader
+    /// just issued (taxi clearances etc.). The app owns that sequencing, so
+    /// the readback can never be skipped by a grader whim. Optional so older
+    /// session snapshots keep decoding.
+    public var followUpReadback: Bool?
 
     public init(id: String, scenario: ScenarioType, title: String, setup: String,
                 situation: String, aircraft: Aircraft, airport: Airport,
-                callType: CallType? = nil) {
+                callType: CallType? = nil, followUpReadback: Bool? = nil) {
         self.id = id
         self.scenario = scenario
         self.title = title
@@ -142,6 +148,7 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
         self.aircraft = aircraft
         self.airport = airport
         self.callType = callType
+        self.followUpReadback = followUpReadback
     }
 }
 

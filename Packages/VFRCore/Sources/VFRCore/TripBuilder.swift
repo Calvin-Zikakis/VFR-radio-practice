@@ -66,6 +66,12 @@ public enum TripBuilder {
         }
 
         arrival(at: destination, touchAndGo: false, detailed: plan.patternWork, add: add)
+
+        // Taxi-in clearances chain: passing the request injects a readback
+        // drill built from whatever route the grader improvised.
+        for i in out.indices where out[i].title.hasPrefix("Clear of the runway —") {
+            out[i].followUpReadback = true
+        }
         return out
     }
 
@@ -139,7 +145,7 @@ public enum TripBuilder {
             if !touchAndGo {
                 add(.towered, "Clear of the runway — \(ap.name) Ground",
                     "You've landed at \(ap.name) and are clear of runway \(rwy). The tower said contact ground. Call \(ap.name) Ground to taxi to parking.",
-                    "Towered field, you are \(ap.name) Ground. Pilot just cleared the runway. Expect who they're calling, aircraft, position, and a request to taxi to parking. Reply with a taxi clearance.",
+                    "Towered field, you are \(ap.name) Ground. Pilot just cleared the runway. Expect who they're calling, aircraft, position, and a request to taxi to parking. Once the request is complete, reply with a taxi clearance with a route (vary the taxiways) AND set phaseAdvance true: the pilot's readback of your clearance is graded as the next exercise, not by you.",
                     ap)
             }
         } else {
