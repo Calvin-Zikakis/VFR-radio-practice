@@ -174,6 +174,10 @@ public enum DrillLibrary {
         for (from, to) in subs where from != to && !from.isEmpty {
             d.setup = d.setup.replacingOccurrences(of: from, with: to)
             d.situation = d.situation.replacingOccurrences(of: from, with: to)
+            d.instruction = d.instruction?.replacingOccurrences(of: from, with: to)
+            d.instructionVariants = d.instructionVariants?.map {
+                $0.replacingOccurrences(of: from, with: to)
+            }
         }
         return d
     }
@@ -367,24 +371,39 @@ public enum DrillLibrary {
             scenario: .towered,
             title: "Request taxi (Ground)",
             setup: "You're at Palo Alto ground with information Tango, parked at the transient ramp, ready to taxi for a VFR departure to the south. Call ground for taxi.",
-            situation: "Towered field, you are Palo Alto Ground. Runway 31 in use; taxiways here are alpha (parallel) and bravo/charlie (ramp exits). Grade the request — who they're calling, aircraft, position, the ATIS letter (current is information Tango; a different letter gets 'verify you have information Tango'), request, direction of flight. Once the request is complete, reply with a real taxi clearance with a route (e.g. 'runway three one, taxi via bravo, alpha' — vary the route) AND set phaseAdvance true: the pilot's readback of your clearance is graded as the next exercise, not by you.",
-            aircraft: skyhawk, airport: paloAlto, followUpReadback: true
+            situation: "Towered field, you are Palo Alto Ground. Runway 31 in use; taxiways here are alpha (parallel) and bravo/charlie (ramp exits). Grade the request — who they're calling, aircraft, position, the ATIS letter (current is information Tango; a different letter gets 'verify you have information Tango'), request, direction of flight.",
+            aircraft: skyhawk, airport: paloAlto, followUpReadback: true,
+            instructionVariants: [
+                "Skyhawk one seven two sierra papa, Palo Alto Ground, runway three one, taxi via bravo, alpha.",
+                "Skyhawk one seven two sierra papa, Palo Alto Ground, runway three one, taxi via charlie, alpha.",
+                "Skyhawk one seven two sierra papa, Palo Alto Ground, runway three one, taxi via bravo, alpha, give way to a Citabria taxiing right to left off the ramp.",
+            ]
         ),
         Drill(
             id: "t-tower-departure",
             scenario: .towered,
             title: "Ready for departure (Tower)",
             setup: "You're holding short of runway three one at Palo Alto, ready for a downwind departure. Call the tower.",
-            situation: "Towered field, you are Palo Alto Tower. Pilot is holding short runway 31, requesting departure. Expect who they're calling, aircraft, position (holding short 31), request/intentions. Reply with a takeoff clearance. Once the pilot's call is complete, reply with your instruction AND set phaseAdvance true — their readback of it is graded as the next exercise, not by you.",
-            aircraft: skyhawk, airport: paloAlto, followUpReadback: true
+            situation: "Towered field, you are Palo Alto Tower. Pilot is holding short runway 31, requesting departure. Expect who they're calling, aircraft, position (holding short 31), request/intentions.",
+            aircraft: skyhawk, airport: paloAlto, followUpReadback: true,
+            instructionVariants: [
+                "Skyhawk one seven two sierra papa, runway three one, cleared for takeoff, left downwind departure approved.",
+                "Skyhawk one seven two sierra papa, runway three one, line up and wait, traffic crossing downfield.",
+                "Skyhawk one seven two sierra papa, runway three one, cleared for takeoff, left downwind departure approved, traffic is a Cirrus on a three mile final.",
+            ]
         ),
         Drill(
             id: "t-inbound",
             scenario: .towered,
             title: "Inbound to a towered field (Tower)",
             setup: "You're ten miles west of Palo Alto inbound to land with information Bravo. Call the tower.",
-            situation: "Towered field, you are Palo Alto Tower. Pilot inbound 10 west with ATIS Bravo. Expect who they're calling, aircraft, position and altitude, ATIS letter, request (landing). Reply with pattern entry instructions and a runway. Once the pilot's call is complete, reply with your instruction AND set phaseAdvance true — their readback of it is graded as the next exercise, not by you.",
-            aircraft: skyhawk, airport: paloAlto, followUpReadback: true
+            situation: "Towered field, you are Palo Alto Tower. Pilot inbound 10 west with ATIS Bravo. Expect who they're calling, aircraft, position and altitude, ATIS letter, request (landing).",
+            aircraft: skyhawk, airport: paloAlto, followUpReadback: true,
+            instructionVariants: [
+                "Skyhawk one seven two sierra papa, Palo Alto Tower, enter left downwind runway three one, report midfield.",
+                "Skyhawk one seven two sierra papa, Palo Alto Tower, enter left base runway three one, report two mile left base.",
+                "Skyhawk one seven two sierra papa, Palo Alto Tower, enter left downwind runway three one, report midfield, traffic is a Bonanza departing ahead of your arrival.",
+            ]
         ),
         Drill(
             id: "t-readback",
@@ -399,16 +418,25 @@ public enum DrillLibrary {
             scenario: .towered,
             title: "Untowered → towered arrival (with ATIS)",
             setup: "You flew up from Watsonville to Monterey. You're 10 miles south of Monterey at three thousand five hundred, inbound to land, and you have information Zulu. Call Monterey Tower.",
-            situation: "Towered field, you are Monterey Tower. Pilot is arriving VFR from an untowered field, 10 south at 3,500 with ATIS information Zulu. Expect: who they're calling, aircraft, position and altitude, the ATIS code ('with information Zulu'), and request. This tests remembering to include the current ATIS letter. Reply with pattern entry and a runway assignment. Once the pilot's call is complete, reply with your instruction AND set phaseAdvance true — their readback of it is graded as the next exercise, not by you.",
-            aircraft: rv12, airport: monterey, followUpReadback: true
+            situation: "Towered field, you are Monterey Tower. Pilot is arriving VFR from an untowered field, 10 south at 3,500 with ATIS information Zulu. Expect: who they're calling, aircraft, position and altitude, the ATIS code ('with information Zulu'), and request. This tests remembering to include the current ATIS letter.",
+            aircraft: rv12, airport: monterey, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, Monterey Tower, enter left downwind runway two eight right, report midfield.",
+                "RV seven three seven juliet alpha, Monterey Tower, enter left base runway two eight right, report two mile left base.",
+                "RV seven three seven juliet alpha, Monterey Tower, enter left downwind runway two eight right, report midfield, traffic is a Skyhawk ahead on the downwind.",
+            ]
         ),
         Drill(
             id: "t-clearance-vfr",
             scenario: .towered,
             title: "VFR departure request (Ground)",
             setup: "You're parked on the transient ramp at Monterey with information Zulu, ready to taxi for a VFR departure to the south. Call ground, then read back your taxi instructions.",
-            situation: "Towered field, you are Monterey Ground (Class C). Grade the request — who they're calling, aircraft, position on the field (transient ramp), ATIS code, and the request with direction of flight. A requested altitude is OPTIONAL — fine if offered, but never require it or ask for it when direction of flight is given. Once the request is complete, reply with a taxi clearance with a route (e.g. 'runway two eight right, taxi via alpha' — vary the route) plus a VFR squawk and departure frequency if appropriate, AND set phaseAdvance true: the pilot's readback of your clearance is graded as the next exercise, not by you.",
-            aircraft: rv12, airport: monterey, followUpReadback: true
+            situation: "Towered field, you are Monterey Ground (Class C). Grade the request — who they're calling, aircraft, position on the field (transient ramp), ATIS code, and the request with direction of flight. A requested altitude is OPTIONAL — fine if offered, but never require it or ask for it when direction of flight is given.",
+            aircraft: rv12, airport: monterey, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, Monterey Ground, runway two eight right, taxi via alpha, maintain VFR at or below one thousand five hundred, departure frequency one two seven point one five, squawk four five two one.",
+                "RV seven three seven juliet alpha, Monterey Ground, runway two eight right, taxi via alpha, charlie, squawk four five two one, departure frequency one two seven point one five.",
+            ]
         ),
         Drill(
             id: "t-pattern-touchgo",
@@ -423,24 +451,39 @@ public enum DrillLibrary {
             scenario: .towered,
             title: "After landing (taxi to parking)",
             setup: "You've landed at Palo Alto and are clear of runway three one. The tower said contact ground. Call Palo Alto Ground to taxi to the transient ramp, then read back the route you're given.",
-            situation: "Towered field, you are Palo Alto Ground. Pilot has just cleared the runway. Grade the call — who they're calling, aircraft, position (clear of 31 / on the taxiway), request to taxi to transient parking. Once the call is complete, reply with a taxi clearance with a route (e.g. 'taxi to the transient ramp via alpha, charlie' — vary the route) AND set phaseAdvance true: the pilot's readback of your clearance is graded as the next exercise, not by you.",
-            aircraft: skyhawk, airport: paloAlto, followUpReadback: true
+            situation: "Towered field, you are Palo Alto Ground. Pilot has just cleared the runway. Grade the call — who they're calling, aircraft, position (clear of 31 / on the taxiway), request to taxi to transient parking.",
+            aircraft: skyhawk, airport: paloAlto, followUpReadback: true,
+            instructionVariants: [
+                "Skyhawk one seven two sierra papa, Palo Alto Ground, taxi to the transient ramp via alpha, charlie.",
+                "Skyhawk one seven two sierra papa, Palo Alto Ground, taxi to the transient ramp via alpha, bravo.",
+                "Skyhawk one seven two sierra papa, Palo Alto Ground, taxi to the transient ramp via alpha, charlie, give way to the fuel truck at the charlie intersection.",
+            ]
         ),
         Drill(
             id: "t-sns-taxi",
             scenario: .towered,
             title: "Request taxi — Salinas Ground",
             setup: "You're at Salinas with information Foxtrot, parked at the ramp, ready to taxi for a VFR departure to the north. Call Salinas Ground — then read back the taxi instructions you get; runway two six crosses your route.",
-            situation: "Towered field, you are Salinas Ground (KSNS, part-time tower — it is open). Runway 31 in use; runway 26 crosses the taxi route; taxiways alpha and bravo. Grade the request — who they're calling, aircraft, position, the ATIS letter (current is information Foxtrot; a different letter gets 'verify you have information Foxtrot'), request, direction of flight. Once the request is complete, reply with a taxi clearance, PICKING ONE at random: (a) crossing approved — 'runway three one, taxi via alpha, cross runway two six', or (b) not approved — 'runway three one, taxi via alpha, hold short of runway two six' — AND set phaseAdvance true: the pilot's readback of your clearance is graded as the next exercise, not by you.",
-            aircraft: rv12, airport: salinas, followUpReadback: true
+            situation: "Towered field, you are Salinas Ground (KSNS, part-time tower — it is open). Runway 31 in use; runway 26 crosses the taxi route; taxiways alpha and bravo. Grade the request — who they're calling, aircraft, position, the ATIS letter (current is information Foxtrot; a different letter gets 'verify you have information Foxtrot'), request, direction of flight.",
+            aircraft: rv12, airport: salinas, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, Salinas Ground, runway three one, taxi via alpha, cross runway two six.",
+                "RV seven three seven juliet alpha, Salinas Ground, runway three one, taxi via alpha, hold short of runway two six.",
+                "RV seven three seven juliet alpha, Salinas Ground, runway three one, taxi via bravo, alpha, cross runway two six.",
+            ]
         ),
         Drill(
             id: "t-sns-inbound",
             scenario: .towered,
             title: "Inbound — Salinas Tower",
             setup: "You're 10 miles south of Salinas at two thousand five hundred, inbound to land with information Kilo. Call Salinas Tower.",
-            situation: "Towered field, you are Salinas Tower (KSNS). Pilot is 10 south at 2,500 inbound to land. Expect who they're calling, aircraft, position and altitude, the ATIS letter (current is information Kilo), request. Reply with pattern entry and a runway. Once the pilot's call is complete, reply with your instruction AND set phaseAdvance true — their readback of it is graded as the next exercise, not by you.",
-            aircraft: rv12, airport: salinas, followUpReadback: true
+            situation: "Towered field, you are Salinas Tower (KSNS). Pilot is 10 south at 2,500 inbound to land. Expect who they're calling, aircraft, position and altitude, the ATIS letter (current is information Kilo), request.",
+            aircraft: rv12, airport: salinas, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, Salinas Tower, enter left downwind runway three one, report midfield.",
+                "RV seven three seven juliet alpha, Salinas Tower, make straight-in runway three one, report three mile final.",
+                "RV seven three seven juliet alpha, Salinas Tower, enter right base runway three one, report two mile right base.",
+            ]
         ),
         Drill(
             id: "t-luaw",
@@ -519,8 +562,12 @@ public enum DrillLibrary {
             scenario: .towered,
             title: "Taxi in from three two left",
             setup: "You've landed on runway three two left at Concord and exited at hotel. Call ground for taxi to transient parking on the south side, then read back the instructions before you move.",
-            situation: "Towered field, you are Concord Ground (transient parking is on the south side; the route from hotel goes down juliet and crosses runway 19L at charted hot spot two). Grade the request — Ground, aircraft, position (clear of three two left at hotel), request taxi to transient parking. Once the request is complete, reply with the clearance, PICKING ONE at random: (a) 'transient parking, taxi via juliet, cross runway one niner left', or (b) 'transient parking, taxi via juliet, hold short of runway one niner left' — AND set phaseAdvance true: the pilot's readback of your clearance is graded as the next exercise, not by you.",
-            aircraft: rv12, airport: concord, callType: .taxi, followUpReadback: true
+            situation: "Towered field, you are Concord Ground (transient parking is on the south side; the route from hotel goes down juliet and crosses runway 19L at charted hot spot two). Grade the request — Ground, aircraft, position (clear of three two left at hotel), request taxi to transient parking.",
+            aircraft: rv12, airport: concord, callType: .taxi, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, Concord Ground, transient parking, taxi via juliet, cross runway one niner left.",
+                "RV seven three seven juliet alpha, Concord Ground, transient parking, taxi via juliet, hold short of runway one niner left.",
+            ]
         ),
         Drill(
             id: "t-ccr-runway-change",
@@ -567,16 +614,25 @@ public enum DrillLibrary {
             scenario: .towered,
             title: "Request the option",
             setup: "You're holding short of runway three one at Palo Alto and want to stay in the pattern doing touch-and-goes. Call tower and request the option.",
-            situation: "Towered field, you are Palo Alto Tower. Pilot wants pattern work. Expect: who they're calling, callsign, position (holding short three one), and a request for closed traffic / the option. Reply with 'runway three one, cleared for the option' or 'make left closed traffic, cleared for takeoff' as appropriate. Once the pilot's call is complete, reply with your instruction AND set phaseAdvance true — their readback of it is graded as the next exercise, not by you.",
-            aircraft: rv12, airport: paloAlto, callType: .pattern, followUpReadback: true
+            situation: "Towered field, you are Palo Alto Tower. Pilot wants pattern work. Expect: who they're calling, callsign, position (holding short three one), and a request for closed traffic / the option.",
+            aircraft: rv12, airport: paloAlto, callType: .pattern, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, runway three one, cleared for the option, make left closed traffic.",
+                "RV seven three seven juliet alpha, make left closed traffic, runway three one, cleared for takeoff.",
+                "RV seven three seven juliet alpha, runway three one, line up and wait, traffic departing ahead.",
+            ]
         ),
         Drill(
             id: "t-class-d-transition",
             scenario: .towered,
             title: "Class D transition",
             setup: "You're 10 miles south of Palo Alto at two thousand five hundred, not landing — you want to transition through their Class Delta surface area northbound. Call the tower.",
-            situation: "Towered field, you are Palo Alto Tower. Pilot wants to transit the Class D, not land. Expect: who they're calling, aircraft, position and altitude, and the request ('request transition through your Delta northbound' or similar). Reply approving the transition with an altitude restriction (e.g. 'transition approved, maintain at or above one thousand five hundred, report clear to the north'). Once the pilot's call is complete, reply with your instruction AND set phaseAdvance true — their readback of it is graded as the next exercise, not by you.",
-            aircraft: rv12, airport: paloAlto, callType: .bravo, followUpReadback: true
+            situation: "Towered field, you are Palo Alto Tower. Pilot wants to transit the Class D, not land. Expect: who they're calling, aircraft, position and altitude, and the request ('request transition through your Delta northbound' or similar).",
+            aircraft: rv12, airport: paloAlto, callType: .bravo, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, transition approved, maintain at or above one thousand five hundred, report clear of the Delta to the north.",
+                "RV seven three seven juliet alpha, transition approved, maintain two thousand five hundred, report clear to the north.",
+            ]
         ),
         Drill(
             id: "t-sayagain",
@@ -615,8 +671,12 @@ public enum DrillLibrary {
             scenario: .towered,
             title: "Special VFR — Monterey marine layer",
             setup: "The marine layer has Monterey reporting a niner hundred overcast — the field is IFR, but visibility underneath is good. You want to depart VFR to the east where it's clear. Call Monterey Ground and request a Special VFR departure.",
-            situation: "Towered field, you are Monterey Ground (Class C surface area, field IFR: ceiling 900 overcast, visibility 5). The pilot must REQUEST Special VFR — it is never offered by ATC. Grade the request: who they're calling, callsign, position, and an explicit 'request Special VFR departure to the east'. Then issue the clearance: 'cleared out of the Monterey Class Charlie surface area to the east, maintain Special VFR conditions at or below one thousand five hundred, report leaving the surface area', plus a squawk of four five two one. Once the request is complete, issue that clearance AND set phaseAdvance true — the readback ('maintain Special VFR conditions', the boundary report, the squawk) is graded as the next exercise, not by you. Coach the rules if asked: SVFR needs 1 mile visibility and clear of clouds, pilot must request it, and it only applies within the surface area.",
-            aircraft: rv12, airport: monterey, callType: .bravo, followUpReadback: true
+            situation: "Towered field, you are Monterey Ground (Class C surface area, field IFR: ceiling 900 overcast, visibility 5). The pilot must REQUEST Special VFR — it is never offered by ATC. Grade the request: who they're calling, callsign, position, and an explicit 'request Special VFR departure to the east'. Coach the rules if asked: SVFR needs 1 mile visibility and clear of clouds, pilot must request it, and it only applies within the surface area.",
+            aircraft: rv12, airport: monterey, callType: .bravo, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, cleared out of the Monterey Class Charlie surface area to the east, maintain Special VFR conditions at or below one thousand five hundred, report leaving the surface area, squawk four five two one.",
+                "RV seven three seven juliet alpha, cleared out of the Monterey Class Charlie surface area to the east, maintain Special VFR conditions at or below one thousand five hundred, squawk four five two one, and advise when clear of the surface area.",
+            ]
         ),
         Drill(
             id: "t-lahso",
@@ -652,8 +712,13 @@ public enum DrillLibrary {
             scenario: .flightFollowing,
             title: "Request flight following (NorCal Approach)",
             setup: "NorCal Approach answers 'go ahead'. You're northbound out of Watsonville, climbing through two thousand five hundred, and you want VFR flight following to Sacramento at four thousand five hundred. Make your request.",
-            situation: "You are NorCal Approach. The pilot is following up their initial callup with the details. Expect: aircraft type/callsign, position and altitude, request (VFR flight following), destination, and requested altitude. Reply with a squawk code and, once they've given enough, 'radar contact'. If something is missing, ask for just that item. NEVER assign the squawk while the request is still incomplete — while anything is missing, ask ONLY for the missing item. The squawk (with 'radar contact') belongs exclusively in your final, advancing reply. Once the pilot's call is complete, reply with your instruction AND set phaseAdvance true — their readback of it is graded as the next exercise, not by you.",
-            aircraft: rv12, airport: watsonville, followUpReadback: true
+            situation: "You are NorCal Approach. The pilot is following up their initial callup with the details. Expect: aircraft type/callsign, position and altitude, request (VFR flight following), destination, and requested altitude. If something is missing, ask for just that item.",
+            aircraft: rv12, airport: watsonville, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, squawk four five two one.",
+                "RV seven three seven juliet alpha, squawk four five two one and ident.",
+                "RV seven three seven juliet alpha, squawk four five two one, maintain VFR.",
+            ]
         ),
         Drill(
             id: "ff-traffic",
@@ -692,8 +757,12 @@ public enum DrillLibrary {
             scenario: .flightFollowing,
             title: "Flight following out of a towered field",
             setup: "You just departed Palo Alto to the south and the tower said 'frequency change approved.' You're climbing through two thousand five hundred and want VFR flight following to Watsonville. Contact NorCal Approach.",
-            situation: "You are NorCal Approach. The pilot just departed a towered field and is now calling you for flight following. Expect facility, aircraft, position and altitude, request (VFR flight following), destination, and requested altitude. Reply with a squawk code and 'radar contact', or ask for anything missing. NEVER assign the squawk while the request is still incomplete — while anything is missing, ask ONLY for the missing item. The squawk (with 'radar contact') belongs exclusively in your final, advancing reply. Once the pilot's call is complete, reply with your instruction AND set phaseAdvance true — their readback of it is graded as the next exercise, not by you.",
-            aircraft: skyhawk, airport: paloAlto, followUpReadback: true
+            situation: "You are NorCal Approach. The pilot just departed a towered field and is now calling you for flight following. Expect facility, aircraft, position and altitude, request (VFR flight following), destination, and requested altitude. If anything is missing, ask for just that item.",
+            aircraft: skyhawk, airport: paloAlto, followUpReadback: true,
+            instructionVariants: [
+                "Skyhawk one seven two sierra papa, squawk four five two one.",
+                "Skyhawk one seven two sierra papa, squawk four five two one and ident.",
+            ]
         ),
         Drill(
             id: "ff-handoff",
@@ -748,8 +817,12 @@ public enum DrillLibrary {
             scenario: .flightFollowing,
             title: "Class Charlie entry — two-way contact",
             setup: "You're 15 miles northeast of Monterey at three thousand five hundred, inbound to land, with information Romeo. Monterey is Class Charlie — call NorCal Approach to establish two-way communication before entering.",
-            situation: "You are NorCal Approach working the Monterey Class C. The pilot must establish two-way radio communication before entering: expect facility, aircraft type and callsign, position and altitude, the ATIS letter (current is information Romeo), and intentions (landing Monterey). KEY TEACHING POINT — the two-way rule: if you reply WITH their callsign (even 'RV seven three seven juliet alpha, standby'), communication is established and they may enter the Charlie; if you say 'aircraft calling, standby' WITHOUT the callsign, they may NOT enter. After a good callup, reply with their callsign, a squawk of four five two one, and 'radar contact'. If their callup is incomplete, reply without using their callsign so they learn the difference, and say what you need. NEVER assign the squawk while the request is still incomplete — while anything is missing, ask ONLY for the missing item. The squawk (with 'radar contact') belongs exclusively in your final, advancing reply. Once the pilot's call is complete, reply with your instruction AND set phaseAdvance true — their readback of it is graded as the next exercise, not by you.",
-            aircraft: rv12, airport: monterey, callType: .bravo, followUpReadback: true
+            situation: "You are NorCal Approach working the Monterey Class C. The pilot must establish two-way radio communication before entering: expect facility, aircraft type and callsign, position and altitude, the ATIS letter (current is information Romeo), and intentions (landing Monterey). KEY TEACHING POINT — the two-way rule: if you reply WITH their callsign (even 'RV seven three seven juliet alpha, standby'), communication is established and they may enter the Charlie; if you say 'aircraft calling, standby' WITHOUT the callsign, they may NOT enter. If their callup is incomplete, reply without using their callsign so they learn the difference, and say what you need.",
+            aircraft: rv12, airport: monterey, callType: .bravo, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, squawk four five two one and ident.",
+                "RV seven three seven juliet alpha, Monterey altimeter three zero zero one, squawk four five two one.",
+            ]
         ),
         Drill(
             id: "ff-squawk-verify",

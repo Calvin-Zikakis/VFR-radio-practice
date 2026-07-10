@@ -471,6 +471,128 @@ import Foundation
     #expect(DrillLibrary.routableAirports.contains { $0.icao == "KCCR" })
 }
 
+// MARK: - App-composed instructions (readback chaining v2)
+
+@Test func varyChoosesOneInstructionVariant() {
+    // Every chained library drill offers 2–3 authored variants; vary() must
+    // resolve exactly one of them (post-substitution), never leave it nil.
+    let flagged = DrillLibrary.all.filter { $0.instructionVariants?.isEmpty == false }
+    #expect(flagged.count >= 12)
+    for drill in flagged {
+        var sawVariety = false
+        let baseline = DrillRandomizer.vary(drill, runway: nil, altitudeOffset: 0).instruction
+        for _ in 0..<40 {
+            let chosen = try! #require(DrillRandomizer.vary(drill).instruction)
+            #expect(!chosen.isEmpty)
+            if chosen != baseline { sawVariety = true }
+        }
+        // Drills with more than one distinct variant should actually vary.
+        if Set(drill.instructionVariants ?? []).count > 1 {
+            #expect(sawVariety, "instruction never varied for \(drill.id)")
+        }
+    }
+}
+
+@Test func resolveInstructionsIsStableAndNeverReRolls() {
+    // The non-varied path picks the first variant; a drill that already has a
+    // chosen instruction (resumed snapshot) is left untouched.
+    let sns = DrillLibrary.all.first { $0.id == "t-sns-taxi" }!
+    let resolved = DrillRandomizer.resolveInstructions([sns])[0]
+    #expect(resolved.instruction == sns.instructionVariants?.first)
+    // Idempotent: resolving again keeps the same instruction.
+    let again = DrillRandomizer.resolveInstructions([resolved])[0]
+    #expect(again.instruction == resolved.instruction)
+    // A pre-chosen instruction survives even if it isn't among the variants.
+    var pinned = sns
+    pinned.instruction = "RV seven three seven juliet alpha, some already-chosen clearance."
+    #expect(DrillRandomizer.resolveInstructions([pinned])[0].instruction == pinned.instruction)
+}
+
+@Test func instructionSharesOneSubstitutionPassWithSetupAndSituation() {
+    // The taxiway shuffle rewrites the route consistently across setup,
+    // situation, AND the chosen instruction — a letter spoken in the
+    // clearance must be the same letter the grader's script names.
+    let drill = DrillLibrary.all.first { $0.id == "t-ccr-taxiback" }!
+    for _ in 0..<40 {
+        let varied = DrillRandomizer.vary(drill)
+        let instruction = try! #require(varied.instruction)
+        // Callsign survives intact in the instruction.
+        #expect(instruction.contains("seven three seven juliet alpha"))
+        // Any shuffled taxiway letter in the instruction is also in the
+        // situation (they came from one substitution pass).
+        for word in ["bravo", "charlie", "delta", "echo", "foxtrot", "golf",
+                     "hotel", "mike", "sierra", "tango", "victor", "whiskey",
+                     "yankee", "zulu"]
+        where instruction.contains(" \(word)") {
+            #expect(varied.situation.contains(word),
+                    "\(word) in instruction but not situation for \(drill.id)")
+        }
+    }
+}
+
+@Test func squawkVariesInsideTheAuthoredInstruction() {
+    // ff-request authors its squawk as "four five two one"; the incidental
+    // substitution must reach into the instruction and swap the digits too.
+    let drill = DrillLibrary.all.first { $0.id == "ff-request" }!
+    var sawSwapped = false
+    for _ in 0..<40 {
+        let varied = DrillRandomizer.vary(drill)
+        let instruction = try! #require(varied.instruction)
+        #expect(instruction.contains("squawk"))
+        if !instruction.contains("four five two one") { sawSwapped = true }
+    }
+    #expect(sawSwapped, "authored squawk never randomized inside the instruction")
+}
+
+@Test func retargetRewritesInstructionCallsigns() {
+    let cirrus = Aircraft(callsign: "N523CD",
+                          phoneticCallsign: "Cirrus five two three charlie delta",
+                          type: "Cirrus SR22")
+    // t-sns-taxi is authored for the RV; flown as the Cirrus, neither the
+    // chosen instruction nor its variants may leak the RV callsign.
+    let sns = DrillLibrary.drills(for: .towered, aircraft: cirrus)
+        .first { $0.id == "t-sns-taxi" }!
+    let resolved = DrillRandomizer.resolveInstructions([sns])[0]
+    let instruction = try! #require(resolved.instruction)
+    #expect(instruction.contains("Cirrus five two three charlie delta"))
+    for form in ["seven three seven juliet alpha", "N737JA"] {
+        #expect(!instruction.contains(form))
+        for variant in resolved.instructionVariants ?? [] {
+            #expect(!variant.contains(form), "RV form '\(form)' leaked in variant")
+        }
+    }
+}
+
+@Test func chosenInstructionRoundTripsThroughSnapshot() throws {
+    let sns = DrillRandomizer.vary(DrillLibrary.all.first { $0.id == "t-sns-taxi" }!)
+    let data = try JSONEncoder().encode(sns)
+    let decoded = try JSONDecoder().decode(Drill.self, from: data)
+    #expect(decoded.instruction == sns.instruction)
+    #expect(decoded.instructionVariants == sns.instructionVariants)
+    // A pre-v2 snapshot (no instruction fields) still decodes.
+    let legacy = """
+    {"id":"x","scenario":"towered","title":"t","setup":"s",\
+    "situation":"sit","aircraft":{"callsign":"N1","phoneticCallsign":"one","type":"C"},\
+    "airport":{"icao":"K","name":"n","ctafOrTower":"f","elevationFt":1,\
+    "runwaysInUse":["31"],"isTowered":true}}
+    """
+    let old = try JSONDecoder().decode(Drill.self, from: Data(legacy.utf8))
+    #expect(old.instruction == nil)
+    #expect(old.instructionVariants == nil)
+}
+
+@Test func promptAppendsTheInstructionBlockOnlyWhenPresent() {
+    let sns = DrillRandomizer.vary(DrillLibrary.all.first { $0.id == "t-sns-taxi" }!)
+    let withInstruction = ATCBrain.systemPrompt(drill: sns, mode: .live)
+    #expect(withInstruction.contains("THE INSTRUCTION (context)"))
+    #expect(withInstruction.contains(sns.instruction!))
+    #expect(withInstruction.contains("the app itself"))
+    // A plain drill with no instruction gets no such block.
+    let plain = DrillLibrary.all.first { $0.id == "t-readback" }!
+    #expect(plain.instruction == nil)
+    #expect(!ATCBrain.systemPrompt(drill: plain, mode: .live).contains("THE INSTRUCTION (context)"))
+}
+
 @Test func trafficTailDeparturesExist() {
     let departures = DrillLibrary.drills(matching: [.departure],
                                          aircraft: DrillLibrary.defaultAircraft)
@@ -509,22 +631,44 @@ struct FixedBrain: ATCEvaluating {
 }
 
 @Test func taxiRequestChainsIntoInjectedReadbackDrill() async throws {
-    let request = DrillLibrary.all.first { $0.id == "t-sns-taxi" }!
+    let request = DrillRandomizer.resolveInstructions(
+        [DrillLibrary.all.first { $0.id == "t-sns-taxi" }!])[0]
     #expect(request.followUpReadback == true)
-    let clearance = "RV seven juliet alpha, runway three one, taxi via alpha, hold short of runway two six."
+    let instruction = try #require(request.instruction)
+    // The grader leaves the reply empty on the advancing turn (per its
+    // prompt); the SESSION issues the authored clearance.
     let brain = FixedBrain(verdict: Verdict(
         heard: "Salinas Ground, RV seven three seven juliet alpha, ramp, information Foxtrot, request taxi, VFR north",
-        speaker: "Ground", radioReplyText: clearance, correct: true,
+        speaker: "Ground", radioReplyText: "", correct: true,
         corrections: [], expectedExample: "", phaseAdvance: true, coaching: ""))
     let session = PracticeSession(brain: brain, mode: .live, drills: [request])
 
-    _ = try await session.submit("the request")
+    let verdict = try await session.submit("the request")
+    // The spoken reply IS the drill's authored instruction...
+    #expect(verdict?.radioReplyText == instruction)
     let current = await session.currentDrill
     #expect(current?.id == "t-sns-taxi-readback")
-    // The injected drill grades against the exact improvised clearance.
-    #expect(current?.situation.contains(clearance) == true)
+    // ...and the injected drill grades against the SAME string.
+    #expect(current?.situation.contains(instruction) == true)
     #expect(await session.progress.totalDrills == 2)
     #expect(await session.liveDrills.count == 2)
+}
+
+@Test func graderImprovisedReplyIsOverriddenByComposedInstruction() async throws {
+    // If the grader writes its own clearance on the advancing turn out of
+    // habit, the app's authored instruction wins — spoken text and grading
+    // target can never diverge.
+    let request = DrillRandomizer.resolveInstructions(
+        [DrillLibrary.all.first { $0.id == "ff-request" }!])[0]
+    let brain = FixedBrain(verdict: Verdict(
+        heard: "full request", speaker: "Approach",
+        radioReplyText: "RV seven juliet alpha, squawk zero four two six, radar contact.",
+        correct: true, corrections: [], expectedExample: "",
+        phaseAdvance: true, coaching: ""))
+    let session = PracticeSession(brain: brain, mode: .live, drills: [request])
+    let verdict = try await session.submit("the request")
+    #expect(verdict?.radioReplyText == request.instruction)
+    #expect(await session.currentDrill?.situation.contains(request.instruction!) == true)
 }
 
 /// Mock returning a scripted sequence of verdicts.
@@ -537,37 +681,40 @@ final class SequenceBrain: ATCEvaluating, @unchecked Sendable {
     }
 }
 
-@Test func advisoryOnlyFinalReplySkipsInjection() async throws {
-    // Seen live (looping): the squawk was dribbled out on an earlier turn and
-    // read back in-exchange; the advancing reply was just 'radar contact'.
-    // Injecting anyway produced a drill demanding a readback of an advisory.
-    let drill = DrillLibrary.all.first { $0.id == "ff-request" }!
+@Test func noInstructionMeansNoInjection() async throws {
+    // Injection is driven purely by the drill's own instruction field — no
+    // keyword-guessing against the reply. A flagged drill with no resolved
+    // instruction (e.g. a stale pre-v2 snapshot) advances without injecting.
+    var drill = DrillLibrary.all.first { $0.id == "ff-request" }!
     #expect(drill.followUpReadback == true)
-    let brain = SequenceBrain([
-        Verdict(heard: "details, no callsign", speaker: "Approach",
-                radioReplyText: "RV seven juliet alpha, squawk four two one seven, say aircraft type.",
-                correct: false, corrections: ["Missing callsign"], expectedExample: "x",
-                phaseAdvance: false, coaching: "add your callsign"),
-        Verdict(heard: "squawk four two one seven, RV seven three seven juliet alpha",
-                speaker: "Approach",
-                radioReplyText: "RV seven juliet alpha, roger, radar contact.", correct: true,
-                corrections: [], expectedExample: "", phaseAdvance: true, coaching: ""),
-    ])
+    drill.instructionVariants = nil
+    #expect(drill.instruction == nil)
+    let brain = FixedBrain(verdict: Verdict(
+        heard: "complete request", speaker: "Approach",
+        radioReplyText: "RV seven juliet alpha, radar contact.", correct: true,
+        corrections: [], expectedExample: "", phaseAdvance: true, coaching: ""))
     let session = PracticeSession(brain: brain, mode: .live, drills: [drill])
-    _ = try await session.submit("first attempt")
-    _ = try await session.submit("readback in-exchange")
-    // No injected drill: the readback already happened. Session is finished.
+    _ = try await session.submit("the request")
     #expect(await session.currentDrill == nil)
     #expect(await session.liveDrills.count == 1)
 }
 
-@Test func tripRequestPhasesChainReadbacks() {
+@Test func tripRequestPhasesChainReadbacks() throws {
     let plan = TripPlan(stops: DrillLibrary.defaultTripStops,
                         flightFollowing: true, patternWork: true)
     let drills = TripBuilder.drills(for: plan, aircraft: DrillLibrary.defaultAircraft)
     for prefix in ["Ready for departure —", "Request flight following —"] {
-        #expect(drills.contains { $0.title.hasPrefix(prefix) && $0.followUpReadback == true },
-                "no chained phase for \(prefix)")
+        #expect(drills.contains {
+            $0.title.hasPrefix(prefix) && $0.followUpReadback == true
+                && $0.instructionVariants?.isEmpty == false
+        }, "no chained phase with authored instructions for \(prefix)")
+    }
+    // Every chained trip phase carries authored variants that name the flown
+    // plane — the app composes the instruction, the grader never improvises.
+    for d in drills where d.followUpReadback == true {
+        let variants = try #require(d.instructionVariants, "no variants for \(d.title)")
+        #expect(!variants.isEmpty)
+        #expect(variants.allSatisfy { $0.contains("seven three seven juliet alpha") })
     }
     // Towered inbound chains; untowered inbound (CTAF, no instruction) must not.
     #expect(drills.contains { $0.title.hasPrefix("Inbound —") && $0.title.hasSuffix("Tower")

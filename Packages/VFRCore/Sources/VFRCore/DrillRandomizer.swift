@@ -44,6 +44,11 @@ public enum DrillRandomizer {
 
     static func vary(_ drill: Drill, runway: String?, altitudeOffset: Int) -> Drill {
         var d = drill
+        // Chained drills: pick this session's authored instruction BEFORE
+        // building the substitutions, so one pass rewrites setup, situation,
+        // and instruction together — briefing, grader script, and spoken
+        // clearance can never disagree.
+        if d.instruction == nil { d.instruction = d.instructionVariants?.randomElement() }
         // Identity mappings FIRST: `applying` placeholders pair lefts in
         // order, so these shield every form of the flown callsign from all
         // later substitutions — real taxiway letters (juliet, alpha) and
@@ -69,12 +74,24 @@ public enum DrillRandomizer {
             subs.append(contentsOf: altitudeSubstitutions(offset: altitudeOffset))
         }
 
-        subs.append(contentsOf: incidentalSubstitutions(for: drill))
-        subs.append(contentsOf: taxiwaySubstitutions(for: drill))
+        subs.append(contentsOf: incidentalSubstitutions(for: d))
+        subs.append(contentsOf: taxiwaySubstitutions(for: d))
 
         d.setup = applying(subs, to: d.setup)
         d.situation = applying(subs, to: d.situation)
+        d.instruction = d.instruction.map { applying(subs, to: $0) }
         return d
+    }
+
+    /// The non-varied path still needs ONE chosen instruction per chained
+    /// drill (variation off, or a browse/resume that skips `vary`). Resumed
+    /// snapshots already carry theirs, so this never re-rolls a choice.
+    public static func resolveInstructions(_ drills: [Drill]) -> [Drill] {
+        drills.map {
+            var d = $0
+            if d.instruction == nil { d.instruction = d.instructionVariants?.first }
+            return d
+        }
     }
 
     /// Apply all pairs simultaneously (two-pass through unique placeholders),
@@ -150,7 +167,7 @@ public enum DrillRandomizer {
 
     private static func incidentalSubstitutions(for drill: Drill) -> [(String, String)] {
         var subs: [(String, String)] = []
-        let text = drill.setup + " " + drill.situation
+        let text = scannableText(of: drill)
 
         // ATIS letter: replace "information X" / "ATIS X" pairs with one new
         // letter. Never touch bare letter words ("Class Bravo" must survive).
@@ -208,9 +225,15 @@ public enum DrillRandomizer {
         "kilo", "mike", "november", "papa", "romeo", "sierra", "tango",
         "victor", "whiskey", "yankee", "zulu"]
 
+    /// Everything a substitution trigger may scan — the authored squawk or a
+    /// route's taxiway letters can live in the chosen instruction alone.
+    private static func scannableText(of drill: Drill) -> String {
+        drill.setup + " " + drill.situation + " " + (drill.instruction ?? "")
+    }
+
     private static func taxiwaySubstitutions(for drill: Drill) -> [(String, String)] {
         guard taxiwayVaried.contains(drill.id) else { return [] }
-        let text = drill.setup + " " + drill.situation
+        let text = scannableText(of: drill)
         // Never touch a word that's part of the callsign being flown.
         let callsignWords = Set(drill.aircraft.phoneticCallsign.lowercased()
             .split(separator: " ").map(String.init))

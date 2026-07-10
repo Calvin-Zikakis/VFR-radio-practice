@@ -200,8 +200,12 @@ final class HandsFreeController: ObservableObject {
         // Vary incidental details (ATIS letter, distances, squawk codes) so
         // repeat sessions can't be answered from memory. Never re-vary a
         // resumed session — its details are already baked into the snapshot.
+        // Chained drills need ONE chosen instruction either way; the resolve
+        // pass is a no-op for drills that already carry theirs.
         let made = makeDrills(plane)
-        sessionDrills = (applyVariation && settings.varyDetails) ? DrillRandomizer.vary(made) : made
+        sessionDrills = (applyVariation && settings.varyDetails)
+            ? DrillRandomizer.vary(made)
+            : DrillRandomizer.resolveInstructions(made)
         session = PracticeSession(brain: brain, mode: mode, drills: sessionDrills,
                                   startIndex: startIndex, debrief: restoredDebrief)
         // Don't let the screen lock mid-session — it kills the microphone,

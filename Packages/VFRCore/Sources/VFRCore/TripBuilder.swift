@@ -69,17 +69,54 @@ public enum TripBuilder {
 
         arrival(at: destination, touchAndGo: false, detailed: plan.patternWork, add: add)
 
-        // Request-style phases chain: passing the request injects a readback
-        // drill built from whatever instruction the grader improvised —
-        // taxi-in routes, takeoff clearances, pattern entries, FF squawks.
+        // Request-style phases chain: passing the request advances into an
+        // injected readback drill. The app authors the instruction itself —
+        // small template sets per phase, randomized in the same pass as
+        // everything else — so the spoken clearance and the injected drill's
+        // grading target are the same string by construction.
+        let cs = aircraft.phoneticCallsign
         for i in out.indices {
             let t = out[i].title
-            if t.hasPrefix("Ready for departure —")
-                || t.hasPrefix("Request flight following —")
-                || (t.hasPrefix("Taxi —") && t.hasSuffix("Ground"))
-                || (t.hasPrefix("Clear of the runway —") && t.hasSuffix("Ground"))
-                || (t.hasPrefix("Inbound —") && t.hasSuffix("Tower")) {
+            let ap = out[i].airport
+            let rwy = spokenRunway(firstRunway(ap))
+            var variants: [String]?
+            if t.hasPrefix("Ready for departure —") {
+                variants = [
+                    "\(cs), runway \(rwy), cleared for takeoff.",
+                    "\(cs), runway \(rwy), line up and wait, traffic departing ahead.",
+                    "\(cs), runway \(rwy), cleared for takeoff, on-course heading approved.",
+                ]
+            } else if t.hasPrefix("Request flight following —") {
+                variants = [
+                    "\(cs), squawk four five two one.",
+                    "\(cs), squawk four five two one and ident.",
+                ]
+            } else if t.hasPrefix("Taxi —"), t.hasSuffix("Ground") {
+                variants = [
+                    "\(cs), \(ap.name) Ground, runway \(rwy), taxi via alpha.",
+                    "\(cs), \(ap.name) Ground, runway \(rwy), taxi via bravo, alpha.",
+                ]
+            } else if t.hasPrefix("Clear of the runway —"), t.hasSuffix("Ground") {
+                variants = [
+                    "\(cs), \(ap.name) Ground, taxi to parking via alpha.",
+                    "\(cs), \(ap.name) Ground, taxi to the transient ramp via alpha, bravo.",
+                ]
+            } else if t.hasPrefix("Inbound —"), t.hasSuffix("Tower") {
+                // With pattern work on, the next scripted step is a left-downwind
+                // report — the entry issued here must be the one it expects.
+                let reportsDownwindNext = i + 1 < out.count
+                    && out[i + 1].title.hasPrefix("Report the pattern")
+                variants = reportsDownwindNext ? [
+                    "\(cs), \(ap.name) Tower, enter left downwind runway \(rwy), report midfield.",
+                    "\(cs), \(ap.name) Tower, enter left downwind runway \(rwy), report midfield, traffic is a Cessna ahead on the downwind.",
+                ] : [
+                    "\(cs), \(ap.name) Tower, enter left downwind runway \(rwy), report midfield.",
+                    "\(cs), \(ap.name) Tower, make straight-in runway \(rwy), report three mile final.",
+                ]
+            }
+            if let variants {
                 out[i].followUpReadback = true
+                out[i].instructionVariants = variants
             }
         }
         return out
@@ -111,12 +148,12 @@ public enum TripBuilder {
                 let atis = atisLetter()
                 add(.towered, "Taxi — \(ap.name) Ground",
                     "You're at \(ap.name) with information \(atis), parked at the ramp, ready to taxi for a VFR departure toward \(dest). Call \(ap.name) Ground.",
-                    "Towered field, you are \(ap.name) Ground. Runway \(firstRunway(ap)) in use. Grade the request: who they're calling, aircraft, position, the ATIS letter (current is information \(atis); a different letter gets 'verify you have information \(atis)'), request, and direction of flight. Once the request is complete, reply with a taxi clearance to runway \(firstRunway(ap)) with a route (vary the taxiways) AND set phaseAdvance true: the pilot's readback of your clearance is graded as the next exercise, not by you.",
+                    "Towered field, you are \(ap.name) Ground. Runway \(firstRunway(ap)) in use. Grade the request: who they're calling, aircraft, position, the ATIS letter (current is information \(atis); a different letter gets 'verify you have information \(atis)'), request, and direction of flight.",
                     ap)
             }
             add(.towered, "Ready for departure — \(ap.name) Tower",
                 "You're holding short of runway \(rwy) at \(ap.name), ready for a VFR departure toward \(dest). Call the tower.",
-                "Towered field, you are \(ap.name) Tower. Pilot is holding short runway \(firstRunway(ap)) requesting a VFR departure. Expect who they're calling, aircraft, position (holding short), and request/intentions. Reply with a takeoff clearance.",
+                "Towered field, you are \(ap.name) Tower. Pilot is holding short runway \(firstRunway(ap)) requesting a VFR departure. Expect who they're calling, aircraft, position (holding short), and request/intentions.",
                 ap)
         } else {
             if !skipTaxi {
@@ -137,15 +174,9 @@ public enum TripBuilder {
         let intent = touchAndGo ? "for the option" : "to land, full stop"
         let atis = atisLetter()
         if ap.isTowered {
-            // When a "report the pattern" phase follows, the tower's improvised
-            // pattern entry must match it — a "report right base" here would
-            // contradict the scripted left-downwind report one step later.
-            let entry = detailed
-                ? "Reply with runway \(firstRunway(ap)) and this exact pattern entry: report left downwind."
-                : "Reply with pattern entry and runway \(firstRunway(ap))."
             add(.towered, "Inbound — \(ap.name) Tower",
                 "You're 10 miles from \(ap.name) at two thousand five hundred, inbound \(intent), with information \(atis). Call \(ap.name) Tower.",
-                "Towered field, you are \(ap.name) Tower. Pilot is 10 miles out at 2,500 inbound \(intent) with ATIS \(atis). Expect who they're calling, aircraft, position and altitude, the ATIS letter, and request. \(entry)",
+                "Towered field, you are \(ap.name) Tower. Pilot is 10 miles out at 2,500 inbound \(intent) with ATIS \(atis). Expect who they're calling, aircraft, position and altitude, the ATIS letter, and request.",
                 ap)
             if detailed {
                 add(.towered, "Report the pattern — \(ap.name) Tower",
@@ -156,7 +187,7 @@ public enum TripBuilder {
             if !touchAndGo {
                 add(.towered, "Clear of the runway — \(ap.name) Ground",
                     "You've landed at \(ap.name) and are clear of runway \(rwy). The tower said contact ground. Call \(ap.name) Ground to taxi to parking.",
-                    "Towered field, you are \(ap.name) Ground. Pilot just cleared the runway. Expect who they're calling, aircraft, position, and a request to taxi to parking. Once the request is complete, reply with a taxi clearance with a route (vary the taxiways) AND set phaseAdvance true: the pilot's readback of your clearance is graded as the next exercise, not by you.",
+                    "Towered field, you are \(ap.name) Ground. Pilot just cleared the runway. Expect who they're calling, aircraft, position, and a request to taxi to parking.",
                     ap)
             }
         } else {
@@ -190,7 +221,7 @@ public enum TripBuilder {
             ap)
         add(.flightFollowing, "Request flight following — NorCal Approach",
             "NorCal Approach answers 'go ahead'. You're climbing through two thousand five hundred, en route to \(destination) at four thousand five hundred. Make your request.",
-            "You are NorCal Approach. The pilot is following up their initial callup. Expect: aircraft type/callsign, position and altitude, request (VFR flight following), destination (\(destination)), and requested altitude. While anything is missing, ask ONLY for the missing item — never assign the squawk yet. Once the request is complete, your final reply assigns the squawk with 'radar contact' AND you set phaseAdvance true: the squawk readback is graded as the next exercise, not by you.",
+            "You are NorCal Approach. The pilot is following up their initial callup. Expect: aircraft type/callsign, position and altitude, request (VFR flight following), destination (\(destination)), and requested altitude. While anything is missing, ask only for the missing item.",
             ap)
     }
 

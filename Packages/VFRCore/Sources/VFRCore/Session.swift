@@ -88,11 +88,23 @@ public actor PracticeSession {
                                                history: history, transmission: transmission,
                                                nextSetup: nextSetup)
 
+        // App-composed instruction: on the advancing turn the SESSION issues
+        // the drill's authored clearance, not the grader. Whatever reply the
+        // model improvised is replaced, so the spoken instruction and the
+        // injected drill's grading target are the same string by construction.
+        let willInject = drill.followUpReadback == true && drill.instruction != nil
+        if verdict.phaseAdvance, willInject, let instruction = drill.instruction {
+            if !verdict.radioReplyText.isEmpty, verdict.radioReplyText != instruction {
+                vfrLog("grader improvised a reply on an app-composed advance — overridden")
+            }
+            verdict.radioReplyText = instruction
+        }
+
         // A crossing or hold-short in the radio reply always demands a
-        // readback. On a follow-up drill that readback is the injected next
-        // drill; anywhere else, advancing past it is a grader contradiction
+        // readback. When an injected follow-up drill will grade it, that's
+        // fine; anywhere else, advancing past it is a grader contradiction
         // (seen live) — hold the step.
-        if verdict.phaseAdvance, drill.followUpReadback != true {
+        if verdict.phaseAdvance, !willInject {
             let reply = verdict.radioReplyText.lowercased()
             if reply.contains("cross runway") || reply.contains("hold short") {
                 vfrLog("grader contradiction — advance while reply demands a readback; holding the step")
@@ -106,8 +118,7 @@ public actor PracticeSession {
             recordDebrief(drill: drill, verdict: verdict)
         }
         if verdict.phaseAdvance {
-            if drill.followUpReadback == true,
-               let instruction = readbackWorthyInstruction(finalReply: verdict.radioReplyText) {
+            if willInject, let instruction = drill.instruction {
                 let followUp = readbackFollowUp(for: drill, verdict: verdict,
                                                 instruction: instruction)
                 drills.insert(followUp, at: index + 1)
@@ -118,22 +129,8 @@ public actor PracticeSession {
         return verdict
     }
 
-    /// The instruction the injected drill should grade a readback of — the
-    /// advancing reply, and ONLY if it actually contains one. When a grader
-    /// dribbles the instruction out early and the exchange ends on an
-    /// advisory-only reply ('radar contact, two miles south'), the pilot
-    /// already read the instruction back in-exchange — injecting anyway
-    /// produced a drill demanding a 'readback' of radar contact (seen live,
-    /// looping). No instruction in the final reply, no injection.
-    private func readbackWorthyInstruction(finalReply: String) -> String? {
-        let keywords = ["squawk", "runway", "cross", "hold short",
-                        "maintain", "cleared", " point "]
-        let l = finalReply.lowercased()
-        return keywords.contains(where: l.contains) ? finalReply : nil
-    }
-
     /// The synthesized drill that grades the pilot's readback of the exact
-    /// instruction the grader just issued. Inherits the parent drill's
+    /// instruction the session just spoke. Inherits the parent drill's
     /// (already randomized) context; the clearance text itself is the content.
     private func readbackFollowUp(for drill: Drill, verdict: Verdict,
                                   instruction: String) -> Drill {

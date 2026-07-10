@@ -263,6 +263,26 @@ public struct ATCBrain: ATCEvaluating, Sendable {
             """
         }
 
+        // Chained drills carry an app-authored instruction: the app itself
+        // speaks it when the exchange completes and grades its readback as
+        // the next drill. The grader's job shrinks to judging the request.
+        let instructionGuidance: String
+        if let instruction = drill.instruction {
+            instructionGuidance = """
+
+            THE INSTRUCTION (context): when this exchange completes, the app itself \
+            will issue exactly: "\(instruction)" \
+            Do not issue that instruction — or any other clearance, squawk, or \
+            route — yourself: while the pilot's request is still incomplete, ask \
+            only for the missing item; once it is complete, set `phaseAdvance` \
+            true and leave `radioReplyText` empty (the app speaks the instruction, \
+            and the pilot's readback of it is graded as the next exercise, not by \
+            you). Keep any intermediate replies consistent with that instruction.
+            """
+        } else {
+            instructionGuidance = ""
+        }
+
         let continuityGuidance: String
         if let nextSetup {
             continuityGuidance = """
@@ -296,7 +316,7 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         doesn't exist.
         PILOT AIRCRAFT: \(a.type), callsign \(a.callsign), spoken as "\(a.phoneticCallsign)".
         SITUATION: \(drill.situation)
-        \(continuityGuidance)
+        \(instructionGuidance)\(continuityGuidance)
         CRITICAL — SPEECH RECOGNITION NOISE:
         The pilot's transmission reaches you as text from imperfect on-device speech \
         recognition. Callsigns, numbers, frequencies, and aviation acronyms are \

@@ -131,15 +131,26 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
     /// one from the drill id (legacy drills).
     public var callType: CallType?
     /// When true, passing this drill injects a synthesized follow-up drill
-    /// that grades the pilot's readback of the exact instruction the grader
-    /// just issued (taxi clearances etc.). The app owns that sequencing, so
-    /// the readback can never be skipped by a grader whim. Optional so older
-    /// session snapshots keep decoding.
+    /// that grades the pilot's readback of the exact instruction issued at
+    /// the end of the exchange (taxi clearances etc.). The app owns that
+    /// sequencing, so the readback can never be skipped by a grader whim.
+    /// Optional so older session snapshots keep decoding.
     public var followUpReadback: Bool?
+    /// Authored templates for the instruction a chained drill ends with — the
+    /// exact clearance the controller issues once the pilot's request is
+    /// complete (2–3 per drill, each including the callsign address). The app,
+    /// not the grader, owns this content: the session speaks the chosen one
+    /// verbatim and the injected readback drill grades against the same
+    /// string, so they can never diverge.
+    public var instructionVariants: [String]?
+    /// The variant chosen for this session, randomized in the same pass as
+    /// setup/situation. Codable so a resumed snapshot keeps its clearance.
+    public var instruction: String?
 
     public init(id: String, scenario: ScenarioType, title: String, setup: String,
                 situation: String, aircraft: Aircraft, airport: Airport,
-                callType: CallType? = nil, followUpReadback: Bool? = nil) {
+                callType: CallType? = nil, followUpReadback: Bool? = nil,
+                instructionVariants: [String]? = nil, instruction: String? = nil) {
         self.id = id
         self.scenario = scenario
         self.title = title
@@ -149,6 +160,8 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
         self.airport = airport
         self.callType = callType
         self.followUpReadback = followUpReadback
+        self.instructionVariants = instructionVariants
+        self.instruction = instruction
     }
 }
 
