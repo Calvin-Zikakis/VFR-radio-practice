@@ -58,6 +58,10 @@ final class HandsFreeController: ObservableObject {
     /// True while `handsFreeLoop` is running, so a mid-session mode switch
     /// never starts a second loop alongside it.
     private var loopActive = false
+    /// Set when resuming a saved snapshot; consumed by the first briefing so it
+    /// can re-anchor the pilot if the resume lands mid-exchange (e.g. on an
+    /// injected readback drill, whose clearance was spoken before the relaunch).
+    private var resumingSnapshot = false
 
     var isRunning: Bool { phase != .idle && phase != .finished }
 
@@ -134,6 +138,7 @@ final class HandsFreeController: ObservableObject {
         self.scenario = nil
         self.trip = nil
         self.callTypes = nil
+        resumingSnapshot = true
         beginSession(settings: settings,
                      label: snap.label,
                      startIndex: snap.drillIndex,
@@ -408,6 +413,9 @@ final class HandsFreeController: ObservableObject {
 
     private func briefCurrent() async {
         guard let drill = await session?.currentDrill else { await finish(); return }
+        // Consumed here: only the FIRST briefing after a resume re-anchors.
+        let resuming = resumingSnapshot
+        resumingSnapshot = false
         currentSetup = drill.setup
         currentExample = nil
         // Bias the recognizer toward this drill's proper nouns so it stops
@@ -433,7 +441,17 @@ final class HandsFreeController: ObservableObject {
         if drill.injectedReadback == true {
             append(.instructor, drill.setup)
             await persistSnapshot()
-            await speakInstructor(drill.setup)
+            // Resumed straight onto a readback after a relaunch: the controller
+            // spoke the clearance last session, so it's gone. Replay it (in the
+            // radio voice — always audible, even with Instructor at zero) so the
+            // pilot has something to read back instead of a silent, blank listen.
+            if resuming, let clearance = drill.instruction ?? lastRadioLine() {
+                await speakInstructor("Resuming. Read back what Ground just gave you.")
+                append(.radio, "(again) \(clearance)")
+                await speaker.speak(clearance, as: .controller)
+            } else {
+                await speakInstructor(drill.setup)
+            }
             return
         }
 
@@ -471,6 +489,19 @@ final class HandsFreeController: ObservableObject {
     private func speakPassNote(_ text: String) async {
         await speaker.speak(text, as: .notes,
                             volume: Float(settings?.passNotesVolume ?? 0))
+    }
+
+    /// The last radio line's spoken text, from the restored transcript — a
+    /// fallback for resuming pre-v2 snapshots whose injected drill has no
+    /// `instruction`. Radio lines read "Speaker: text"; replay just the text.
+    private func lastRadioLine() -> String? {
+        guard let line = transcript.last(where: { $0.role == .radio }) else { return nil }
+        if let colon = line.text.firstIndex(of: ":") {
+            let text = line.text[line.text.index(after: colon)...]
+                .trimmingCharacters(in: .whitespaces)
+            if !text.isEmpty { return text }
+        }
+        return line.text
     }
 
     /// The "Scene" voice: the instructor setting up a drill (what to do next).

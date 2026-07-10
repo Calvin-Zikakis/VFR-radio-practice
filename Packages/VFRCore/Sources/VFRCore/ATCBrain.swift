@@ -277,7 +277,11 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         // speaks it when the exchange completes and grades its readback as
         // the next drill. The grader's job shrinks to judging the request.
         let instructionGuidance: String
-        if let instruction = drill.instruction {
+        // A readback drill also carries the clearance (so the app can replay it
+        // on resume), but its grader must NOT be told to issue it — it already
+        // was issued; the pilot is reading it back. Only request drills get the
+        // "issue this when the exchange completes" block.
+        if let instruction = drill.instruction, drill.injectedReadback != true {
             instructionGuidance = """
 
             THE INSTRUCTION (context): when this exchange completes, the app itself \

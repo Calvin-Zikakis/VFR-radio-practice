@@ -156,6 +156,13 @@ public actor PracticeSession {
             aircraft: drill.aircraft,
             airport: drill.airport,
             callType: .readback,
+            // Carry the clearance so a cross-launch resume can re-speak it to
+            // re-anchor the pilot (the controller normally spoke it a beat
+            // before, but that's gone after a relaunch). The grader does NOT
+            // get the "THE INSTRUCTION" prompt block for a readback drill —
+            // ATCBrain gates it on `injectedReadback` — so this is purely for
+            // the app to replay.
+            instruction: instruction,
             injectedReadback: true)
     }
 

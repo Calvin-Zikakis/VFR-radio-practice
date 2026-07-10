@@ -604,6 +604,29 @@ import Foundation
     let plain = DrillLibrary.all.first { $0.id == "t-readback" }!
     #expect(plain.instruction == nil)
     #expect(!ATCBrain.systemPrompt(drill: plain, mode: .live).contains("THE INSTRUCTION (context)"))
+
+    // A readback drill CARRIES the clearance (so the app can replay it on
+    // resume) but must NOT be told to issue it — it already was.
+    var readback = sns
+    readback.injectedReadback = true
+    #expect(readback.instruction != nil)
+    #expect(!ATCBrain.systemPrompt(drill: readback, mode: .live).contains("THE INSTRUCTION (context)"))
+}
+
+@Test func injectedReadbackDrillCarriesTheClearanceForReplay() async throws {
+    // The synthesized readback drill stores the clearance in `instruction` so a
+    // cross-launch resume can re-speak it (its grader still won't get the
+    // "issue this" prompt block — see promptAppendsTheInstructionBlockOnlyWhenPresent).
+    let request = DrillRandomizer.resolveInstructions(
+        [DrillLibrary.all.first { $0.id == "t-sns-taxi" }!])[0]
+    let brain = FixedBrain(verdict: Verdict(
+        heard: "request", speaker: "Ground", radioReplyText: "", correct: true,
+        corrections: [], expectedExample: "", phaseAdvance: true, coaching: ""))
+    let session = PracticeSession(brain: brain, mode: .live, drills: [request])
+    _ = try await session.submit("the request")
+    let injected = try #require(await session.currentDrill)
+    #expect(injected.injectedReadback == true)
+    #expect(injected.instruction == request.instruction)
 }
 
 @Test func trafficTailDeparturesExist() {
