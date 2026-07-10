@@ -523,7 +523,7 @@ struct FixedBrain: ATCEvaluating {
     let plan = TripPlan(stops: DrillLibrary.defaultTripStops,
                         flightFollowing: true, patternWork: true)
     let drills = TripBuilder.drills(for: plan, aircraft: DrillLibrary.defaultAircraft)
-    for prefix in ["Ready for departure —", "Clear of the runway —", "Request flight following —"] {
+    for prefix in ["Ready for departure —", "Request flight following —"] {
         #expect(drills.contains { $0.title.hasPrefix(prefix) && $0.followUpReadback == true },
                 "no chained phase for \(prefix)")
     }
@@ -531,6 +531,15 @@ struct FixedBrain: ATCEvaluating {
     #expect(drills.contains { $0.title.hasPrefix("Inbound —") && $0.title.hasSuffix("Tower")
                               && $0.followUpReadback == true })
     #expect(!drills.contains { $0.scenario == .untowered && $0.followUpReadback == true })
+
+    // Taxi-in chains only where there's a Ground to copy a route from —
+    // needs a towered destination (the default trip ends untowered).
+    let toweredEnd = TripPlan(stops: Array(DrillLibrary.defaultTripStops.prefix(2)),
+                              flightFollowing: false, patternWork: false)
+    let arrival = TripBuilder.drills(for: toweredEnd, aircraft: DrillLibrary.defaultAircraft)
+    #expect(arrival.contains { $0.title.hasPrefix("Clear of the runway —")
+                               && $0.title.hasSuffix("Ground")
+                               && $0.followUpReadback == true })
 }
 
 @Test func pendingReadbackStillHoldsNonChainedDrills() async throws {
