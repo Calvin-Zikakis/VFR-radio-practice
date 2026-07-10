@@ -519,6 +519,40 @@ struct FixedBrain: ATCEvaluating {
     #expect(await session.liveDrills.count == 2)
 }
 
+/// Mock returning a scripted sequence of verdicts.
+final class SequenceBrain: ATCEvaluating, @unchecked Sendable {
+    private var verdicts: [Verdict]
+    init(_ verdicts: [Verdict]) { self.verdicts = verdicts }
+    func evaluate(drill: Drill, mode: GradingMode, history: [Turn],
+                  transmission: String, nextSetup: String?) async throws -> Verdict {
+        verdicts.removeFirst()
+    }
+}
+
+@Test func advisoryOnlyFinalReplySkipsInjection() async throws {
+    // Seen live (looping): the squawk was dribbled out on an earlier turn and
+    // read back in-exchange; the advancing reply was just 'radar contact'.
+    // Injecting anyway produced a drill demanding a readback of an advisory.
+    let drill = DrillLibrary.all.first { $0.id == "ff-request" }!
+    #expect(drill.followUpReadback == true)
+    let brain = SequenceBrain([
+        Verdict(heard: "details, no callsign", speaker: "Approach",
+                radioReplyText: "RV seven juliet alpha, squawk four two one seven, say aircraft type.",
+                correct: false, corrections: ["Missing callsign"], expectedExample: "x",
+                phaseAdvance: false, coaching: "add your callsign"),
+        Verdict(heard: "squawk four two one seven, RV seven three seven juliet alpha",
+                speaker: "Approach",
+                radioReplyText: "RV seven juliet alpha, roger, radar contact.", correct: true,
+                corrections: [], expectedExample: "", phaseAdvance: true, coaching: ""),
+    ])
+    let session = PracticeSession(brain: brain, mode: .live, drills: [drill])
+    _ = try await session.submit("first attempt")
+    _ = try await session.submit("readback in-exchange")
+    // No injected drill: the readback already happened. Session is finished.
+    #expect(await session.currentDrill == nil)
+    #expect(await session.liveDrills.count == 1)
+}
+
 @Test func tripRequestPhasesChainReadbacks() {
     let plan = TripPlan(stops: DrillLibrary.defaultTripStops,
                         flightFollowing: true, patternWork: true)

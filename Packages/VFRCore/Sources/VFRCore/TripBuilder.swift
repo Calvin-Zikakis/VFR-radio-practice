@@ -186,7 +186,7 @@ public enum TripBuilder {
             ap)
         add(.flightFollowing, "Request flight following — NorCal Approach",
             "NorCal Approach answers 'go ahead'. You're climbing through two thousand five hundred, en route to \(destination) at four thousand five hundred. Make your request.",
-            "You are NorCal Approach. The pilot is following up their initial callup. Expect: aircraft type/callsign, position and altitude, request (VFR flight following), destination (\(destination)), and requested altitude. Reply with a squawk code and, once complete, 'radar contact'. If something is missing, ask for just that item.",
+            "You are NorCal Approach. The pilot is following up their initial callup. Expect: aircraft type/callsign, position and altitude, request (VFR flight following), destination (\(destination)), and requested altitude. While anything is missing, ask ONLY for the missing item — never assign the squawk yet. Once the request is complete, your final reply assigns the squawk with 'radar contact' AND you set phaseAdvance true: the squawk readback is graded as the next exercise, not by you.",
             ap)
     }
 

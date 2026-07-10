@@ -106,8 +106,10 @@ public actor PracticeSession {
             recordDebrief(drill: drill, verdict: verdict)
         }
         if verdict.phaseAdvance {
-            if drill.followUpReadback == true, !verdict.radioReplyText.isEmpty {
-                let followUp = readbackFollowUp(for: drill, verdict: verdict)
+            if drill.followUpReadback == true,
+               let instruction = readbackWorthyInstruction(finalReply: verdict.radioReplyText) {
+                let followUp = readbackFollowUp(for: drill, verdict: verdict,
+                                                instruction: instruction)
                 drills.insert(followUp, at: index + 1)
                 vfrLog("injected readback drill for '\(drill.id)'")
             }
@@ -116,10 +118,25 @@ public actor PracticeSession {
         return verdict
     }
 
+    /// The instruction the injected drill should grade a readback of — the
+    /// advancing reply, and ONLY if it actually contains one. When a grader
+    /// dribbles the instruction out early and the exchange ends on an
+    /// advisory-only reply ('radar contact, two miles south'), the pilot
+    /// already read the instruction back in-exchange — injecting anyway
+    /// produced a drill demanding a 'readback' of radar contact (seen live,
+    /// looping). No instruction in the final reply, no injection.
+    private func readbackWorthyInstruction(finalReply: String) -> String? {
+        let keywords = ["squawk", "runway", "cross", "hold short",
+                        "maintain", "cleared", " point "]
+        let l = finalReply.lowercased()
+        return keywords.contains(where: l.contains) ? finalReply : nil
+    }
+
     /// The synthesized drill that grades the pilot's readback of the exact
     /// instruction the grader just issued. Inherits the parent drill's
     /// (already randomized) context; the clearance text itself is the content.
-    private func readbackFollowUp(for drill: Drill, verdict: Verdict) -> Drill {
+    private func readbackFollowUp(for drill: Drill, verdict: Verdict,
+                                  instruction: String) -> Drill {
         let voice: String
         switch verdict.speaker {
         case "Ground", "Tower": voice = "\(drill.airport.name) \(verdict.speaker)"
@@ -132,7 +149,7 @@ public actor PracticeSession {
             scenario: drill.scenario,
             title: "Read back your instructions",
             setup: "\(voice) has just given you your instructions. Read them back — and if you missed part of it, ask them to say again.",
-            situation: "You are \(voice). You just issued exactly this instruction: '\(verdict.radioReplyText)'. Grade the pilot's readback against it — every element that requires a readback must be VERBATIM: runway instructions (assigned runway, route, crossings, hold shorts), squawk codes, frequencies, altitude restrictions, and clearances, plus the callsign. Advisory extras in your instruction (traffic, weather, 'radar contact') need no readback. If anything required is missing or wrong, say exactly which item to read back and do not advance. If the pilot asks you to say again, repeat the instruction verbatim and do not advance. Set phaseAdvance true only on a complete, correct readback.",
+            situation: "You are \(voice). You just issued exactly this instruction: '\(instruction)'. Grade the pilot's readback against it — every element that requires a readback must be VERBATIM: runway instructions (assigned runway, route, crossings, hold shorts), squawk codes, frequencies, altitude restrictions, and clearances, plus the callsign. Advisory extras in your instruction (traffic, weather, 'radar contact') need no readback. If anything required is missing or wrong, say exactly which item to read back and do not advance. If the pilot asks you to say again, repeat the instruction verbatim and do not advance. Set phaseAdvance true only on a complete, correct readback.",
             aircraft: drill.aircraft,
             airport: drill.airport,
             callType: .readback)
