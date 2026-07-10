@@ -238,16 +238,22 @@ final class SpeechRecognizer: NSObject, ObservableObject {
             // Extract Sendable values off the callback thread, then hop to main.
             let text = result?.bestTranscription.formattedString
             let isFinal = result?.isFinal ?? false
-            let hadError = error != nil
+            let errText = error.map { String(describing: $0) }
             Task { @MainActor in
-                guard let self, gen == self.taskGen else { return }   // stale task
+                guard let self else { return }
+                guard gen == self.taskGen else {
+                    print("VFR: stt#\(gen) stale callback ignored (final=\(isFinal) err=\(errText != nil))")
+                    return
+                }
                 if let text, !text.isEmpty {
                     let full = self.committed.isEmpty ? text : self.committed + " " + text
                     self.latest = full
                     self.partialText = full
+                    print("VFR: stt#\(gen) partial: …\(full.suffix(60))")
                     if self.autoSilence != nil, !self.flushing { self.armSilence() }
                 }
                 if isFinal {
+                    print("VFR: stt#\(gen) FINAL (flushing=\(self.flushing) ptt=\(self.finalContinuation != nil) torn=\(self.torn)): \(text ?? "<nil>")")
                     if self.finalContinuation != nil {
                         self.deliverFinal()          // push-to-talk release: full result is in
                     } else if self.flushing {
@@ -260,13 +266,15 @@ final class SpeechRecognizer: NSObject, ObservableObject {
                         self.installRecognition()
                     }
                 }
-                if hadError {
+                if let errText {
+                    print("VFR: stt#\(gen) error (flushing=\(self.flushing) torn=\(self.torn)): \(errText.prefix(160))")
                     if self.autoSilence != nil { self.deliverAuto() }
                     else { self.deliverFinal() }     // don't hang the manual wait
                 }
             }
         }
         task = recognizer?.recognitionTask(with: request, resultHandler: handler)
+        print("VFR: stt#\(gen) task installed (committed \(committed.count) chars)")
     }
 
     private func armSilence() {
@@ -278,7 +286,9 @@ final class SpeechRecognizer: NSObject, ObservableObject {
                 guard !self.latest.isEmpty else { self.armSilence(); return }
                 // The mic is the authority on whether the pilot went quiet —
                 // partials stall mid-call, and finalizing on a stall clips it.
-                if self.voice.secondsSinceVoice < t {
+                let quiet = self.voice.secondsSinceVoice
+                print("VFR: silence check — mic quiet \(String(format: "%.1f", quiet))s (need \(t)s), text …\(self.latest.suffix(40))")
+                if quiet < t {
                     self.armSilence()
                 } else {
                     self.finishAuto()
@@ -294,13 +304,17 @@ final class SpeechRecognizer: NSObject, ObservableObject {
     private func finishAuto() {
         guard continuation != nil, !flushing else { return }
         flushing = true
+        print("VFR: silence confirmed — flushing recognizer (have: …\(latest.suffix(40)))")
         audioEngine.inputNode.removeTap(onBus: 0)
         if audioEngine.isRunning { audioEngine.stop() }
         request?.endAudio()
         isListening = false
         finalTimer?.invalidate()
         finalTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
-            Task { @MainActor in self?.deliverAuto() }
+            Task { @MainActor in
+                print("VFR: flush timed out — delivering what we have")
+                self?.deliverAuto()
+            }
         }
     }
 
@@ -308,6 +322,7 @@ final class SpeechRecognizer: NSObject, ObservableObject {
         guard let c = continuation else { return }
         continuation = nil
         flushing = false
+        print("VFR: listen delivered (\(latest.count) chars)")
         c.resume(returning: teardown())
     }
 
