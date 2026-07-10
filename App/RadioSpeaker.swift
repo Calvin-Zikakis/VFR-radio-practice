@@ -65,9 +65,11 @@ final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
         distortion.wetDryMix = 4    // barely there — 12 sounded ring-modulated
     }
 
-    func speak(_ text: String, as role: VoiceRole = .controller) async {
+    /// `volume` scales this one utterance (0–1, default full); used for the
+    /// instructor/pass-note volume sliders. Radio voices always play full.
+    func speak(_ text: String, as role: VoiceRole = .controller, volume: Float = 1.0) async {
         let trimmed = Self.sanitizeForSpeech(text)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty, volume > 0.001 else { return }
 
         do { try AudioSession.activatePlayAndRecord() }
         catch { print("VFR: audio session activate failed in speak: \(error)") }
@@ -86,7 +88,7 @@ final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
 
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
             self.continuation = cont
-            let utterance = makeUtterance(trimmed, role: role)
+            let utterance = makeUtterance(trimmed, role: role, volume: volume)
             self.currentUtterance = utterance
             isSpeaking = true
             synth.speak(utterance)
@@ -132,14 +134,15 @@ final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
         return t.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func makeUtterance(_ text: String, role: VoiceRole) -> AVSpeechUtterance {
+    private func makeUtterance(_ text: String, role: VoiceRole,
+                               volume: Float = 1.0) -> AVSpeechUtterance {
         let utterance = AVSpeechUtterance(string: text)
         // Instructor and controller have independent rates (Settings sliders).
         utterance.rate = role == .instructor ? speechRate : controllerRate
         utterance.postUtteranceDelay = 0.1
-        // Below full scale: enhanced/premium voices at 1.0 clip on the iPhone
-        // loudspeaker (audible crackle on loud syllables).
-        utterance.volume = 0.85
+        // 0.85, not 1.0: enhanced/premium voices at full scale clip on the
+        // iPhone loudspeaker (audible crackle on loud syllables).
+        utterance.volume = 0.85 * min(max(volume, 0), 1)
         utterance.voice = resolvedVoice()
         return utterance
     }

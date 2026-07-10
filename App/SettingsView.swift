@@ -62,15 +62,13 @@ struct SettingsView: View {
                     }
                     Text("Shadow practice: when a call needs another try, the instructor reads the ideal version first.")
                         .font(.caption).foregroundStyle(.secondary)
-                    Toggle(isOn: $settings.speakPassNotes) {
-                        Label("Speak notes on passed calls", systemImage: "bubble.left.and.text.bubble.right")
-                    }
-                    Text("Off keeps passes snappy — minor polish notes still appear on screen and in the debrief, they just aren't read aloud.")
+                    volumeSlider("Instructor voice", icon: "speaker.wave.2.bubble.left",
+                                 value: $settings.instructorVolume)
+                    Text("Briefings, coaching after a miss, and the debrief — in every mode. Zero keeps the instructor on screen only.")
                         .font(.caption).foregroundStyle(.secondary)
-                    Toggle(isOn: $settings.speakInstructorInPTT) {
-                        Label("Speak instructor in push-to-talk", systemImage: "speaker.wave.2.bubble.left")
-                    }
-                    Text("Push-to-talk normally keeps instructor prompts on screen only. Turn this on to have them read aloud like in hands-free.")
+                    volumeSlider("Notes on passed calls", icon: "bubble.left.and.text.bubble.right",
+                                 value: $settings.passNotesVolume)
+                    Text("Polish notes when a call passes — in every mode. Zero keeps passes snappy; the notes still appear on screen and in the debrief.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
 
@@ -221,6 +219,20 @@ struct SettingsView: View {
         case ..<0.42: return "Slow"
         case ..<0.56: return "Normal"
         default: return "Fast"
+        }
+    }
+
+    /// Labeled 0–100% volume slider; zero shows "Off".
+    private func volumeSlider(_ title: String, icon: String,
+                              value: Binding<Double>) -> some View {
+        VStack(alignment: .leading) {
+            HStack {
+                Label(title, systemImage: icon)
+                Spacer()
+                Text(value.wrappedValue < 0.01 ? "Off" : "\(Int((value.wrappedValue * 100).rounded()))%")
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: value, in: 0...1, step: 0.05)
         }
     }
 

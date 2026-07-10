@@ -93,17 +93,17 @@ final class SettingsStore: ObservableObject {
     @Published var appearance: AppAppearance {
         didSet { defaults.set(appearance.rawValue, forKey: "appearance") }
     }
-    /// Speak coaching aloud even when the call passed. Off by default — notes
-    /// on a pass are usually minor polish and slow the session down; they stay
-    /// visible in the transcript and debrief either way.
-    @Published var speakPassNotes: Bool {
-        didSet { defaults.set(speakPassNotes, forKey: "speakPassNotes") }
+    /// Instructor speech volume (briefings, coaching after a miss, debrief),
+    /// global across input modes: zero silences the instructor everywhere,
+    /// anything above zero speaks everywhere at that level.
+    @Published var instructorVolume: Double {
+        didSet { defaults.set(instructorVolume, forKey: "instructorVolume") }
     }
-    /// Speak instructor prompts/notes aloud in push-to-talk mode too. Off by
-    /// default — in PTT you're usually reading the screen; hands-free always
-    /// speaks them regardless.
-    @Published var speakInstructorInPTT: Bool {
-        didSet { defaults.set(speakInstructorInPTT, forKey: "speakInstructorInPTT") }
+    /// Volume for polish notes on PASSED calls, same global semantics. Zero
+    /// (default) keeps passes snappy — the notes stay on screen and in the
+    /// debrief either way.
+    @Published var passNotesVolume: Double {
+        didSet { defaults.set(passNotesVolume, forKey: "passNotesVolume") }
     }
     /// The airplanes available to practice in. Seeded with the built-in fleet;
     /// the user can add/edit/remove custom planes.
@@ -141,8 +141,10 @@ final class SettingsStore: ObservableObject {
         self.busyFrequency = defaults.bool(forKey: "busyFrequency")                  // default off
         self.echoModelCall = defaults.bool(forKey: "echoModelCall")                  // default off
         self.appearance = AppAppearance(rawValue: defaults.string(forKey: "appearance") ?? "") ?? .system
-        self.speakPassNotes = defaults.bool(forKey: "speakPassNotes")   // default off (quiet passes)
-        self.speakInstructorInPTT = defaults.bool(forKey: "speakInstructorInPTT")   // default off (read the screen)
+        self.instructorVolume = defaults.object(forKey: "instructorVolume") as? Double ?? 1.0
+        // Migrate the old "speak notes on passed calls" toggle if it was on.
+        self.passNotesVolume = defaults.object(forKey: "passNotesVolume") as? Double
+            ?? (defaults.bool(forKey: "speakPassNotes") ? 1.0 : 0)
         if let data = defaults.data(forKey: "aircraftFleet"),
            let fleet = try? JSONDecoder().decode([Aircraft].self, from: data),
            !fleet.isEmpty {

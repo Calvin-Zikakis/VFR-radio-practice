@@ -48,7 +48,6 @@ final class HandsFreeController: ObservableObject {
     private var callTypes: Set<CallType>?
     private var busy = false            // busy-frequency simulation
     private var echo = false            // read the model call after a miss
-    private var speakPassNotes = false  // speak coaching aloud on passed calls
     private var sessionLabel = ""       // human name for the snapshot / resume card
     private var sessionDrills: [Drill] = []   // exact drills in play (post-randomize)
     private weak var settings: SettingsStore?
@@ -169,7 +168,6 @@ final class HandsFreeController: ObservableObject {
         pause = settings.endOfSpeechPause
         busy = settings.busyFrequency
         echo = settings.echoModelCall
-        speakPassNotes = settings.speakPassNotes
         speaker.voiceIdentifier = settings.voiceIdentifier
         speaker.speechRate = Float(settings.speechRate)
         // Rapid-fire controllers talk noticeably faster.
@@ -307,7 +305,7 @@ final class HandsFreeController: ObservableObject {
     // MARK: - On-screen nav (both modes; safe when not mid-listen in hands-free)
 
     func repeatBriefing() {
-        Task { await speaker.speak(currentSetup, as: .instructor) }
+        Task { await speaker.speak(currentSetup, as: .instructor, volume: repeatVolume) }
     }
 
     func skipCurrent() {
@@ -394,14 +392,26 @@ final class HandsFreeController: ObservableObject {
         "Cirrus three four six delta victor, squawk five two four one and ident."
     ]
 
-    /// Instructor prompts and notes are always spoken in hands-free mode; in
-    /// push-to-talk you're usually reading the screen, so they're silent
-    /// unless the "Speak instructor in push-to-talk" setting is on. Read live
-    /// from settings so flipping the toggle applies mid-session. Radio
-    /// replies are always spoken.
+    /// Instructor speech is governed by the global volume sliders, the same in
+    /// both input modes: zero silences it everywhere, anything above zero
+    /// speaks everywhere at that level. Read live from settings so slider
+    /// changes apply mid-session. Radio replies are always spoken.
     private func speakInstructor(_ text: String) async {
-        guard interaction == .handsFree || settings?.speakInstructorInPTT == true else { return }
-        await speaker.speak(text, as: .instructor)
+        await speaker.speak(text, as: .instructor,
+                            volume: Float(settings?.instructorVolume ?? 1))
+    }
+
+    /// Polish notes on a PASSED call have their own volume slider.
+    private func speakPassNote(_ text: String) async {
+        await speaker.speak(text, as: .instructor,
+                            volume: Float(settings?.passNotesVolume ?? 0))
+    }
+
+    /// An explicit "repeat" (button tap or voice command) should be audible
+    /// even with the instructor volume at zero — the pilot just asked for it.
+    private var repeatVolume: Float {
+        let v = Float(settings?.instructorVolume ?? 1)
+        return v > 0.001 ? v : 1
     }
 
     /// Handle one pilot transmission. Returns true if the session finished.
@@ -419,7 +429,7 @@ final class HandsFreeController: ObservableObject {
             return await settleAfterTurn()
         case .repeatSetup:
             append(.system, "Say again.")
-            await speaker.speak(currentSetup, as: .instructor)
+            await speaker.speak(currentSetup, as: .instructor, volume: repeatVolume)
             return await settleAfterTurn()
         case .none:
             break
@@ -466,12 +476,15 @@ final class HandsFreeController: ObservableObject {
                 spoke = true
             }
             if mode == .live && !verdict.coaching.isEmpty {
-                // Notes always show on screen; on a PASSED call they're only
-                // spoken if the user opted in (they're usually minor polish).
+                // Notes always show on screen. Spoken loudness comes from the
+                // global sliders: instructor volume for coaching on a miss,
+                // the separate pass-notes volume for polish on a pass.
                 append(.system, verdict.coaching)
-                if !verdict.phaseAdvance || speakPassNotes {
+                if !verdict.phaseAdvance {
                     await speakInstructor(verdict.coaching)
                     spoke = true
+                } else {
+                    await speakPassNote(verdict.coaching)
                 }
             }
 
