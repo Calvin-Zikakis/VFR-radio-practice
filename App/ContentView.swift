@@ -7,6 +7,8 @@ struct ContentView: View {
     @StateObject private var controller = HandsFreeController()
 
     @State private var scenario: ScenarioType = .untowered
+    /// Single-mode "Taxi" tile: a session of just the Ground/Taxi drills.
+    @State private var taxiFocus = false
     @State private var showSettings = false
     @State private var showDrillBrowser = false
     @State private var glowColor: Color?
@@ -60,12 +62,24 @@ struct ContentView: View {
         .sheet(isPresented: $showDrillBrowser) {
             switch sessionMode {
             case .single:
-                DrillBrowserView(title: scenario.displayName,
-                                 drills: DrillLibrary.drills(for: scenario)) { index in
-                    showDrillBrowser = false
-                    controller.start(scenario: scenario, settings: settings, startingAt: index)
+                if taxiFocus {
+                    // Browse-only: taxi sessions are shuffled, so there's no
+                    // meaningful "start from here".
+                    DrillBrowserView(title: "Ground / Taxi",
+                                     drills: DrillLibrary.drills(matching: [.taxi],
+                                                                 aircraft: DrillLibrary.defaultAircraft)) { _ in
+                        showDrillBrowser = false
+                        controller.start(callTypes: [.taxi], settings: settings)
+                    }
+                    .preferredColorScheme(preferredScheme)
+                } else {
+                    DrillBrowserView(title: scenario.displayName,
+                                     drills: DrillLibrary.drills(for: scenario)) { index in
+                        showDrillBrowser = false
+                        controller.start(scenario: scenario, settings: settings, startingAt: index)
+                    }
+                    .preferredColorScheme(preferredScheme)
                 }
-                .preferredColorScheme(preferredScheme)
             case .trip:
                 DrillBrowserView(title: "Trip — \(tripStops.map(\.icao).joined(separator: " → "))",
                                  drills: TripBuilder.drills(for: tripPlan,
@@ -189,39 +203,56 @@ struct ContentView: View {
     /// A grid (not an HStack) so the columns are exactly equal width no matter
     /// how long each label is.
     private var scenarioTiles: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3),
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4),
                   spacing: 8) {
             scenarioTile(.untowered, icon: "wave.3.right", name: "Untowered", detail: "CTAF")
             scenarioTile(.towered, icon: "building.2.fill", name: "Towered", detail: "ATC")
             scenarioTile(.flightFollowing, icon: "dot.radiowaves.up.forward", name: "Following", detail: "NorCal")
+            taxiTile
         }
     }
 
-    private func scenarioTile(_ s: ScenarioType, icon: String, name: String, detail: String) -> some View {
-        let selected = scenario == s
-        return Button {
-            withAnimation(.snappy(duration: 0.15)) { scenario = s }
+    /// Fourth tile: a session of just the Ground/Taxi drills — complex routes,
+    /// crossings, hold-shorts.
+    private var taxiTile: some View {
+        Button {
+            withAnimation(.snappy(duration: 0.15)) { taxiFocus = true }
         } label: {
-            VStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.body.weight(.semibold))
-                    .frame(height: 22)   // icons have different intrinsic sizes; pin the slot
-                Text(name)
-                    .font(.footnote.weight(.semibold))
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                Text(detail)
-                    .font(.caption2)
-                    .foregroundStyle(selected ? Theme.accent.opacity(0.8) : Color.secondary.opacity(0.7))
-            }
-            .frame(maxWidth: .infinity, minHeight: 78)   // every tile the exact same box
-            .padding(.vertical, 6)
-            .background(selected ? Theme.accent.opacity(0.15) : Theme.chipFill,
-                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(selected ? Theme.accent.opacity(0.7) : .clear, lineWidth: 1.5))
-            .foregroundStyle(selected ? Theme.accent : .secondary)
+            tileLabel(icon: "arrow.triangle.turn.up.right.diamond.fill",
+                      name: "Taxi", detail: "Ground", selected: taxiFocus)
         }
         .buttonStyle(.plain)
+    }
+
+    private func scenarioTile(_ s: ScenarioType, icon: String, name: String, detail: String) -> some View {
+        let selected = !taxiFocus && scenario == s
+        return Button {
+            withAnimation(.snappy(duration: 0.15)) { scenario = s; taxiFocus = false }
+        } label: {
+            tileLabel(icon: icon, name: name, detail: detail, selected: selected)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func tileLabel(icon: String, name: String, detail: String, selected: Bool) -> some View {
+        VStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.body.weight(.semibold))
+                .frame(height: 22)   // icons have different intrinsic sizes; pin the slot
+            Text(name)
+                .font(.footnote.weight(.semibold))
+                .lineLimit(1).minimumScaleFactor(0.7)
+            Text(detail)
+                .font(.caption2)
+                .foregroundStyle(selected ? Theme.accent.opacity(0.8) : Color.secondary.opacity(0.7))
+        }
+        .frame(maxWidth: .infinity, minHeight: 78)   // every tile the exact same box
+        .padding(.vertical, 6)
+        .background(selected ? Theme.accent.opacity(0.15) : Theme.chipFill,
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .strokeBorder(selected ? Theme.accent.opacity(0.7) : .clear, lineWidth: 1.5))
+        .foregroundStyle(selected ? Theme.accent : .secondary)
     }
 
     /// Settings-style rows for the set-and-forget choices.
@@ -345,7 +376,9 @@ struct ContentView: View {
             }
             Button {
                 switch sessionMode {
-                case .single: controller.start(scenario: scenario, settings: settings)
+                case .single:
+                    if taxiFocus { controller.start(callTypes: [.taxi], settings: settings) }
+                    else { controller.start(scenario: scenario, settings: settings) }
                 case .trip:   controller.start(trip: tripPlan, settings: settings)
                 case .mix:    controller.start(callTypes: selectedCallTypes, settings: settings)
                 }
@@ -378,7 +411,10 @@ struct ContentView: View {
 
     private var sessionCallCount: Int {
         switch sessionMode {
-        case .single: return DrillLibrary.drills(for: scenario).count
+        case .single:
+            return taxiFocus
+                ? DrillLibrary.drills(matching: [.taxi], aircraft: DrillLibrary.defaultAircraft).count
+                : DrillLibrary.drills(for: scenario).count
         case .trip:   return TripBuilder.drills(for: tripPlan, aircraft: DrillLibrary.defaultAircraft).count
         case .mix:    return DrillLibrary.drills(matching: selectedCallTypes, aircraft: DrillLibrary.defaultAircraft).count
         }

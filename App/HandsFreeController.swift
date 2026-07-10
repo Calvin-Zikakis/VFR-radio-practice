@@ -119,7 +119,11 @@ final class HandsFreeController: ObservableObject {
         self.scenario = nil
         self.trip = nil
         self.callTypes = callTypes
-        beginSession(settings: settings, label: "Mix (\(callTypes.count) call types)") { plane in
+        // One type reads as a focused session ("Ground / Taxi"), not a mix.
+        let label = callTypes.count == 1
+            ? (callTypes.first?.displayName ?? "Mix")
+            : "Mix (\(callTypes.count) call types)"
+        beginSession(settings: settings, label: label) { plane in
             DrillLibrary.drills(matching: callTypes, aircraft: plane).shuffled()
         }
     }
