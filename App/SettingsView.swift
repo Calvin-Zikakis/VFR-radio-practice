@@ -67,6 +67,11 @@ struct SettingsView: View {
                     }
                     Text("Off keeps passes snappy — minor polish notes still appear on screen and in the debrief, they just aren't read aloud.")
                         .font(.caption).foregroundStyle(.secondary)
+                    Toggle(isOn: $settings.speakInstructorInPTT) {
+                        Label("Speak instructor in push-to-talk", systemImage: "speaker.wave.2.bubble.left")
+                    }
+                    Text("Push-to-talk normally keeps instructor prompts on screen only. Turn this on to have them read aloud like in hands-free.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
 
                 progressSection

@@ -568,6 +568,11 @@ struct ContentView: View {
 
             controlBar
         }
+        // Input mode can be flipped in Settings mid-session; the controller
+        // has to start/stop its auto-listen loop to match.
+        .onChange(of: settings.interactionMode) { _, new in
+            controller.setInteraction(new)
+        }
     }
 
     private let bottomAnchor = "TRANSCRIPT_BOTTOM"

@@ -99,6 +99,12 @@ final class SettingsStore: ObservableObject {
     @Published var speakPassNotes: Bool {
         didSet { defaults.set(speakPassNotes, forKey: "speakPassNotes") }
     }
+    /// Speak instructor prompts/notes aloud in push-to-talk mode too. Off by
+    /// default — in PTT you're usually reading the screen; hands-free always
+    /// speaks them regardless.
+    @Published var speakInstructorInPTT: Bool {
+        didSet { defaults.set(speakInstructorInPTT, forKey: "speakInstructorInPTT") }
+    }
     /// The airplanes available to practice in. Seeded with the built-in fleet;
     /// the user can add/edit/remove custom planes.
     @Published var aircraftFleet: [Aircraft] {
@@ -136,6 +142,7 @@ final class SettingsStore: ObservableObject {
         self.echoModelCall = defaults.bool(forKey: "echoModelCall")                  // default off
         self.appearance = AppAppearance(rawValue: defaults.string(forKey: "appearance") ?? "") ?? .system
         self.speakPassNotes = defaults.bool(forKey: "speakPassNotes")   // default off (quiet passes)
+        self.speakInstructorInPTT = defaults.bool(forKey: "speakInstructorInPTT")   // default off (read the screen)
         if let data = defaults.data(forKey: "aircraftFleet"),
            let fleet = try? JSONDecoder().decode([Aircraft].self, from: data),
            !fleet.isEmpty {

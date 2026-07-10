@@ -53,6 +53,9 @@ final class HandsFreeController: ObservableObject {
     private var sessionDrills: [Drill] = []   // exact drills in play (post-randomize)
     private weak var settings: SettingsStore?
     private var runTask: Task<Void, Never>?
+    /// True while `handsFreeLoop` is running, so a mid-session mode switch
+    /// never starts a second loop alongside it.
+    private var loopActive = false
 
     var isRunning: Bool { phase != .idle && phase != .finished }
 
@@ -334,6 +337,8 @@ final class HandsFreeController: ObservableObject {
     }
 
     private func handsFreeLoop() async {
+        loopActive = true
+        defer { loopActive = false }
         while !Task.isCancelled {
             guard await session?.currentDrill != nil else { return }
             phase = .listening
@@ -389,11 +394,13 @@ final class HandsFreeController: ObservableObject {
         "Cirrus three four six delta victor, squawk five two four one and ident."
     ]
 
-    /// Instructor prompts and notes are spoken only in hands-free mode; in
-    /// push-to-talk you're reading the screen, so keep them silent. Radio
+    /// Instructor prompts and notes are always spoken in hands-free mode; in
+    /// push-to-talk you're usually reading the screen, so they're silent
+    /// unless the "Speak instructor in push-to-talk" setting is on. Read live
+    /// from settings so flipping the toggle applies mid-session. Radio
     /// replies are always spoken.
     private func speakInstructor(_ text: String) async {
-        guard interaction == .handsFree else { return }
+        guard interaction == .handsFree || settings?.speakInstructorInPTT == true else { return }
         await speaker.speak(text, as: .instructor)
     }
 
@@ -498,10 +505,60 @@ final class HandsFreeController: ObservableObject {
         return await settleAfterTurn()
     }
 
-    /// Put the UI back into a ready state after a turn (push-to-talk only).
+    /// Put the UI back into a ready state after a turn. In push-to-talk that
+    /// means waiting for the button; if the user switched to hands-free while
+    /// this button-driven turn was in flight, hand off to the auto-listen loop.
     private func settleAfterTurn() async -> Bool {
-        if interaction == .pushToTalk, phase != .finished { phase = .readyToTalk }
-        return phase == .finished
+        if phase == .finished { return true }
+        if interaction == .pushToTalk {
+            phase = .readyToTalk
+        } else if !loopActive {
+            runTask?.cancel()
+            runTask = Task { [weak self] in await self?.handsFreeLoop() }
+        }
+        return false
+    }
+
+    /// Switch input mode mid-session (the Settings sheet changed it while
+    /// running). Hands-free needs its auto-listen loop started or stopped —
+    /// without this, flipping the setting changed the UI but left the session
+    /// deaf.
+    func setInteraction(_ new: InteractionMode) {
+        guard new != interaction else { return }
+        interaction = new
+        guard isRunning, phase != .paused else { return }   // resumeSession honors the new mode
+        if new == .handsFree {
+            append(.system, "Hands-free — just talk.")
+            switch phase {
+            case .readyToTalk:
+                guard !loopActive else { break }
+                runTask?.cancel()
+                runTask = Task { [weak self] in await self?.handsFreeLoop() }
+            case .listening:
+                // Mid button press: treat the switch as releasing the button;
+                // settleAfterTurn then hands off to the loop.
+                phase = .thinking
+                Task { [weak self] in
+                    guard let self else { return }
+                    let text = await self.speech.stopAndCollect()
+                    await self.process(text)
+                }
+            default:
+                break   // in-flight turn ends in settleAfterTurn, which starts the loop
+            }
+        } else {
+            append(.system, "Push-to-talk — hold the button.")
+            // Stop the auto-listen loop; the button drives from here. Cancel
+            // the task first so the loop discards the aborted listen instead
+            // of grading it.
+            runTask?.cancel()
+            runTask = nil
+            if phase == .listening {
+                speech.cancel()
+                phase = .readyToTalk
+            }
+            // Briefing/thinking/replying turns settle to .readyToTalk on their own.
+        }
     }
 
     private func performSkip() async {
