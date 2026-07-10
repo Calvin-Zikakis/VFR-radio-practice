@@ -379,7 +379,11 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         abbreviated callsign (e.g. "RV seven juliet alpha" or "seven juliet alpha"). \
         Only set `phaseAdvance` true once the whole exchange is complete and correct — \
         `phaseAdvance` true with `correct` false is a contradiction, and so is \
-        advancing while your reply still asks the pilot for something. \
+        advancing while your reply still asks the pilot for something. If your \
+        `radioReplyText` issues ANY new instruction that requires a readback — \
+        a runway crossing, a hold short, a frequency, a clearance — \
+        `phaseAdvance` MUST be false: the exchange is not over until that \
+        readback comes back and is graded. \
         The inverse also holds: if your reply confirms completion ("readback \
         correct", "radar contact", a clearance with nothing further needed), you \
         MUST set `phaseAdvance` true — never confirm completion and then hold the \
@@ -390,9 +394,11 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         INTERMEDIATE step, do not utter a completion phrase like "readback \
         correct" — reply with whatever sets up the next step (or nothing, when \
         the next move is the pilot's, e.g. checking in after a frequency \
-        handoff), keep `phaseAdvance` false, and use `coaching` to cue what \
-        comes next. Completion phrases and `phaseAdvance` true belong only to \
-        the FINAL step.
+        handoff), and keep `phaseAdvance` false. On every correct intermediate \
+        step, `coaching` MUST end by telling the pilot what to do next (e.g. \
+        "now taxi down and call when you're holding short") — this is a \
+        voice-only interface, and a mid-step pass with no cue strands them. \
+        Completion phrases and `phaseAdvance` true belong only to the FINAL step.
 
         OUTPUT FOR TEXT-TO-SPEECH — write EVERYTHING in `radioReplyText`, \
         `expectedExample`, and `coaching` as spoken words, never digits or symbols: \
@@ -465,6 +471,16 @@ public struct ATCBrain: ATCEvaluating, Sendable {
             // Advancing on an incorrect call is never right — hold the step.
             if verdict.phaseAdvance && !verdict.correct {
                 vfrLog("grader contradiction — phaseAdvance with correct=false; holding the step")
+                verdict.phaseAdvance = false
+            }
+            // A crossing or hold-short instruction in the radio reply ALWAYS
+            // demands a readback — seen live: 'cross runway one niner left'
+            // issued in the same breath as phaseAdvance, and the session moved
+            // on with the clearance hanging unread-back.
+            let reply = verdict.radioReplyText.lowercased()
+            if verdict.phaseAdvance,
+               reply.contains("cross runway") || reply.contains("hold short") {
+                vfrLog("grader contradiction — advance while reply demands a readback; holding the step")
                 verdict.phaseAdvance = false
             }
             return verdict

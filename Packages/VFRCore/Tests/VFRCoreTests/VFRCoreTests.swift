@@ -491,6 +491,23 @@ import Foundation
     #expect(!verdict.phaseAdvance)
 }
 
+@Test func advanceWithPendingReadbackIsClamped() throws {
+    // Seen live: 'cross runway one niner left' issued in the same verdict as
+    // phaseAdvance=true — the crossing readback never got graded.
+    let inner = """
+    {"heard":"Concord Ground, RV seven three seven juliet alpha, holding short runway one niner left",\
+    "speaker":"Ground","radioReplyText":"RV seven juliet alpha, cross runway one niner left, continue via papa.",\
+    "correct":true,"corrections":[],"expectedExample":"Concord Ground, RV seven three seven juliet alpha, \
+    holding short runway one niner left.","phaseAdvance":true,"coaching":"Good call."}
+    """
+    let response = """
+    {"stop_reason":"end_turn","content":[{"type":"text","text":\(jsonString(inner))}]}
+    """
+    let verdict = try ATCBrain.parseVerdict(from: Data(response.utf8))
+    #expect(verdict.correct)
+    #expect(!verdict.phaseAdvance)
+}
+
 @Test func refusalStopReasonThrows() {
     let response = #"{"stop_reason":"refusal","content":[]}"#
     #expect(throws: ATCBrainError.self) {

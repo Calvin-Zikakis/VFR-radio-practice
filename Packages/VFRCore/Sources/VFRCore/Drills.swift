@@ -366,8 +366,8 @@ public enum DrillLibrary {
             id: "t-taxi",
             scenario: .towered,
             title: "Request taxi (Ground)",
-            setup: "You're at Palo Alto ground with the current ATIS, parked at the transient ramp, ready to taxi for a VFR departure to the south. Call ground for taxi — and read back the instructions you get before you move.",
-            situation: "Towered field, you are Palo Alto Ground. Runway 31 in use; taxiways here are alpha (parallel) and bravo/charlie (ramp exits). Step 1: grade the request — who they're calling, aircraft, position, ATIS letter, request, direction of flight. Then issue a real taxi clearance with a route, e.g. 'runway three one, taxi via bravo, alpha'. Step 2: grade the readback of YOUR clearance — the runway and the route with callsign; a bare 'roger' or 'wilco' is not a readback of a taxi clearance. Set phaseAdvance true only after a correct readback.",
+            setup: "You're at Palo Alto ground with information Tango, parked at the transient ramp, ready to taxi for a VFR departure to the south. Call ground for taxi — and read back the instructions you get before you move.",
+            situation: "Towered field, you are Palo Alto Ground. Runway 31 in use; taxiways here are alpha (parallel) and bravo/charlie (ramp exits). Step 1: grade the request — who they're calling, aircraft, position, the ATIS letter (current is information Tango; a different letter gets 'verify you have information Tango'), request, direction of flight. Then issue a real taxi clearance with a route, e.g. 'runway three one, taxi via bravo, alpha'. Step 2: grade the readback of YOUR clearance — the runway and the route with callsign; a bare 'roger' or 'wilco' is not a readback of a taxi clearance. Set phaseAdvance true only after a correct readback.",
             aircraft: skyhawk, airport: paloAlto
         ),
         Drill(
@@ -430,16 +430,16 @@ public enum DrillLibrary {
             id: "t-sns-taxi",
             scenario: .towered,
             title: "Request taxi — Salinas Ground",
-            setup: "You're at Salinas with the current information, parked at the ramp, ready to taxi for a VFR departure to the north. Call Salinas Ground — then read back the taxi instructions you get; runway two six crosses your route.",
-            situation: "Towered field, you are Salinas Ground (KSNS, part-time tower — it is open). Runway 31 in use; runway 26 crosses the taxi route; taxiways alpha and bravo. Step 1: grade the request — who they're calling, aircraft, position, ATIS letter, request, direction of flight. Then issue a taxi clearance and PICK ONE at random: (a) crossing approved — 'runway three one, taxi via alpha, cross runway two six', or (b) not approved — 'runway three one, taxi via alpha, hold short of runway two six'. Step 2: grade the readback — runway, route, and the cross or hold-short VERBATIM with callsign (hold-short readbacks are strict at every difficulty). If you chose (b), the exchange continues: after a correct hold-short readback, the pilot taxis and holds; when they report holding short (or on your own initiative), issue 'cross runway two six' and grade that readback too. Set phaseAdvance true only when the pilot has read back everything up to and including the crossing.",
+            setup: "You're at Salinas with information Foxtrot, parked at the ramp, ready to taxi for a VFR departure to the north. Call Salinas Ground — then read back the taxi instructions you get; runway two six crosses your route.",
+            situation: "Towered field, you are Salinas Ground (KSNS, part-time tower — it is open). Runway 31 in use; runway 26 crosses the taxi route; taxiways alpha and bravo. Step 1: grade the request — who they're calling, aircraft, position, the ATIS letter (current is information Foxtrot; a different letter gets 'verify you have information Foxtrot'), request, direction of flight. Then issue a taxi clearance and PICK ONE at random: (a) crossing approved — 'runway three one, taxi via alpha, cross runway two six', or (b) not approved — 'runway three one, taxi via alpha, hold short of runway two six'. Step 2: grade the readback — runway, route, and the cross or hold-short VERBATIM with callsign (hold-short readbacks are strict at every difficulty). If you chose (b), the exchange continues: after a correct hold-short readback, the pilot taxis and holds; when they report holding short (or on your own initiative), issue 'cross runway two six' and grade that readback too. Set phaseAdvance true only when the pilot has read back everything up to and including the crossing.",
             aircraft: rv12, airport: salinas
         ),
         Drill(
             id: "t-sns-inbound",
             scenario: .towered,
             title: "Inbound — Salinas Tower",
-            setup: "You're 10 miles south of Salinas at two thousand five hundred, inbound to land with the current information. Call Salinas Tower.",
-            situation: "Towered field, you are Salinas Tower (KSNS). Pilot is 10 south at 2,500 inbound to land. Expect who they're calling, aircraft, position and altitude, ATIS letter, request. Reply with pattern entry and a runway.",
+            setup: "You're 10 miles south of Salinas at two thousand five hundred, inbound to land with information Kilo. Call Salinas Tower.",
+            situation: "Towered field, you are Salinas Tower (KSNS). Pilot is 10 south at 2,500 inbound to land. Expect who they're calling, aircraft, position and altitude, the ATIS letter (current is information Kilo), request. Reply with pattern entry and a runway.",
             aircraft: rv12, airport: salinas
         ),
         Drill(
@@ -598,16 +598,16 @@ public enum DrillLibrary {
             id: "t-rhv-parallel",
             scenario: .towered,
             title: "Parallel runways — Reid-Hillview",
-            setup: "You're 10 miles south of Reid-Hillview at two thousand five hundred, inbound to land with the current information. Reid-Hillview has parallel runways three one left and three one right. Call the tower — and listen carefully for WHICH parallel you get.",
-            situation: "Towered field, you are Reid-Hillview Tower (KRHV, parallel runways 31L/31R). After the pilot's inbound call, clear them: 'make right traffic runway three one right, report midfield'. The readback MUST name the correct parallel — 'three one right', not just 'three one'. If they read back the wrong parallel or drop the left/right, correct them immediately ('negative, runway three one RIGHT') and don't advance. Mention traffic landing the parallel ('traffic is a Cessna on final for the left') to exercise parallel awareness. Advance once they've read back the correct full runway.",
+            setup: "You're 10 miles south of Reid-Hillview at two thousand five hundred, inbound to land with information Whiskey. Reid-Hillview has parallel runways three one left and three one right. Call the tower — and listen carefully for WHICH parallel you get.",
+            situation: "Towered field, you are Reid-Hillview Tower (KRHV, parallel runways 31L/31R; current ATIS is information Whiskey). After the pilot's inbound call, clear them: 'make right traffic runway three one right, report midfield'. The readback MUST name the correct parallel — 'three one right', not just 'three one'. If they read back the wrong parallel or drop the left/right, correct them immediately ('negative, runway three one RIGHT') and don't advance. Mention traffic landing the parallel ('traffic is a Cessna on final for the left') to exercise parallel awareness. Advance once they've read back the correct full runway.",
             aircraft: rv12, airport: reidHillview, callType: .arrival
         ),
         Drill(
             id: "t-sql-spacing",
             scenario: .towered,
             title: "Busy Delta — San Carlos spacing",
-            setup: "You're inbound to San Carlos from the south at one thousand five hundred with the current information — a busy Class Delta tucked under the San Francisco Bravo shelf. Call the tower, and be ready: they're going to need spacing.",
-            situation: "Towered field, you are San Carlos Tower (KSQL) and the pattern is FULL. Step 1: after the pilot's inbound call, issue a rapid spacing instruction: 'right three sixty for spacing, report re-entering the forty-five'. Grade the readback: the 360 direction plus callsign; a bare 'roger' gets 'read back the three sixty'. Step 2: after a correct readback, clear them: 'runway three zero, cleared to land, number three following a Cirrus on base'. Grade that readback: runway, clearance, and sequence acknowledgment. Keep your transmissions fast and clipped — this is a busy frequency. Advance only after both readbacks.",
+            setup: "You're inbound to San Carlos from the south at one thousand five hundred with information Oscar — a busy Class Delta tucked under the San Francisco Bravo shelf. Call the tower, and be ready: they're going to need spacing.",
+            situation: "Towered field, you are San Carlos Tower (KSQL; current ATIS is information Oscar) and the pattern is FULL. Step 1: after the pilot's inbound call, issue a rapid spacing instruction: 'right three sixty for spacing, report re-entering the forty-five'. Grade the readback: the 360 direction plus callsign; a bare 'roger' gets 'read back the three sixty'. Step 2: after a correct readback, clear them: 'runway three zero, cleared to land, number three following a Cirrus on base'. Grade that readback: runway, clearance, and sequence acknowledgment. Keep your transmissions fast and clipped — this is a busy frequency. Advance only after both readbacks.",
             aircraft: rv12, airport: sanCarlos, callType: .pattern
         ),
         Drill(
@@ -747,8 +747,8 @@ public enum DrillLibrary {
             id: "ff-classc-entry",
             scenario: .flightFollowing,
             title: "Class Charlie entry — two-way contact",
-            setup: "You're 15 miles northeast of Monterey at three thousand five hundred, inbound to land, with the current information. Monterey is Class Charlie — call NorCal Approach to establish two-way communication before entering.",
-            situation: "You are NorCal Approach working the Monterey Class C. The pilot must establish two-way radio communication before entering: expect facility, aircraft type and callsign, position and altitude, ATIS letter, and intentions (landing Monterey). KEY TEACHING POINT — the two-way rule: if you reply WITH their callsign (even 'RV seven three seven juliet alpha, standby'), communication is established and they may enter the Charlie; if you say 'aircraft calling, standby' WITHOUT the callsign, they may NOT enter. After a good callup, reply with their callsign, a squawk of four five two one, and 'radar contact'. If their callup is incomplete, reply without using their callsign so they learn the difference, and say what you need.",
+            setup: "You're 15 miles northeast of Monterey at three thousand five hundred, inbound to land, with information Romeo. Monterey is Class Charlie — call NorCal Approach to establish two-way communication before entering.",
+            situation: "You are NorCal Approach working the Monterey Class C. The pilot must establish two-way radio communication before entering: expect facility, aircraft type and callsign, position and altitude, the ATIS letter (current is information Romeo), and intentions (landing Monterey). KEY TEACHING POINT — the two-way rule: if you reply WITH their callsign (even 'RV seven three seven juliet alpha, standby'), communication is established and they may enter the Charlie; if you say 'aircraft calling, standby' WITHOUT the callsign, they may NOT enter. After a good callup, reply with their callsign, a squawk of four five two one, and 'radar contact'. If their callup is incomplete, reply without using their callsign so they learn the difference, and say what you need.",
             aircraft: rv12, airport: monterey, callType: .bravo
         ),
         Drill(
