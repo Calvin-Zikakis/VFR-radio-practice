@@ -508,6 +508,25 @@ import Foundation
     #expect(!verdict.phaseAdvance)
 }
 
+@Test func stubVerdictThrowsDegenerate() {
+    // Seen live: the model returned a placeholder verdict with every field
+    // empty — useless to the pilot, and must surface as retryable.
+    let inner = """
+    {"heard":"placeholder","speaker":"none","radioReplyText":"","correct":false,\
+    "corrections":[],"expectedExample":"","phaseAdvance":false,"coaching":""}
+    """
+    let response = """
+    {"stop_reason":"end_turn","content":[{"type":"text","text":\(jsonString(inner))}]}
+    """
+    #expect(throws: ATCBrainError.self) {
+        try ATCBrain.parseVerdict(from: Data(response.utf8))
+    }
+}
+
+@Test func scrubStripsInvisiblePadding() {
+    #expect(ATCBrain.scrub("say your position.\u{200B}\u{200B} \u{200B}") == "say your position.")
+}
+
 @Test func refusalStopReasonThrows() {
     let response = #"{"stop_reason":"refusal","content":[]}"#
     #expect(throws: ATCBrainError.self) {

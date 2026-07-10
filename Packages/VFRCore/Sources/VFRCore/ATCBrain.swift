@@ -17,6 +17,7 @@ public enum ATCBrainError: Error, LocalizedError {
     case refusal(String)
     case badResponse(String)
     case truncated
+    case degenerate
 
     public var errorDescription: String? {
         switch self {
@@ -25,6 +26,15 @@ public enum ATCBrainError: Error, LocalizedError {
         case .refusal(let s): return "Request declined: \(s)"
         case .badResponse(let s): return "Unexpected response: \(s)"
         case .truncated: return "grader response hit the output token limit — say the call again."
+        case .degenerate: return "grader returned an empty verdict — say the call again."
+        }
+    }
+
+    /// Sampling flukes worth one automatic re-roll before bothering the pilot.
+    var isRetryable: Bool {
+        switch self {
+        case .truncated, .degenerate: return true
+        default: return false
         }
     }
 }
@@ -66,11 +76,11 @@ public struct ATCBrain: ATCEvaluating, Sendable {
                                transmission: transmission, nextSetup: nextSetup)
         do {
             return try await send(body, historyCount: history.count)
-        } catch ATCBrainError.truncated {
-            // Hitting an 8000-token cap on a ~300-token verdict means the model
-            // degenerated into rambling, not that the pilot did anything wrong.
-            // A fresh sample almost always parses — retry before bothering them.
-            vfrLog("grader rambled into the token cap — retrying once")
+        } catch let error as ATCBrainError where error.isRetryable {
+            // Token-cap rambles and stub verdicts are sampling flukes, not
+            // pilot errors. A fresh sample almost always comes back sane —
+            // retry once before bothering them.
+            vfrLog("degenerate grader sample (\(error)) — retrying once")
             return try await send(body, historyCount: history.count)
         }
     }
@@ -466,6 +476,21 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         }
         do {
             var verdict = try JSONDecoder().decode(Verdict.self, from: jsonData)
+            // Degenerate samples pad fields with invisible characters (seen:
+            // a reply plus ~300 zero-width spaces). Scrub every string.
+            verdict.heard = scrub(verdict.heard)
+            verdict.speaker = scrub(verdict.speaker)
+            verdict.radioReplyText = scrub(verdict.radioReplyText)
+            verdict.expectedExample = scrub(verdict.expectedExample)
+            verdict.coaching = scrub(verdict.coaching)
+            verdict.corrections = verdict.corrections.map(scrub).filter { !$0.isEmpty }
+            // Stub verdict (seen live: heard "placeholder", everything else
+            // empty, correct=false) — useless to the pilot; retry instead.
+            if verdict.heard == "placeholder"
+                || (!verdict.correct && verdict.coaching.isEmpty && verdict.corrections.isEmpty
+                    && verdict.expectedExample.isEmpty && verdict.radioReplyText.isEmpty) {
+                throw ATCBrainError.degenerate
+            }
             // The grader occasionally contradicts itself: asks the pilot for
             // something ("say your position") while also setting phaseAdvance.
             // Advancing on an incorrect call is never right — hold the step.
@@ -484,10 +509,22 @@ public struct ATCBrain: ATCEvaluating, Sendable {
                 verdict.phaseAdvance = false
             }
             return verdict
+        } catch let error as ATCBrainError {
+            throw error   // e.g. .degenerate — keep it retryable, don't rebrand
         } catch {
             vfrLog("verdict decode failed. text was: \(text.prefix(600))")
             throw ATCBrainError.badResponse("grader reply wasn't valid JSON.\nRAW: \(text.prefix(500))")
         }
+    }
+
+    /// Strip invisible padding (zero-width spaces and friends) and outer
+    /// whitespace from a grader string field.
+    static func scrub(_ s: String) -> String {
+        var t = s
+        for ghost in ["\u{200B}", "\u{200C}", "\u{200D}", "\u{FEFF}", "\u{2060}"] {
+            t = t.replacingOccurrences(of: ghost, with: "")
+        }
+        return t.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Pull a JSON object out of a text block that may be wrapped in prose or
