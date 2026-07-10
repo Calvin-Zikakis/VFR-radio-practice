@@ -349,13 +349,22 @@ final class HandsFreeController: ObservableObject {
             phase = .listening
             vfrLog("listening (silence timeout \(pause)s)")
             let text: String
-            do { text = try await speech.listenWithSilence(timeout: pause) }
+            do { text = try await speech.listenWithSilence(timeout: pause, idleLimit: 30) }
             catch {
                 vfrLog("listen error: \(error)")
                 errorMessage = error.localizedDescription; phase = .idle; return
             }
             vfrLog("heard: \(text.isEmpty ? "<nothing>" : text)")
             if Task.isCancelled { return }
+            // Nothing at all for 30s: the pilot has stepped away — pause
+            // instead of listening forever (and burning the mic + screen).
+            if text.isEmpty, speech.lastListenIdledOut {
+                append(.system, "No radio calls for 30 seconds.")
+                pauseSession()
+                await speaker.speak("Pausing the session. Tap play when you're ready.",
+                                    as: .instructor, volume: repeatVolume)
+                return
+            }
             let finished = await process(text)
             if finished { return }
         }

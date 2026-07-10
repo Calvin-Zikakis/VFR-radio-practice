@@ -61,6 +61,7 @@ public enum DrillRandomizer {
         }
 
         subs.append(contentsOf: incidentalSubstitutions(for: drill))
+        subs.append(contentsOf: taxiwaySubstitutions(for: drill))
 
         d.setup = applying(subs, to: d.setup)
         d.situation = applying(subs, to: d.situation)
@@ -173,6 +174,42 @@ public enum DrillRandomizer {
         }
 
         return subs
+    }
+
+    // MARK: - Taxiways
+
+    /// Drills whose taxi-route letters are reshuffled every run, so a route
+    /// can never be answered from memory. Opt-in by id: elsewhere a phonetic
+    /// word might be a callsign or traffic reference, not a taxiway. Authored
+    /// texts in this set must avoid taxiway letters that appear in the default
+    /// aircraft's phonetic callsign ("juliet", "alpha").
+    static let taxiwayVaried: Set<String> = [
+        "t-ccr-parallel-taxi", "t-ccr-runway-switch", "t-ccr-holdshort-request",
+        "t-ccr-taxiback", "t-ccr-runway-change", "t-ccr-long-route",
+        "t-ccr-crossing-revoked",
+    ]
+
+    /// The taxiway tokens the authored texts use, and the pool they're
+    /// renamed from. Both setup and situation get the same mapping, so the
+    /// briefing and the grader always agree on the route.
+    private static let taxiwaySources = ["echo", "kilo", "papa", "hotel", "golf"]
+    private static let taxiwayPalette = [
+        "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel",
+        "kilo", "mike", "november", "papa", "romeo", "sierra", "tango",
+        "victor", "whiskey", "yankee", "zulu"]
+
+    private static func taxiwaySubstitutions(for drill: Drill) -> [(String, String)] {
+        guard taxiwayVaried.contains(drill.id) else { return [] }
+        let text = drill.setup + " " + drill.situation
+        // Never touch a word that's part of the callsign being flown.
+        let callsignWords = Set(drill.aircraft.phoneticCallsign.lowercased()
+            .split(separator: " ").map(String.init))
+        let present = taxiwaySources.filter { text.contains($0) && !callsignWords.contains($0) }
+        guard !present.isEmpty else { return [] }
+        var pool = taxiwayPalette.filter { !callsignWords.contains($0) }.shuffled()
+        return present.compactMap { source in
+            pool.popLast().map { (source, $0) }
+        }
     }
 
     private static let atisLetters = [

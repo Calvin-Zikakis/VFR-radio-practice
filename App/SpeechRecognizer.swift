@@ -71,6 +71,11 @@ final class SpeechRecognizer: NSObject, ObservableObject {
     private let ring = AudioRing()
     /// When the last partial transcription arrived (uptime clock).
     private var lastPartialAt: TimeInterval = 0
+    /// Give-up limit for a listen that hears nothing at all (hands-free).
+    private var idleLimit: TimeInterval?
+    private var listenStart: TimeInterval = 0
+    /// True when the last listen ended because nothing was ever heard.
+    private(set) var lastListenIdledOut = false
 
     // `nonisolated`: the TCC permission callbacks fire on a background queue.
     // If this method were main-actor-isolated, those callbacks would inherit
@@ -152,7 +157,11 @@ final class SpeechRecognizer: NSObject, ObservableObject {
 
     // MARK: - Hands-free (auto silence)
 
-    func listenWithSilence(timeout: TimeInterval) async throws -> String {
+    /// `idleLimit`: give up and return "" after this long with nothing heard
+    /// at all — the controller uses it to auto-pause an abandoned session
+    /// (`lastListenIdledOut` tells an idle give-up apart from other empties).
+    func listenWithSilence(timeout: TimeInterval, idleLimit: TimeInterval? = nil) async throws -> String {
+        self.idleLimit = idleLimit
         try startEngine(autoSilence: timeout)
         return try await withCheckedThrowingContinuation { (c: CheckedContinuation<String, Error>) in
             self.continuation = c
@@ -177,10 +186,12 @@ final class SpeechRecognizer: NSObject, ObservableObject {
         committed = ""
         torn = false
         flushing = false
+        lastListenIdledOut = false
         self.autoSilence = autoSilence
         voice.reset()
         ring.reset()
-        lastPartialAt = ProcessInfo.processInfo.systemUptime
+        listenStart = ProcessInfo.processInfo.systemUptime
+        lastPartialAt = listenStart
 
         vfrLog("startEngine — activating audio session")
         do { try AudioSession.activatePlayAndRecord() }
@@ -302,7 +313,19 @@ final class SpeechRecognizer: NSObject, ObservableObject {
         silenceTimer = Timer.scheduledTimer(withTimeInterval: t, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 guard let self, !self.flushing else { return }
-                guard !self.latest.isEmpty else { self.armSilence(); return }
+                guard !self.latest.isEmpty else {
+                    // Nothing heard yet. Keep waiting — unless the idle limit
+                    // says the pilot has walked away.
+                    if let limit = self.idleLimit,
+                       ProcessInfo.processInfo.systemUptime - self.listenStart >= limit {
+                        vfrLog("nothing heard for \(Int(limit))s — idling out this listen")
+                        self.lastListenIdledOut = true
+                        self.finishAuto()
+                    } else {
+                        self.armSilence()
+                    }
+                    return
+                }
                 // The mic is the authority on whether the pilot went quiet —
                 // partials stall mid-call, and finalizing on a stall clips it.
                 let quiet = self.voice.secondsSinceVoice

@@ -429,14 +429,34 @@ import Foundation
 @Test func complexTaxiBatchExists() {
     let plane = DrillLibrary.defaultAircraft
     let taxi = DrillLibrary.drills(matching: [.taxi], aircraft: plane)
-    #expect(taxi.count >= 9)
+    #expect(taxi.count >= 12)
     for id in ["t-ccr-parallel-taxi", "t-ccr-runway-switch", "t-ccr-holdshort-request",
-               "t-ccr-taxiback"] {
+               "t-ccr-taxiback", "t-ccr-runway-change", "t-ccr-long-route",
+               "t-ccr-crossing-revoked"] {
         #expect(taxi.contains { $0.id == id }, "missing \(id)")
     }
     // t-sns-taxi now names crossing runway 26 alongside 31 — a runway swap
     // would corrupt it.
     #expect(DrillRandomizer.runwaySwapExempt.contains("t-sns-taxi"))
+}
+
+@Test func taxiwayLettersVaryButCallsignsSurvive() {
+    let drill = DrillLibrary.all.first { $0.id == "t-ccr-long-route" }!
+    var sawDifferentRoute = false
+    for _ in 0..<40 {
+        let varied = DrillRandomizer.vary(drill)
+        // The flown callsign must never be corrupted by a route rename.
+        #expect(varied.setup.contains("seven three seven juliet alpha"))
+        if varied.setup != drill.setup { sawDifferentRoute = true }
+        // Setup and situation always describe the same route: any taxiway
+        // letter spoken to the pilot must also be in the grader's script.
+        for word in ["echo", "kilo", "papa", "golf", "bravo", "charlie", "mike",
+                     "sierra", "tango", "victor", "whiskey", "yankee", "zulu"]
+        where varied.setup.contains(word) {
+            #expect(varied.situation.contains(word), "\(word) in setup but not situation")
+        }
+    }
+    #expect(sawDifferentRoute)
     // KCCR drill texts name 32L/32R/19L/19R — a blind runway swap would
     // corrupt them, so Concord must stay out of the variation pool.
     #expect(DrillRandomizer.alternateRunways["KCCR"] == nil)
