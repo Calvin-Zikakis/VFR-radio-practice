@@ -429,10 +429,14 @@ import Foundation
 @Test func complexTaxiBatchExists() {
     let plane = DrillLibrary.defaultAircraft
     let taxi = DrillLibrary.drills(matching: [.taxi], aircraft: plane)
-    #expect(taxi.count >= 8)
-    for id in ["t-ccr-parallel-taxi", "t-ccr-runway-switch", "t-ccr-holdshort-request"] {
+    #expect(taxi.count >= 9)
+    for id in ["t-ccr-parallel-taxi", "t-ccr-runway-switch", "t-ccr-holdshort-request",
+               "t-ccr-taxiback"] {
         #expect(taxi.contains { $0.id == id }, "missing \(id)")
     }
+    // t-sns-taxi now names crossing runway 26 alongside 31 — a runway swap
+    // would corrupt it.
+    #expect(DrillRandomizer.runwaySwapExempt.contains("t-sns-taxi"))
     // KCCR drill texts name 32L/32R/19L/19R — a blind runway swap would
     // corrupt them, so Concord must stay out of the variation pool.
     #expect(DrillRandomizer.alternateRunways["KCCR"] == nil)
