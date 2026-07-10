@@ -333,6 +333,18 @@ final class HandsFreeController: ObservableObject {
 
     func skipCurrent() {
         Task {
+            if interaction == .handsFree, phase == .listening {
+                // Close the open mic first — otherwise the next briefing gets
+                // captured as the pilot's transmission — then rejoin the loop.
+                runTask?.cancel()
+                runTask = nil
+                speech.cancel()
+                await performSkip()
+                if phase != .finished {
+                    runTask = Task { [weak self] in await self?.handsFreeLoop() }
+                }
+                return
+            }
             await performSkip()
             if interaction == .pushToTalk, phase != .finished { phase = .readyToTalk }
         }

@@ -660,20 +660,21 @@ struct ContentView: View {
         .shadow(color: (glowColor ?? .clear).opacity(0.75), radius: 22)
         .animation(.easeOut(duration: 0.3), value: glowColor)
         .frame(maxHeight: .infinity)
-        // Swipe the transcript (push-to-talk): left = skip, right = repeat the
-        // briefing. Hands-free keeps the voice commands instead — a swipe there
-        // would talk over the listening loop.
+        // Swipe the transcript: left = skip to the next drill (both modes —
+        // hands-free closes the open mic before advancing). Right = repeat
+        // the briefing, push-to-talk only: in hands-free the repeat would
+        // talk straight into the listening mic; say "repeat" there instead.
         .simultaneousGesture(
             DragGesture(minimumDistance: 50)
                 .onEnded { value in
-                    guard settings.interactionMode == .pushToTalk,
-                          controller.phase != .finished,
+                    guard controller.phase != .finished,
                           abs(value.translation.width) > abs(value.translation.height) * 1.5
                     else { return }
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     if value.translation.width < 0 {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         controller.skipCurrent()
-                    } else {
+                    } else if settings.interactionMode == .pushToTalk {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         controller.repeatBriefing()
                     }
                 }
