@@ -497,7 +497,16 @@ final class HandsFreeController: ObservableObject {
             guard let verdict = graded else { return true }
             vfrLog("verdict correct=\(verdict.correct) advance=\(verdict.phaseAdvance) speaker=\(verdict.speaker) reply=\"\(verdict.radioReplyText)\" coaching=\"\(verdict.coaching)\" corrections=\(verdict.corrections)")
             lastVerdict = verdict
-            if !verdict.expectedExample.isEmpty { currentExample = verdict.expectedExample }
+            // Cache the model call only while the same call is still on deck.
+            // expectedExample describes the call JUST GRADED — after a correct
+            // mid-step call the exchange moves on, and reading the old example
+            // would model the wrong (previous) transmission. Clearing it makes
+            // "example" fetch fresh, with history, yielding the next step's call.
+            if verdict.correct && !verdict.phaseAdvance {
+                currentExample = nil
+            } else if !verdict.expectedExample.isEmpty {
+                currentExample = verdict.expectedExample
+            }
             // Red means exactly one thing: "say that again." A call can be
             // correct without advancing (mid-step of a multi-turn exchange) or
             // advance despite minor notes — both of those are green.
