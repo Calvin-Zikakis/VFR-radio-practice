@@ -178,6 +178,10 @@ public enum DrillLibrary {
             d.instructionVariants = d.instructionVariants?.map {
                 $0.replacingOccurrences(of: from, with: to)
             }
+            d.amendment = d.amendment?.replacingOccurrences(of: from, with: to)
+            d.amendmentVariants = d.amendmentVariants?.map {
+                $0.replacingOccurrences(of: from, with: to)
+            }
         }
         return d
     }
@@ -587,9 +591,17 @@ public enum DrillLibrary {
             id: "t-ccr-runway-change",
             scenario: .towered,
             title: "Runway change mid-taxi",
-            setup: "You were cleared to runway three two left at Concord — taxi via juliet, papa, cross runway one niner left — and you're taxiing on juliet when Ground calls: RV seven juliet alpha, change, runway three two right, continue via juliet. Read back the change.",
-            situation: "Towered field, you are Concord Ground. You amended the clearance mid-taxi: NEW runway three two right, continue via juliet — and note the revised route to 32R stays south of runway 19L, so the earlier crossing clearance no longer applies. Grade the readback: the NEW runway ('three two right' — reading back 'three two left' from the original clearance is the exact trap this drill exists for) and the callsign. If they read back the old runway, correct immediately: 'negative, runway three two RIGHT, read back'. If they read back 'cross runway one niner left', correct that too — their new route doesn't cross it. Set phaseAdvance true only after a correct readback of the amended clearance. Coach: an amendment replaces everything — re-hear the whole clearance, don't patch the old one.",
-            aircraft: rv12, airport: concord, callType: .taxi
+            setup: "You've landed on runway three two left at Concord and exited at hotel. Call Ground to taxi back for another departure on runway three two left.",
+            situation: "Towered field, you are Concord Ground (Buchanan Field: parallel 32L/32R crossed by 19L/19R). Grade the REQUEST — who they're calling, aircraft, position (clear of three two left at hotel), and the request to taxi back for departure on runway three two left. (You'll clear them to 32L across one niner left; after they read it back, you AMEND to 32R mid-taxi — the readbacks are graded next.)",
+            aircraft: rv12, airport: concord, callType: .taxi, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, Concord Ground, runway three two left, taxi via juliet, papa, cross runway one niner left.",
+                "RV seven three seven juliet alpha, Concord Ground, runway three two left, taxi via alpha, juliet, papa, cross runway one niner left.",
+            ],
+            amendmentVariants: [
+                "RV seven three seven juliet alpha, change, runway three two right, continue via juliet — your new route stays south of one niner left, disregard the crossing.",
+                "RV seven three seven juliet alpha, correction, runway three two right, continue via juliet, hold short of runway one niner left.",
+            ]
         ),
         Drill(
             id: "t-ccr-long-route",
@@ -607,9 +619,16 @@ public enum DrillLibrary {
             id: "t-ccr-crossing-revoked",
             scenario: .towered,
             title: "Crossing clearance revoked",
-            setup: "Taxiing up juliet at Concord, you were cleared to cross runway one niner left. Just as you approach the hold-short line, Ground calls urgently: RV seven juliet alpha, hold short of runway one niner left, hold short, traffic departing. Read it back — then when the traffic is gone, Ground will clear you across. Finish the exchange.",
-            situation: "Towered field, you are Concord Ground (the juliet / one niner left intersection is charted hot spot two). Step 1: you REVOKED a crossing clearance at the last second ('hold short of runway one niner left, hold short, traffic departing') — urgent and safety-critical. Expect an immediate verbatim hold-short readback with the runway and callsign; 'roger' or 'wilco' is a FAILED readback here at every difficulty, and a pilot who reads back the old crossing has it exactly backwards — correct them hard. Step 2: after a correct readback, call 'RV seven juliet alpha, traffic clear, cross runway one niner left, continue via papa' and grade the crossing readback ('cross runway one niner left' plus callsign). Set phaseAdvance true only after both readbacks. Coach: an amended instruction always replaces the old one — read back what you just heard, not what you were planning on.",
-            aircraft: rv12, airport: concord, callType: .taxi
+            setup: "You've landed on runway three two left at Concord and exited at hotel. Call Ground to taxi back for another departure on runway three two left.",
+            situation: "Towered field, you are Concord Ground (the juliet / one niner left intersection is charted hot spot two). Grade the REQUEST — who they're calling, aircraft, position (clear of three two left at hotel), and the request to taxi back for departure on runway three two left. (You'll clear them to cross one niner left; after they read it back, you REVOKE the crossing at the last second — hold short — the readbacks are graded next.)",
+            aircraft: rv12, airport: concord, callType: .taxi, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, Concord Ground, runway three two left, taxi via juliet, papa, cross runway one niner left.",
+            ],
+            amendmentVariants: [
+                "RV seven three seven juliet alpha, hold short of runway one niner left, hold short, traffic departing.",
+                "RV seven three seven juliet alpha, cancel crossing clearance, hold short of runway one niner left, traffic departing.",
+            ]
         ),
         Drill(
             id: "t-ccr-clearance-traffic-tail",

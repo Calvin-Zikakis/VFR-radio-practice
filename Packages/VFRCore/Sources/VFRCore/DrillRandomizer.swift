@@ -44,11 +44,12 @@ public enum DrillRandomizer {
 
     static func vary(_ drill: Drill, runway: String?, altitudeOffset: Int) -> Drill {
         var d = drill
-        // Chained drills: pick this session's authored instruction BEFORE
-        // building the substitutions, so one pass rewrites setup, situation,
-        // and instruction together — briefing, grader script, and spoken
-        // clearance can never disagree.
+        // Chained drills: pick this session's authored instruction (and any
+        // follow-on amendment) BEFORE building the substitutions, so one pass
+        // rewrites setup, situation, instruction, and amendment together —
+        // briefing, grader script, and spoken clearances can never disagree.
         if d.instruction == nil { d.instruction = d.instructionVariants?.randomElement() }
+        if d.amendment == nil { d.amendment = d.amendmentVariants?.randomElement() }
         // Identity mappings FIRST: `applying` placeholders pair lefts in
         // order, so these shield every form of the flown callsign from all
         // later substitutions — real taxiway letters (juliet, alpha) and
@@ -80,16 +81,18 @@ public enum DrillRandomizer {
         d.setup = applying(subs, to: d.setup)
         d.situation = applying(subs, to: d.situation)
         d.instruction = d.instruction.map { applying(subs, to: $0) }
+        d.amendment = d.amendment.map { applying(subs, to: $0) }
         return d
     }
 
-    /// The non-varied path still needs ONE chosen instruction per chained
-    /// drill (variation off, or a browse/resume that skips `vary`). Resumed
-    /// snapshots already carry theirs, so this never re-rolls a choice.
+    /// The non-varied path still needs ONE chosen instruction (and amendment)
+    /// per chained drill (variation off, or a browse/resume that skips `vary`).
+    /// Resumed snapshots already carry theirs, so this never re-rolls a choice.
     public static func resolveInstructions(_ drills: [Drill]) -> [Drill] {
         drills.map {
             var d = $0
             if d.instruction == nil { d.instruction = d.instructionVariants?.first }
+            if d.amendment == nil { d.amendment = d.amendmentVariants?.first }
             return d
         }
     }
@@ -226,9 +229,10 @@ public enum DrillRandomizer {
         "victor", "whiskey", "yankee", "zulu"]
 
     /// Everything a substitution trigger may scan — the authored squawk or a
-    /// route's taxiway letters can live in the chosen instruction alone.
+    /// route's taxiway letters can live in the chosen instruction or amendment.
     private static func scannableText(of drill: Drill) -> String {
-        drill.setup + " " + drill.situation + " " + (drill.instruction ?? "")
+        drill.setup + " " + drill.situation + " "
+            + (drill.instruction ?? "") + " " + (drill.amendment ?? "")
     }
 
     private static func taxiwaySubstitutions(for drill: Drill) -> [(String, String)] {

@@ -151,12 +151,23 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
     /// the controller in the previous step, so its "read it back" briefing is
     /// post-reply instructor talk — the app can keep it on-screen only.
     public var injectedReadback: Bool?
+    /// Authored templates for a follow-on AMENDMENT the controller issues after
+    /// the pilot reads back the initial clearance (a runway change, a revoked
+    /// crossing). Lets a drill start from the pilot's request yet still train
+    /// the mid-taxi amendment: request → initial clearance → readback →
+    /// amendment → readback. Propagated onto the first readback drill so it can
+    /// chain the second.
+    public var amendmentVariants: [String]?
+    /// The chosen amendment for this session (resolved + varied like
+    /// `instruction`); nil when the drill has no amendment.
+    public var amendment: String?
 
     public init(id: String, scenario: ScenarioType, title: String, setup: String,
                 situation: String, aircraft: Aircraft, airport: Airport,
                 callType: CallType? = nil, followUpReadback: Bool? = nil,
                 instructionVariants: [String]? = nil, instruction: String? = nil,
-                injectedReadback: Bool? = nil) {
+                injectedReadback: Bool? = nil,
+                amendmentVariants: [String]? = nil, amendment: String? = nil) {
         self.id = id
         self.scenario = scenario
         self.title = title
@@ -169,6 +180,8 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
         self.instructionVariants = instructionVariants
         self.instruction = instruction
         self.injectedReadback = injectedReadback
+        self.amendmentVariants = amendmentVariants
+        self.amendment = amendment
     }
 }
 

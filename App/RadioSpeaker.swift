@@ -136,10 +136,15 @@ final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
         if let r = t.range(of: "->") {
             t = String(t[..<r.lowerBound])
         }
+        // Leaked JSON string-array syntax: a reply ending "…one niner left.','7JA'"
+        // (quote-comma-quote is never spoken). Cut at the first such fragment.
+        if let r = t.range(of: "','") {
+            t = String(t[..<r.lowerBound])
+        }
         t = t.replacingOccurrences(of: "\"", with: "")
-        // A leaked field name right at the cut point ("….corrections.:") —
-        // drop a trailing fragment of punctuation-glued tokens.
-        while let last = t.last, ":.,;- ".contains(last) { t.removeLast() }
+        // A leaked field name or stray quote right at the cut point
+        // ("….corrections.:", "…left.'") — drop trailing punctuation/quotes.
+        while let last = t.last, ":.,;-'` ".contains(last) { t.removeLast() }
         return t.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 

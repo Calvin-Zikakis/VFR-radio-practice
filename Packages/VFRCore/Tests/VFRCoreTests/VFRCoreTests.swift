@@ -476,7 +476,8 @@ import Foundation
     // open with ATC's line and are not in this list.)
     for id in ["t-ccr-parallel-taxi", "t-ccr-runway-switch", "t-ccr-long-route",
                "t-complex-taxi", "t-ccr-clearance-traffic-tail",
-               "t-rhv-departure-traffic-tail", "ff-bravo-granted"] {
+               "t-rhv-departure-traffic-tail", "ff-bravo-granted",
+               "t-ccr-runway-change", "t-ccr-crossing-revoked"] {
         let drill = DrillLibrary.all.first { $0.id == id }!
         #expect(drill.followUpReadback == true, "\(id) should chain a readback")
         #expect(drill.instructionVariants?.isEmpty == false, "\(id) needs authored clearances")
@@ -798,6 +799,44 @@ final class SequenceBrain: ATCEvaluating, @unchecked Sendable {
     #expect(await session.currentDrill == nil)
 }
 
+@Test func amendmentDrillChainsRequestThenInitialThenAmendment() async throws {
+    // t-ccr-runway-change now starts with the pilot's own ground call and runs
+    // the full real flow: request → initial clearance → readback → amendment →
+    // readback, all with app-composed instructions.
+    let request = DrillRandomizer.resolveInstructions(
+        [DrillLibrary.all.first { $0.id == "t-ccr-runway-change" }!])[0]
+    #expect(request.followUpReadback == true)
+    let initial = try #require(request.instruction)
+    let amendment = try #require(request.amendment)
+    #expect(initial != amendment)
+
+    // The grader advances each turn with an empty reply; the app supplies text.
+    let brain = FixedBrain(verdict: Verdict(
+        heard: "x", speaker: "Ground", radioReplyText: "", correct: true,
+        corrections: [], expectedExample: "", phaseAdvance: true, coaching: ""))
+    let session = PracticeSession(brain: brain, mode: .live, drills: [request])
+
+    // 1) Request → app issues the INITIAL clearance, injects readback #1.
+    let v1 = try await session.submit("Concord Ground, request taxi for departure")
+    #expect(v1?.radioReplyText == initial)
+    let rb1 = try #require(await session.currentDrill)
+    #expect(rb1.injectedReadback == true)
+    #expect(rb1.instruction == initial)      // replay target = the initial clearance
+    #expect(rb1.amendment == amendment)      // carries the amendment to chain next
+
+    // 2) Read back the initial → app issues the AMENDMENT, injects readback #2.
+    let v2 = try await session.submit("runway three two left, cross one niner left, 7JA")
+    #expect(v2?.radioReplyText == amendment)
+    let rb2 = try #require(await session.currentDrill)
+    #expect(rb2.injectedReadback == true)
+    #expect(rb2.instruction == amendment)
+    #expect(rb2.amendment == nil)            // amendments chain only once
+
+    // 3) Read back the amendment → done.
+    _ = try await session.submit("runway three two right, continue via juliet, 7JA")
+    #expect(await session.currentDrill == nil)
+}
+
 @Test func pendingReadbackStillHoldsNonChainedDrills() async throws {
     // Without the follow-up flag, advancing while the reply demands a
     // readback (cross/hold short) is a contradiction — the step holds.
@@ -846,6 +885,35 @@ final class SequenceBrain: ATCEvaluating, @unchecked Sendable {
 
 @Test func scrubStripsInvisiblePadding() {
     #expect(ATCBrain.scrub("say your position.\u{200B}\u{200B} \u{200B}") == "say your position.")
+}
+
+@Test func stripLeakedCutsStructuredOutputJunk() {
+    // Seen live: the model bled JSON/field syntax into radioReplyText.
+    #expect(ATCBrain.stripLeaked("readback correct, continue via juliet.','7JA'")
+            == "readback correct, continue via juliet")
+    #expect(ATCBrain.stripLeaked("RV seven juliet alpha, say your position.','correct':false}```invalid```{")
+            == "RV seven juliet alpha, say your position")
+    #expect(ATCBrain.stripLeaked("Watsonville.-> ACTUALLY use corrections") == "Watsonville")
+    // A clean line is untouched (apostrophes in real words survive).
+    #expect(ATCBrain.stripLeaked("you're cleared to land, seven juliet alpha")
+            == "you're cleared to land, seven juliet alpha")
+}
+
+@Test func parseVerdictStripsLeakedReplyEverywhere() throws {
+    // The junk must be gone from the decoded verdict (feeds transcript + history
+    // + TTS), not just sanitized at the speaker.
+    let inner = """
+    {"heard":"Concord Ground, RV seven three seven juliet alpha, request taxi",\
+    "speaker":"Ground","radioReplyText":"RV seven juliet alpha, say your position.','correct':false}",\
+    "correct":false,"corrections":["Missing your position"],"expectedExample":"x",\
+    "phaseAdvance":false,"coaching":"Add your position."}
+    """
+    let response = """
+    {"stop_reason":"end_turn","content":[{"type":"text","text":\(jsonString(inner))}]}
+    """
+    let verdict = try ATCBrain.parseVerdict(from: Data(response.utf8))
+    #expect(verdict.radioReplyText == "RV seven juliet alpha, say your position")
+    #expect(!verdict.radioReplyText.contains("correct"))
 }
 
 @Test func refusalStopReasonThrows() {

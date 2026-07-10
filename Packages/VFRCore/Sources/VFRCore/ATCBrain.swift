@@ -519,12 +519,17 @@ public struct ATCBrain: ATCEvaluating, Sendable {
             // (seen: every field "n/a", another time heard "placeholder").
             // Scrub every string; collapse sentinels to empty ("none" stays a
             // legitimate speaker value, so speaker is scrubbed only).
+            // The model occasionally bleeds structured-output syntax into a
+            // spoken field ("…say your position.','correct':false}```invalid```").
+            // Strip it at the source so the junk never reaches the transcript,
+            // the saved history, OR text-to-speech (not just TTS).
             verdict.heard = meaningful(scrub(verdict.heard))
             verdict.speaker = scrub(verdict.speaker)
-            verdict.radioReplyText = meaningful(scrub(verdict.radioReplyText))
-            verdict.expectedExample = meaningful(scrub(verdict.expectedExample))
-            verdict.coaching = meaningful(scrub(verdict.coaching))
-            verdict.corrections = verdict.corrections.map { meaningful(scrub($0)) }.filter { !$0.isEmpty }
+            verdict.radioReplyText = stripLeaked(meaningful(scrub(verdict.radioReplyText)))
+            verdict.expectedExample = stripLeaked(meaningful(scrub(verdict.expectedExample)))
+            verdict.coaching = stripLeaked(meaningful(scrub(verdict.coaching)))
+            verdict.corrections = verdict.corrections
+                .map { stripLeaked(meaningful(scrub($0))) }.filter { !$0.isEmpty }
             // Stub verdict: no reconstruction of what was heard, or an
             // incorrect verdict with zero feedback of any kind — useless to
             // the pilot; retry instead.
@@ -550,6 +555,20 @@ public struct ATCBrain: ATCEvaluating, Sendable {
             vfrLog("verdict decode failed. text was: \(text.prefix(600))")
             throw ATCBrainError.badResponse("grader reply wasn't valid JSON.\nRAW: \(text.prefix(500))")
         }
+    }
+
+    /// Strip leaked structured-output syntax the model sometimes appends to a
+    /// spoken field — JSON braces/brackets, a `->` meta-note, a `','key':value`
+    /// fragment, or ``` fences. Cut at the EARLIEST such marker; no real spoken
+    /// line contains one, and everything after it is machine noise.
+    static func stripLeaked(_ s: String) -> String {
+        var cut = s.endIndex
+        for marker in ["```", "','", "->", "{", "}", "[", "]"] {
+            if let r = s.range(of: marker), r.lowerBound < cut { cut = r.lowerBound }
+        }
+        var t = String(s[..<cut])
+        while let last = t.last, ":.,;-'`\" ".contains(last) { t.removeLast() }
+        return t.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Collapse sentinel filler ("n/a", "placeholder") to empty so stub

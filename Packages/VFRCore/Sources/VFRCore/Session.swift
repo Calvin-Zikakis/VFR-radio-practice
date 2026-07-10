@@ -89,15 +89,29 @@ public actor PracticeSession {
                                                nextSetup: nextSetup)
 
         // App-composed instruction: on the advancing turn the SESSION issues
-        // the drill's authored clearance, not the grader. Whatever reply the
-        // model improvised is replaced, so the spoken instruction and the
-        // injected drill's grading target are the same string by construction.
-        let willInject = drill.followUpReadback == true && drill.instruction != nil
-        if verdict.phaseAdvance, willInject, let instruction = drill.instruction {
-            if !verdict.radioReplyText.isEmpty, verdict.radioReplyText != instruction {
+        // the authored clearance, not the grader. A request drill issues its
+        // `instruction`; a readback drill that carries an `amendment` issues
+        // that (a mid-taxi runway change / revoked crossing). Either way the
+        // spoken text and the injected drill's grading target are the same
+        // string, and a follow-up readback drill is injected to grade it.
+        let issueText: String?
+        let carryAmendment: String?
+        if drill.followUpReadback == true, let instruction = drill.instruction {
+            issueText = instruction
+            carryAmendment = drill.amendment          // may chain a second step
+        } else if drill.injectedReadback == true, let amendment = drill.amendment {
+            issueText = amendment
+            carryAmendment = nil                      // amendments chain only once
+        } else {
+            issueText = nil
+            carryAmendment = nil
+        }
+        let willInject = issueText != nil
+        if verdict.phaseAdvance, let issueText {
+            if !verdict.radioReplyText.isEmpty, verdict.radioReplyText != issueText {
                 vfrLog("grader improvised a reply on an app-composed advance — overridden")
             }
-            verdict.radioReplyText = instruction
+            verdict.radioReplyText = issueText
         }
 
         // A crossing or hold-short the grader ISSUES as a new instruction
@@ -124,11 +138,12 @@ public actor PracticeSession {
             recordDebrief(drill: drill, verdict: verdict)
         }
         if verdict.phaseAdvance {
-            if willInject, let instruction = drill.instruction {
+            if let issueText {
                 let followUp = readbackFollowUp(for: drill, verdict: verdict,
-                                                instruction: instruction)
+                                                instruction: issueText,
+                                                amendment: carryAmendment)
                 drills.insert(followUp, at: index + 1)
-                vfrLog("injected readback drill for '\(drill.id)'")
+                vfrLog("injected readback drill for '\(drill.id)'\(carryAmendment != nil ? " (amendment to follow)" : "")")
             }
             advance()
         }
@@ -139,7 +154,7 @@ public actor PracticeSession {
     /// instruction the session just spoke. Inherits the parent drill's
     /// (already randomized) context; the clearance text itself is the content.
     private func readbackFollowUp(for drill: Drill, verdict: Verdict,
-                                  instruction: String) -> Drill {
+                                  instruction: String, amendment: String? = nil) -> Drill {
         let voice: String
         switch verdict.speaker {
         case "Ground", "Tower": voice = "\(drill.airport.name) \(verdict.speaker)"
@@ -163,7 +178,11 @@ public actor PracticeSession {
             // ATCBrain gates it on `injectedReadback` — so this is purely for
             // the app to replay.
             instruction: instruction,
-            injectedReadback: true)
+            injectedReadback: true,
+            // When set, the app issues this amendment after the pilot reads back
+            // the instruction above, then injects a second readback drill for it
+            // (request → clearance → readback → amendment → readback).
+            amendment: amendment)
     }
 
     /// Skip the current drill without grading (e.g. voice command "skip").
