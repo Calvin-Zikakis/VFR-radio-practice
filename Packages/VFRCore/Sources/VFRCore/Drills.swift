@@ -225,7 +225,7 @@ public enum DrillLibrary {
             scenario: .untowered,
             title: "Taxi self-announce",
             setup: "You're at Watsonville, about to taxi from the ramp for departure on runway two zero. Make your taxi call.",
-            situation: "Uncontrolled field. Pilot is taxiing from the transient ramp toward runway 20. Expect a CTAF self-announce naming the airport, aircraft, position, intentions, and airport again.",
+            situation: "Uncontrolled field. Pilot is taxiing from the transient ramp toward runway 20. Expect a CTAF self-announce: airport, aircraft, and where they're taxiing (to runway 20), airport again. A taxi call does NOT require departure intentions or direction of flight — never ask for those here; they belong in the departure call.",
             aircraft: rv12, airport: watsonville
         ),
         Drill(

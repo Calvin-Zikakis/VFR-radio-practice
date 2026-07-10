@@ -105,7 +105,7 @@ public enum TripBuilder {
             if !skipTaxi {
                 add(.untowered, "Taxi self-announce — \(ap.name)",
                     "You're at \(ap.name), about to taxi from the ramp for departure on runway \(rwy). Make your taxi call.",
-                    "Uncontrolled field (\(ap.name)). Pilot is taxiing to runway \(firstRunway(ap)). Expect a CTAF self-announce: airport, aircraft, position, intentions, airport again.",
+                    "Uncontrolled field (\(ap.name)). Pilot is taxiing to runway \(firstRunway(ap)). Expect a CTAF self-announce: airport, aircraft, where they're taxiing (to runway \(firstRunway(ap))), airport again. A taxi call does NOT require departure intentions or direction of flight — never ask for those here; they belong in the departure call.",
                     ap)
             }
             add(.untowered, "Departing — \(ap.name)",

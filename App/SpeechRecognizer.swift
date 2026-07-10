@@ -61,6 +61,14 @@ final class SpeechRecognizer: NSObject, ObservableObject {
     private var torn = true
     /// True while hands-free finalization is flushing the recognizer's tail.
     private var flushing = false
+    /// Text already finalized by the recognizer mid-listen. iOS emits its own
+    /// FINAL result whenever it decides the utterance ended (a breath is
+    /// enough) and the task dies with it — everything said afterward used to
+    /// be lost. We fold each spontaneous final into this prefix and restart
+    /// recognition so one radio call survives any number of them.
+    private var committed = ""
+    /// Invalidates handler callbacks from replaced recognition tasks.
+    private var taskGen = 0
     private let voice = VoiceActivity()
 
     // `nonisolated`: the TCC permission callbacks fire on a background queue.
@@ -165,24 +173,38 @@ final class SpeechRecognizer: NSObject, ObservableObject {
 
         latest = ""
         partialText = ""
+        committed = ""
         torn = false
         flushing = false
         self.autoSilence = autoSilence
         voice.reset()
 
-        let request = SFSpeechAudioBufferRecognitionRequest()
-        request.shouldReportPartialResults = true
-        request.contextualStrings = Self.aviationVocabulary + contextualPhrases
-        self.request = request
-
         print("VFR: startEngine — activating audio session")
         do { try AudioSession.activatePlayAndRecord() }
         catch { throw RecognizerError.audioSession(error.localizedDescription) }
 
-        let input = audioEngine.inputNode
-        let format = input.outputFormat(forBus: 0)
+        let format = audioEngine.inputNode.outputFormat(forBus: 0)
         print("VFR: input format \(format.sampleRate)Hz \(format.channelCount)ch")
-        input.removeTap(onBus: 0)
+        installRecognition()
+
+        audioEngine.prepare()
+        do { try audioEngine.start() }
+        catch { throw RecognizerError.audioSession(error.localizedDescription) }
+        print("VFR: audio engine started, listening")
+        isListening = true
+    }
+
+    /// Create a recognition request + task and point the mic tap at it. Called
+    /// at listen start and again after every spontaneous FINAL result, so the
+    /// listen keeps going across the recognizer's own end-of-utterance calls.
+    private func installRecognition() {
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.shouldReportPartialResults = true
+        request.contextualStrings = Self.aviationVocabulary + contextualPhrases
+        self.request = request
+        taskGen += 1
+        let gen = taskGen
+
         // The tap runs on the real-time audio thread, and the recognition
         // handler on an arbitrary queue. Both closures are explicitly @Sendable
         // (non-isolated) so they never inherit main-actor isolation and never
@@ -207,13 +229,10 @@ final class SpeechRecognizer: NSObject, ObservableObject {
                 activity.update(rms: (sum / Float((n + 3) / 4)).squareRoot())
             }
         }
-        input.installTap(onBus: 0, bufferSize: 1024, format: format, block: tapBlock)
-
-        audioEngine.prepare()
-        do { try audioEngine.start() }
-        catch { throw RecognizerError.audioSession(error.localizedDescription) }
-        print("VFR: audio engine started, listening")
-        isListening = true
+        let input = audioEngine.inputNode
+        input.removeTap(onBus: 0)
+        input.installTap(onBus: 0, bufferSize: 1024,
+                         format: input.outputFormat(forBus: 0), block: tapBlock)
 
         let handler: @Sendable (SFSpeechRecognitionResult?, Error?) -> Void = { [weak self] result, error in
             // Extract Sendable values off the callback thread, then hop to main.
@@ -221,23 +240,33 @@ final class SpeechRecognizer: NSObject, ObservableObject {
             let isFinal = result?.isFinal ?? false
             let hadError = error != nil
             Task { @MainActor in
-                guard let self else { return }
-                if let text {
-                    self.latest = text
-                    self.partialText = text
+                guard let self, gen == self.taskGen else { return }   // stale task
+                if let text, !text.isEmpty {
+                    let full = self.committed.isEmpty ? text : self.committed + " " + text
+                    self.latest = full
+                    self.partialText = full
                     if self.autoSilence != nil, !self.flushing { self.armSilence() }
                 }
                 if isFinal {
-                    self.deliverFinal()                  // push-to-talk: full result is in
-                    self.deliverAuto()                   // hands-free flush: tail is in
+                    if self.finalContinuation != nil {
+                        self.deliverFinal()          // push-to-talk release: full result is in
+                    } else if self.flushing {
+                        self.deliverAuto()           // hands-free flush: tail is in
+                    } else if !self.torn {
+                        // Spontaneous final mid-listen: the recognizer decided
+                        // the utterance was over, but the pilot gets to decide
+                        // that, not the recognizer. Bank the text, keep going.
+                        self.committed = self.latest
+                        self.installRecognition()
+                    }
                 }
                 if hadError {
                     if self.autoSilence != nil { self.deliverAuto() }
-                    else { self.deliverFinal() }         // don't hang the manual wait
+                    else { self.deliverFinal() }     // don't hang the manual wait
                 }
             }
         }
-        task = recognizer.recognitionTask(with: request, resultHandler: handler)
+        task = recognizer?.recognitionTask(with: request, resultHandler: handler)
     }
 
     private func armSilence() {
@@ -270,7 +299,7 @@ final class SpeechRecognizer: NSObject, ObservableObject {
         request?.endAudio()
         isListening = false
         finalTimer?.invalidate()
-        finalTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in
+        finalTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
             Task { @MainActor in self?.deliverAuto() }
         }
     }
@@ -302,31 +331,44 @@ final class SpeechRecognizer: NSObject, ObservableObject {
 }
 
 /// Cheap voice-activity detector fed from the mic tap (real-time audio
-/// thread), read from the main actor's silence timer. Tracks a slow-moving
-/// noise floor so steady cabin/road noise doesn't read as speech, while
-/// speech — which spikes well above the floor — refreshes `secondsSinceVoice`.
+/// thread), read from the main actor's silence timer. The noise floor is the
+/// minimum one-second RMS over the last ~8 seconds ("minimum statistics"):
+/// steady cabin/road noise becomes the floor within seconds, but continuous
+/// speech can't drag the floor up — the dips between words keep the minimum
+/// honest — so a long fluid radio call never stops reading as voice. (An
+/// earlier EMA floor rose during speech until the call itself read as noise
+/// and got clipped mid-sentence.)
 private final class VoiceActivity: @unchecked Sendable {
     private let lock = NSLock()
-    private var floor: Float = 0.005
     private var lastVoice: TimeInterval = ProcessInfo.processInfo.systemUptime
+    private var window: [Float] = []          // completed 1s subwindow minima
+    private var currentMin: Float = 1
+    private var subwindowStart: TimeInterval = ProcessInfo.processInfo.systemUptime
 
     func reset() {
         lock.lock()
-        floor = 0.005
-        lastVoice = ProcessInfo.processInfo.systemUptime
+        window = []
+        currentMin = 1
+        let now = ProcessInfo.processInfo.systemUptime
+        subwindowStart = now
+        lastVoice = now
         lock.unlock()
     }
 
     func update(rms: Float) {
         lock.lock()
         defer { lock.unlock() }
-        // Floor falls quickly, rises slowly: transient speech barely lifts it,
-        // but sustained noise (a car at speed) is absorbed within seconds so
-        // silence detection still works over it.
-        floor = rms < floor ? 0.9 * floor + 0.1 * rms
-                            : 0.995 * floor + 0.005 * rms
-        if rms > max(0.008, floor * 2.5) {
-            lastVoice = ProcessInfo.processInfo.systemUptime
+        let now = ProcessInfo.processInfo.systemUptime
+        currentMin = min(currentMin, rms)
+        if now - subwindowStart >= 1.0 {
+            window.append(currentMin)
+            if window.count > 8 { window.removeFirst() }
+            currentMin = 1
+            subwindowStart = now
+        }
+        let floor = window.min() ?? 0.003
+        if rms > max(0.008, floor * 3) {
+            lastVoice = now
         }
     }
 

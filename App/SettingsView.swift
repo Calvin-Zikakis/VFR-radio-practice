@@ -94,8 +94,10 @@ struct SettingsView: View {
                             Text(voiceLabel(v)).tag(Optional(v.identifier))
                         }
                     }
+                    // Identical ranges so Slow/Normal/Fast sit at the same
+                    // physical spot on both tracks.
                     SmoothSliderRow(title: "Speech speed",
-                                    range: 0.3...0.7, speedScale: true,
+                                    range: 0.3...0.75, speedScale: true,
                                     format: Self.speedLabel,
                                     value: $settings.speechRate)
                     SmoothSliderRow(title: "Controller speed",
