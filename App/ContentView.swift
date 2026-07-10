@@ -135,7 +135,7 @@ struct ContentView: View {
                     sessionCard
                     preferencesCard
 
-                    Text("\(sessionCallCount) \(sessionMode == .single ? "drills" : "calls") · say “next”, “repeat”, “pause”, or “stop” anytime")
+                    Text("\(sessionCallCount) \(sessionMode == .single ? "drills" : "calls") · say “next”, “repeat”, “example”, “pause”, or “stop” anytime")
                         .font(.caption).foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
                 }

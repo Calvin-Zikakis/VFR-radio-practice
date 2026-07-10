@@ -86,6 +86,18 @@ public actor PracticeSession {
         advance()
     }
 
+    /// Fetch the model call for the current drill on demand (voice command
+    /// "example"). Goes to the brain but leaves history, attempts, and the
+    /// debrief untouched — asking to hear the ideal call isn't an attempt.
+    public func modelExample() async throws -> String? {
+        guard let drill = currentDrill else { return nil }
+        let verdict = try await brain.evaluate(
+            drill: drill, mode: mode, history: history,
+            transmission: "(Not a radio call: the pilot asks to hear the model call for this situation before trying. Put the ideal transmission in expectedExample; do not grade or advance.)",
+            nextSetup: nil)
+        return verdict.expectedExample
+    }
+
     private func advance() {
         index += 1
         attempts = 0

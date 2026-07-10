@@ -49,6 +49,9 @@ final class HandsFreeController: ObservableObject {
     private var busy = false            // busy-frequency simulation
     private var echo = false            // read the model call after a miss
     private var sessionLabel = ""       // human name for the snapshot / resume card
+    /// Model call for the drill in play (from its last verdict, or fetched on
+    /// demand by the "example" voice command). Cleared at each briefing.
+    private var currentExample: String?
     private var sessionDrills: [Drill] = []   // exact drills in play (post-randomize)
     private weak var settings: SettingsStore?
     private var runTask: Task<Void, Never>?
@@ -357,6 +360,7 @@ final class HandsFreeController: ObservableObject {
     private func briefCurrent() async {
         guard let drill = await session?.currentDrill else { await finish(); return }
         currentSetup = drill.setup
+        currentExample = nil
         // Bias the recognizer toward this drill's proper nouns so it stops
         // hearing "Julia" for "juliet" and "Reid Hillview" as random words.
         speech.contextualPhrases = [
@@ -414,6 +418,24 @@ final class HandsFreeController: ObservableObject {
         return v > 0.001 ? v : 1
     }
 
+    /// Voice command "example": read the model call for the drill in play.
+    /// Uses the example from this drill's last grading when there is one;
+    /// otherwise asks the grader for it (without it counting as an attempt).
+    private func speakExample() async {
+        if currentExample == nil {
+            phase = .thinking
+            currentExample = try? await session?.modelExample()
+        }
+        guard let ex = currentExample, !ex.isEmpty else {
+            append(.system, "Couldn't fetch the model call.")
+            await speaker.speak("Couldn't fetch the model call — just try your call.",
+                                as: .instructor, volume: repeatVolume)
+            return
+        }
+        append(.system, "Model call: \(ex)")
+        await speaker.speak("Here's the model call. \(ex)", as: .instructor, volume: repeatVolume)
+    }
+
     /// Handle one pilot transmission. Returns true if the session finished.
     @discardableResult
     private func process(_ text: String) async -> Bool {
@@ -430,6 +452,9 @@ final class HandsFreeController: ObservableObject {
         case .repeatSetup:
             append(.system, "Say again.")
             await speaker.speak(currentSetup, as: .instructor, volume: repeatVolume)
+            return await settleAfterTurn()
+        case .example:
+            await speakExample()
             return await settleAfterTurn()
         case .none:
             break
@@ -459,6 +484,7 @@ final class HandsFreeController: ObservableObject {
             guard let verdict = graded else { return true }
             print("VFR: verdict correct=\(verdict.correct) advance=\(verdict.phaseAdvance) speaker=\(verdict.speaker) reply=\"\(verdict.radioReplyText)\" coaching=\"\(verdict.coaching)\" corrections=\(verdict.corrections)")
             lastVerdict = verdict
+            if !verdict.expectedExample.isEmpty { currentExample = verdict.expectedExample }
             // Red means exactly one thing: "say that again." A call can be
             // correct without advancing (mid-step of a multi-turn exchange) or
             // advance despite minor notes — both of those are green.
@@ -595,15 +621,18 @@ final class HandsFreeController: ObservableObject {
 
     // MARK: - Helpers
 
-    private enum NavCommand { case none, skip, repeatSetup, stop, pause }
+    private enum NavCommand { case none, skip, repeatSetup, stop, pause, example }
 
     private func navCommand(_ text: String) -> NavCommand {
-        let t = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let t = text.lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: .punctuationCharacters)
         guard t.split(separator: " ").count <= 3 else { return .none }
         if t == "skip" || t == "next" || t == "move on" { return .skip }
         if t == "repeat" || t == "say again" || t == "again" { return .repeatSetup }
         if t == "stop" || t == "quit" { return .stop }
         if t == "pause" || t == "hold on" { return .pause }
+        if t == "example" || t == "model call" || t == "give me example" { return .example }
         return .none
     }
 

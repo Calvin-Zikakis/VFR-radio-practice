@@ -8,6 +8,9 @@ struct SettingsView: View {
     @State private var previewSpeaker = RadioSpeaker()
     @State private var editingAircraft: AircraftDraft?
     @ObservedObject private var stats = StatsStore.shared
+    /// Loaded once on appear — the enumeration is slow, and iOS caches the
+    /// installed-voice list until app relaunch anyway.
+    @State private var voices: [AVSpeechSynthesisVoice] = []
 
     var body: some View {
         NavigationStack {
@@ -62,12 +65,18 @@ struct SettingsView: View {
                     }
                     Text("Shadow practice: when a call needs another try, the instructor reads the ideal version first.")
                         .font(.caption).foregroundStyle(.secondary)
-                    volumeSlider("Instructor voice", icon: "speaker.wave.2.bubble.left",
-                                 value: $settings.instructorVolume)
+                    SmoothSliderRow(title: "Instructor voice",
+                                    titleIcon: "speaker.wave.2.bubble.left",
+                                    range: 0...1, step: 0.05,
+                                    format: Self.percentLabel,
+                                    value: $settings.instructorVolume)
                     Text("Briefings, coaching after a miss, and the debrief — in every mode. Zero keeps the instructor on screen only.")
                         .font(.caption).foregroundStyle(.secondary)
-                    volumeSlider("Notes on passed calls", icon: "bubble.left.and.text.bubble.right",
-                                 value: $settings.passNotesVolume)
+                    SmoothSliderRow(title: "Notes on passed calls",
+                                    titleIcon: "bubble.left.and.text.bubble.right",
+                                    range: 0...1, step: 0.05,
+                                    format: Self.percentLabel,
+                                    value: $settings.passNotesVolume)
                     Text("Polish notes when a call passes — in every mode. Zero keeps passes snappy; the notes still appear on screen and in the debrief.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
@@ -79,36 +88,22 @@ struct SettingsView: View {
                 Section("Voice") {
                     Picker("Voice", selection: $settings.voiceIdentifier) {
                         Text("Automatic (best installed)").tag(String?.none)
-                        ForEach(RadioSpeaker.selectableEnglishVoices(), id: \.identifier) { v in
+                        // Cached: enumerating system voices is expensive, and
+                        // doing it in `body` ran it on every form re-render.
+                        ForEach(voices, id: \.identifier) { v in
                             Text(voiceLabel(v)).tag(Optional(v.identifier))
                         }
                     }
-                    VStack(alignment: .leading) {
-                        HStack {
-                            Text("Speech speed")
-                            Spacer()
-                            Text(speedLabel).foregroundStyle(.secondary)
-                        }
-                        HStack(spacing: 8) {
-                            Image(systemName: "tortoise")
-                            Slider(value: $settings.speechRate, in: 0.3...0.7)
-                            Image(systemName: "hare")
-                        }
-                    }
-                    VStack(alignment: .leading) {
-                        HStack {
-                            Text("Controller speed")
-                            Spacer()
-                            Text(controllerSpeedLabel).foregroundStyle(.secondary)
-                        }
-                        HStack(spacing: 8) {
-                            Image(systemName: "tortoise")
-                            Slider(value: $settings.controllerSpeechRate, in: 0.3...0.75)
-                            Image(systemName: "hare")
-                        }
-                        Text("Controllers talk faster than instructors — train your ear separately.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
+                    SmoothSliderRow(title: "Speech speed",
+                                    range: 0.3...0.7, speedScale: true,
+                                    format: Self.speedLabel,
+                                    value: $settings.speechRate)
+                    SmoothSliderRow(title: "Controller speed",
+                                    range: 0.3...0.75, speedScale: true,
+                                    format: Self.speedLabel,
+                                    value: $settings.controllerSpeechRate)
+                    Text("Controllers talk faster than instructors — train your ear separately.")
+                        .font(.caption).foregroundStyle(.secondary)
                     Toggle(isOn: $settings.radioEffect) {
                         Label("Radio effect (static + bandpass)", systemImage: "antenna.radiowaves.left.and.right")
                     }
@@ -125,20 +120,16 @@ struct SettingsView: View {
                     Picker("Mode", selection: $settings.interactionMode) {
                         ForEach(InteractionMode.allCases, id: \.self) { Text($0.displayName).tag($0) }
                     }
-                    VStack(alignment: .leading) {
-                        HStack {
-                            Text("End-of-speech pause")
-                            Spacer()
-                            Text(String(format: "%.1fs", settings.endOfSpeechPause))
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: $settings.endOfSpeechPause, in: 1.0...3.5, step: 0.1)
-                        Text("Hands-free only: how long you can pause before we decide you're done talking.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
+                    SmoothSliderRow(title: "End-of-speech pause",
+                                    range: 1.0...3.5, step: 0.1,
+                                    format: { String(format: "%.1fs", $0) },
+                                    value: $settings.endOfSpeechPause)
+                    Text("Hands-free only: how long you can pause before we decide you're done talking.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Settings")
+            .onAppear { voices = RadioSpeaker.selectableEnglishVoices() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
@@ -206,34 +197,16 @@ struct SettingsView: View {
         return "\(v.name) — \(quality)"
     }
 
-    private var speedLabel: String {
-        switch settings.speechRate {
+    static func speedLabel(_ rate: Double) -> String {
+        switch rate {
         case ..<0.42: return "Slow"
         case ..<0.56: return "Normal"
         default: return "Fast"
         }
     }
 
-    private var controllerSpeedLabel: String {
-        switch settings.controllerSpeechRate {
-        case ..<0.42: return "Slow"
-        case ..<0.56: return "Normal"
-        default: return "Fast"
-        }
-    }
-
-    /// Labeled 0–100% volume slider; zero shows "Off".
-    private func volumeSlider(_ title: String, icon: String,
-                              value: Binding<Double>) -> some View {
-        VStack(alignment: .leading) {
-            HStack {
-                Label(title, systemImage: icon)
-                Spacer()
-                Text(value.wrappedValue < 0.01 ? "Off" : "\(Int((value.wrappedValue * 100).rounded()))%")
-                    .foregroundStyle(.secondary)
-            }
-            Slider(value: value, in: 0...1, step: 0.05)
-        }
+    static func percentLabel(_ v: Double) -> String {
+        v < 0.01 ? "Off" : "\(Int((v * 100).rounded()))%"
     }
 
     // MARK: - Progress (per-call-type stats)
@@ -380,5 +353,61 @@ private struct AircraftEditorView: View {
             else if let l = nato[ch] { words.append(l) }
         }
         return words.joined(separator: " ")
+    }
+}
+
+/// Slider row that tracks the drag against local state and writes the bound
+/// setting only when the finger lifts. Binding straight to the settings store
+/// re-rendered the entire Settings form on every tick of the drag (including
+/// the expensive system-voice enumeration), which made every slider stutter.
+struct SmoothSliderRow: View {
+    let title: String
+    var titleIcon: String? = nil
+    let range: ClosedRange<Double>
+    var step: Double? = nil
+    /// Show the tortoise/hare speed icons around the track.
+    var speedScale = false
+    let format: (Double) -> String
+    @Binding var value: Double
+
+    @State private var local = 0.0
+    @State private var dragging = false
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            HStack {
+                if let titleIcon {
+                    Label(title, systemImage: titleIcon)
+                } else {
+                    Text(title)
+                }
+                Spacer()
+                Text(format(dragging ? local : value))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            HStack(spacing: 8) {
+                if speedScale { Image(systemName: "tortoise") }
+                if let step {
+                    Slider(value: $local, in: range, step: step, onEditingChanged: editingChanged)
+                } else {
+                    Slider(value: $local, in: range, onEditingChanged: editingChanged)
+                }
+                if speedScale { Image(systemName: "hare") }
+            }
+        }
+        .onAppear { local = value }
+        // External change (reset, another screen) while not dragging.
+        .onChange(of: value) { _, new in if !dragging { local = new } }
+    }
+
+    private func editingChanged(_ began: Bool) {
+        if began {
+            local = value
+            dragging = true
+        } else {
+            dragging = false
+            value = local
+        }
     }
 }
