@@ -527,10 +527,13 @@ final class HandsFreeController: ObservableObject {
             }
             if mode == .live && !verdict.coaching.isEmpty {
                 // Notes always show on screen. Spoken loudness comes from the
-                // global sliders: instructor volume for coaching on a miss,
-                // the separate pass-notes volume for polish on a pass.
+                // global sliders, keyed off CORRECTNESS (not advancement):
+                // any green call's note — including a correct mid-step call's
+                // "now do X" cue — is a pass note; only coaching on a miss
+                // speaks at instructor volume. With pass notes at zero, cues
+                // for multi-step drills are on screen only.
                 append(.system, verdict.coaching)
-                if !verdict.phaseAdvance {
+                if !verdict.correct {
                     await speakInstructor(verdict.coaching)
                     spoke = true
                 } else {
