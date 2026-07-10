@@ -146,11 +146,17 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
     /// The variant chosen for this session, randomized in the same pass as
     /// setup/situation. Codable so a resumed snapshot keeps its clearance.
     public var instruction: String?
+    /// True on a synthesized readback follow-up drill (built by
+    /// `PracticeSession.readbackFollowUp`). Its clearance was already spoken by
+    /// the controller in the previous step, so its "read it back" briefing is
+    /// post-reply instructor talk — the app can keep it on-screen only.
+    public var injectedReadback: Bool?
 
     public init(id: String, scenario: ScenarioType, title: String, setup: String,
                 situation: String, aircraft: Aircraft, airport: Airport,
                 callType: CallType? = nil, followUpReadback: Bool? = nil,
-                instructionVariants: [String]? = nil, instruction: String? = nil) {
+                instructionVariants: [String]? = nil, instruction: String? = nil,
+                injectedReadback: Bool? = nil) {
         self.id = id
         self.scenario = scenario
         self.title = title
@@ -162,6 +168,7 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
         self.followUpReadback = followUpReadback
         self.instructionVariants = instructionVariants
         self.instruction = instruction
+        self.injectedReadback = injectedReadback
     }
 }
 

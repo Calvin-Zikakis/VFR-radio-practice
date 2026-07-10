@@ -851,6 +851,7 @@ struct ContentView: View {
 
     private func bubble(_ line: HandsFreeController.Line) -> some View {
         let (label, color): (String, Color) = switch line.role {
+        case .scene: ("Scene", Theme.teal)
         case .instructor: ("Instructor", Theme.purple)
         case .pilot: ("You", Theme.accent)
         case .radio: ("Radio", Theme.success)

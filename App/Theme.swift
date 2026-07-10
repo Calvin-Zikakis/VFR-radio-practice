@@ -13,6 +13,7 @@ enum Theme {
     static let failure = Color(light: 0xFF3B30, dark: 0xFF453A)   // system red
     static let amber = Color(light: 0xC93400, dark: 0xFF9F0A)     // system orange (darkened for light bg)
     static let purple = Color(light: 0xAF52DE, dark: 0xBF5AF2)    // system purple
+    static let teal = Color(light: 0x0088A3, dark: 0x40C8E0)      // system teal (darkened for light bg)
 
     /// Text on top of an accent-filled control (e.g. the listening PTT button).
     static let onAccent = Color.white

@@ -149,7 +149,8 @@ public actor PracticeSession {
             situation: "You are \(voice). You just issued exactly this instruction: '\(instruction)'. Grade the pilot's readback against it — every element that requires a readback must be VERBATIM: runway instructions (assigned runway, route, crossings, hold shorts), squawk codes, frequencies, altitude restrictions, and clearances, plus the callsign. Advisory extras in your instruction (traffic, weather, 'radar contact') need no readback. If anything required is missing or wrong, say exactly which item to read back and do not advance. If the pilot asks you to say again, repeat the instruction verbatim and do not advance. Set phaseAdvance true only on a complete, correct readback.",
             aircraft: drill.aircraft,
             airport: drill.airport,
-            callType: .readback)
+            callType: .readback,
+            injectedReadback: true)
     }
 
     /// Skip the current drill without grading (e.g. voice command "skip").

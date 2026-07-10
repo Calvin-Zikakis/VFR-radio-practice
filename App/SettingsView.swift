@@ -65,12 +65,19 @@ struct SettingsView: View {
                     }
                     Text("Shadow practice: when a call needs another try, the instructor reads the ideal version first.")
                         .font(.caption).foregroundStyle(.secondary)
+                    SmoothSliderRow(title: "Scene voice",
+                                    titleIcon: "text.bubble",
+                                    range: 0...1, step: 0.05,
+                                    format: Self.percentLabel,
+                                    value: $settings.sceneVolume)
+                    Text("The instructor setting up each drill — what to do next. Keep this up so you always hear the scene.")
+                        .font(.caption).foregroundStyle(.secondary)
                     SmoothSliderRow(title: "Instructor voice",
                                     titleIcon: "speaker.wave.2.bubble.left",
                                     range: 0...1, step: 0.05,
                                     format: Self.percentLabel,
                                     value: $settings.instructorVolume)
-                    Text("Briefings, coaching after a miss, and the debrief — in every mode. Zero keeps the instructor on screen only.")
+                    Text("What the instructor says AFTER your call — coaching and the 'read it back' prompt. Zero lets you answer the controller yourself with this help on screen only.")
                         .font(.caption).foregroundStyle(.secondary)
                     SmoothSliderRow(title: "Notes on passed calls",
                                     titleIcon: "bubble.left.and.text.bubble.right",

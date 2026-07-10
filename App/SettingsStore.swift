@@ -93,9 +93,18 @@ final class SettingsStore: ObservableObject {
     @Published var appearance: AppAppearance {
         didSet { defaults.set(appearance.rawValue, forKey: "appearance") }
     }
-    /// Instructor speech volume (briefings, coaching after a miss, debrief),
-    /// global across input modes: zero silences the instructor everywhere,
-    /// anything above zero speaks everywhere at that level.
+    /// "Scene" voice volume: the instructor setting the scene for each drill
+    /// (the opening briefing that tells you what to do next). Its own control so
+    /// you can keep the scene audible while silencing the after-your-call
+    /// instructor. Global across input modes.
+    @Published var sceneVolume: Double {
+        didSet { defaults.set(sceneVolume, forKey: "sceneVolume") }
+    }
+    /// "Instructor" voice volume: everything the instructor says AFTER your call
+    /// — coaching on a miss, "try that again", and the "read it back" prompt on a
+    /// chained readback. Zero keeps that help on screen only, so you hear the
+    /// scene, make your own call, get the controller's reply, and answer without
+    /// being told what to do. Global across input modes.
     @Published var instructorVolume: Double {
         didSet { defaults.set(instructorVolume, forKey: "instructorVolume") }
     }
@@ -141,6 +150,7 @@ final class SettingsStore: ObservableObject {
         self.busyFrequency = defaults.bool(forKey: "busyFrequency")                  // default off
         self.echoModelCall = defaults.bool(forKey: "echoModelCall")                  // default off
         self.appearance = AppAppearance(rawValue: defaults.string(forKey: "appearance") ?? "") ?? .system
+        self.sceneVolume = defaults.object(forKey: "sceneVolume") as? Double ?? 1.0
         self.instructorVolume = defaults.object(forKey: "instructorVolume") as? Double ?? 1.0
         // Migrate the old "speak notes on passed calls" toggle if it was on.
         self.passNotesVolume = defaults.object(forKey: "passNotesVolume") as? Double

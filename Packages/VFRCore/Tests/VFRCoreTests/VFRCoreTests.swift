@@ -449,26 +449,39 @@ import Foundation
 }
 
 @Test func taxiwayLettersVaryButCallsignsSurvive() {
+    // t-ccr-long-route now starts with the pilot's request; the four-segment
+    // route lives in the app-composed instruction (Ground's reply), which is
+    // where the taxiway shuffle applies.
     let drill = DrillLibrary.all.first { $0.id == "t-ccr-long-route" }!
     var sawDifferentRoute = false
     for _ in 0..<40 {
         let varied = DrillRandomizer.vary(drill)
+        let instruction = try! #require(varied.instruction)
         // The flown callsign must never be corrupted by a route rename.
-        #expect(varied.setup.contains("seven three seven juliet alpha"))
-        if varied.setup != drill.setup { sawDifferentRoute = true }
-        // Setup and situation always describe the same route: any taxiway
-        // letter spoken to the pilot must also be in the grader's script.
-        for word in ["echo", "kilo", "papa", "golf", "bravo", "charlie", "mike",
-                     "sierra", "tango", "victor", "whiskey", "yankee", "zulu"]
-        where varied.setup.contains(word) {
-            #expect(varied.situation.contains(word), "\(word) in setup but not situation")
-        }
+        #expect(instruction.contains("seven three seven juliet alpha"))
+        if instruction != drill.instructionVariants?.first { sawDifferentRoute = true }
     }
     #expect(sawDifferentRoute)
     // KCCR drill texts name 32L/32R/19L/19R — a blind runway swap would
     // corrupt them, so Concord must stay out of the variation pool.
     #expect(DrillRandomizer.alternateRunways["KCCR"] == nil)
     #expect(DrillLibrary.routableAirports.contains { $0.icao == "KCCR" })
+}
+
+@Test func narratedTaxiDrillsNowStartWithTheRequest() {
+    // The taxi drills that used to jump straight to a readback now start with
+    // the scene, require the pilot's own ground call, and chain the readback.
+    for id in ["t-ccr-parallel-taxi", "t-ccr-runway-switch", "t-ccr-long-route",
+               "t-complex-taxi"] {
+        let drill = DrillLibrary.all.first { $0.id == id }!
+        #expect(drill.followUpReadback == true, "\(id) should chain a readback")
+        #expect(drill.instructionVariants?.isEmpty == false, "\(id) needs authored clearances")
+        // The setup sets the scene and asks for a call — it must NOT narrate
+        // the clearance ("they come back with…") the pilot is meant to elicit.
+        #expect(!drill.setup.contains("come back with"), "\(id) still narrates the clearance")
+        #expect(drill.setup.contains("Call") || drill.setup.contains("call"),
+                "\(id) should prompt the pilot to call")
+    }
 }
 
 // MARK: - App-composed instructions (readback chaining v2)

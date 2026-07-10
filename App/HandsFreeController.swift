@@ -12,7 +12,7 @@ final class HandsFreeController: ObservableObject {
     enum Phase: Equatable { case idle, briefing, listening, thinking, replying, readyToTalk, paused, finished }
 
     struct Line: Identifiable, Equatable {
-        enum Role { case instructor, pilot, radio, system }
+        enum Role { case scene, instructor, pilot, radio, system }
         let id = UUID()
         let role: Role
         let text: String
@@ -418,11 +418,24 @@ final class HandsFreeController: ObservableObject {
             "NorCal Approach",
         ] + drill.airport.runwaysInUse.map { "runway \(TripBuilder.spokenRunway($0))" }
         progressText = await progressLabel()
-        append(.instructor, drill.setup)
         phase = .briefing
         vfrLog("briefing drill '\(drill.title)'")
+
+        // An injected readback drill isn't a fresh scene: the controller spoke
+        // the clearance a beat ago, and its "read it back" briefing is
+        // after-your-call instructor talk (Instructor volume — zero keeps it on
+        // screen only). A normal drill's setup is the Scene (Scene volume). The
+        // flow then runs: scene → your call → controller's reply → your readback.
+        if drill.injectedReadback == true {
+            append(.instructor, drill.setup)
+            await persistSnapshot()
+            await speakInstructor(drill.setup)
+            return
+        }
+
+        append(.scene, drill.setup)
         await persistSnapshot()
-        await speakInstructor(drill.setup)
+        await speakScene(drill.setup)
 
         // Busy frequency: sometimes another aircraft gets a word in before you.
         if busy, Double.random(in: 0..<1) < 0.35, let line = Self.chatter.randomElement() {
@@ -454,6 +467,14 @@ final class HandsFreeController: ObservableObject {
     private func speakPassNote(_ text: String) async {
         await speaker.speak(text, as: .instructor,
                             volume: Float(settings?.passNotesVolume ?? 0))
+    }
+
+    /// The "Scene" voice: the instructor setting up a drill (what to do next).
+    /// Its own volume so the scene stays audible even when the after-your-call
+    /// instructor is silenced. Same synthesized voice as the instructor.
+    private func speakScene(_ text: String) async {
+        await speaker.speak(text, as: .instructor,
+                            volume: Float(settings?.sceneVolume ?? 1))
     }
 
     /// An explicit "repeat" (button tap or voice command) should be audible
@@ -564,6 +585,8 @@ final class HandsFreeController: ObservableObject {
                 // for multi-step drills are on screen only.
                 append(.system, verdict.coaching)
                 if !verdict.correct {
+                    // Miss coaching is after-your-call help — governed by the
+                    // Instructor volume (zero keeps it on screen only).
                     await speakInstructor(verdict.coaching)
                     spoke = true
                 } else {
@@ -575,7 +598,8 @@ final class HandsFreeController: ObservableObject {
                 if await session.currentDrill == nil { await finish(); return true }
                 await briefCurrent()
             } else {
-                // Shadow practice: read the model call so the pilot can echo it.
+                // Shadow practice: read the model call so the pilot can echo it
+                // (an explicit opt-in feature — always spoken when on).
                 if echo, !verdict.expectedExample.isEmpty {
                     append(.system, "Model call: \(verdict.expectedExample)")
                     await speakInstructor("Here's the model call. \(verdict.expectedExample)")
@@ -715,6 +739,7 @@ final class HandsFreeController: ObservableObject {
 extension HandsFreeController.Line.Role {
     var storageKey: String {
         switch self {
+        case .scene: return "scene"
         case .instructor: return "instructor"
         case .pilot: return "pilot"
         case .radio: return "radio"
@@ -724,6 +749,7 @@ extension HandsFreeController.Line.Role {
 
     init(storageKey: String) {
         switch storageKey {
+        case "scene": self = .scene
         case "instructor": self = .instructor
         case "pilot": self = .pilot
         case "radio": self = .radio
