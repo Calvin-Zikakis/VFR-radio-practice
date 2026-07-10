@@ -55,10 +55,12 @@ public enum TripBuilder {
             frequencyHandoff(near: origin, plane: aircraft, add: add)
         }
 
-        // Intermediate stops: arrive, touch-and-go, continue.
+        // Intermediate stops are full-stop visits — land, clear the runway,
+        // taxi in, taxi back out, depart — the whole real-flight ground game,
+        // not a touch-and-go flyby.
         for stop in plan.stops.dropFirst().dropLast() {
-            arrival(at: stop, touchAndGo: true, detailed: plan.patternWork, add: add)
-            departure(from: stop, toward: destination.name, add: add, skipTaxi: true)
+            arrival(at: stop, touchAndGo: false, detailed: plan.patternWork, add: add)
+            departure(from: stop, toward: destination.name, add: add)
         }
 
         if plan.flightFollowing {
@@ -74,6 +76,7 @@ public enum TripBuilder {
             let t = out[i].title
             if t.hasPrefix("Ready for departure —")
                 || t.hasPrefix("Request flight following —")
+                || (t.hasPrefix("Taxi —") && t.hasSuffix("Ground"))
                 || (t.hasPrefix("Clear of the runway —") && t.hasSuffix("Ground"))
                 || (t.hasPrefix("Inbound —") && t.hasSuffix("Tower")) {
                 out[i].followUpReadback = true
@@ -105,9 +108,10 @@ public enum TripBuilder {
         let rwy = spokenRunway(firstRunway(ap))
         if ap.isTowered {
             if !skipTaxi {
+                let atis = atisLetter()
                 add(.towered, "Taxi — \(ap.name) Ground",
-                    "You're at \(ap.name) with the current information, parked at the ramp, ready to taxi for a VFR departure toward \(dest). Call \(ap.name) Ground.",
-                    "Towered field, you are \(ap.name) Ground. Runway \(firstRunway(ap)) in use. Expect who they're calling, aircraft, position, ATIS letter, request, and direction of flight. Reply with a taxi clearance to runway \(firstRunway(ap)).",
+                    "You're at \(ap.name) with information \(atis), parked at the ramp, ready to taxi for a VFR departure toward \(dest). Call \(ap.name) Ground.",
+                    "Towered field, you are \(ap.name) Ground. Runway \(firstRunway(ap)) in use. Grade the request: who they're calling, aircraft, position, the ATIS letter (current is information \(atis); a different letter gets 'verify you have information \(atis)'), request, and direction of flight. Once the request is complete, reply with a taxi clearance to runway \(firstRunway(ap)) with a route (vary the taxiways) AND set phaseAdvance true: the pilot's readback of your clearance is graded as the next exercise, not by you.",
                     ap)
             }
             add(.towered, "Ready for departure — \(ap.name) Tower",

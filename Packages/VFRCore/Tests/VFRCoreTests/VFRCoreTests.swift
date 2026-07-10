@@ -45,6 +45,14 @@ import Foundation
     // Covers all three environments: CTAF, tower, and flight following.
     #expect(drills.contains { $0.scenario == .towered && $0.airport.icao == "KPAO" })
     #expect(drills.contains { $0.scenario == .flightFollowing })
+
+    // The towered intermediate stop is a full-stop visit with the whole
+    // ground game: taxi in after landing, then taxi out for departure —
+    // both chained into readback follow-ups.
+    #expect(drills.contains { $0.title == "Clear of the runway — Palo Alto Ground"
+                              && $0.followUpReadback == true })
+    #expect(drills.contains { $0.title == "Taxi — Palo Alto Ground"
+                              && $0.followUpReadback == true })
 }
 
 @Test func tripOmitsFlightFollowingWhenDisabled() {
