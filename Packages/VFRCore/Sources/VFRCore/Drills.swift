@@ -406,8 +406,8 @@ public enum DrillLibrary {
             id: "t-clearance-vfr",
             scenario: .towered,
             title: "VFR departure request (Ground)",
-            setup: "You're at Monterey Ground with information Zulu, ready to taxi for a VFR departure to the south, climbing to four thousand five hundred. Call ground.",
-            situation: "Towered field, you are Monterey Ground. Pilot requests a VFR departure to the south. Expect who they're calling, aircraft, position, ATIS code, request including direction of flight and requested altitude. Reply with a taxi clearance and, if appropriate, a squawk / departure frequency.",
+            setup: "You're parked on the transient ramp at Monterey with information Zulu, ready to taxi for a VFR departure to the south. Call ground.",
+            situation: "Towered field, you are Monterey Ground (Class C). Pilot requests taxi for a VFR departure to the south. Expect: who they're calling, aircraft, position on the field (transient ramp), ATIS code, and the request with direction of flight. A requested altitude is OPTIONAL — fine if offered, but never require it or ask for it when direction of flight is given. Reply with a taxi clearance and, if appropriate, a squawk / departure frequency.",
             aircraft: rv12, airport: monterey
         ),
         Drill(
