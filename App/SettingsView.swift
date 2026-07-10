@@ -92,8 +92,11 @@ struct SettingsView: View {
 
                 aircraftSection
 
-                Section("Voice") {
-                    Picker("Voice", selection: $settings.voiceIdentifier) {
+                Section("Voices") {
+                    TextField("Instructor name", text: $settings.instructorName)
+                    Text("What to call the instructor in the transcript — e.g. your CFI's name.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Picker("Default voice", selection: $settings.voiceIdentifier) {
                         Text("Automatic (best installed)").tag(String?.none)
                         // Cached: enumerating system voices is expensive, and
                         // doing it in `body` ran it on every form re-render.
@@ -101,6 +104,15 @@ struct SettingsView: View {
                             Text(voiceLabel(v)).tag(Optional(v.identifier))
                         }
                     }
+                    voicePicker("Radio (ATC)", $settings.radioVoiceIdentifier)
+                    voicePicker("Scene", $settings.sceneVoiceIdentifier)
+                    voicePicker("Instructor", $settings.instructorVoiceIdentifier)
+                    voicePicker("Notes on passes", $settings.notesVoiceIdentifier)
+                    Text("Give each voice its own speaker so you can tell the controller, the scene, and the instructor apart. Each defaults to the voice above.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+
+                Section("Speech") {
                     // Identical ranges so Slow/Normal/Fast sit at the same
                     // physical spot on both tracks.
                     SmoothSliderRow(title: "Speech speed",
@@ -193,6 +205,17 @@ struct SettingsView: View {
             }
             Text("Pick **All** to rotate through every plane, or select one to fly it every session. The spoken callsign is how ATC “hears” you — it's what grading uses. Tap a plane to edit it.")
                 .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    /// A per-role voice override picker: "Same as default" (nil) plus every
+    /// installed English voice.
+    private func voicePicker(_ title: String, _ selection: Binding<String?>) -> some View {
+        Picker(title, selection: selection) {
+            Text("Same as default").tag(String?.none)
+            ForEach(voices, id: \.identifier) { v in
+                Text(voiceLabel(v)).tag(Optional(v.identifier))
+            }
         }
     }
 

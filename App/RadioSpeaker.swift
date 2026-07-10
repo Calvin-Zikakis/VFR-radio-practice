@@ -12,13 +12,20 @@ import VFRCore
 /// the air. The clean `AVSpeechSynthesizer.speak` path is the fallback.
 @MainActor
 final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
-    enum VoiceRole { case controller, traffic, instructor }
+    enum VoiceRole { case controller, traffic, scene, instructor, notes }
 
     @Published private(set) var isSpeaking = false
 
-    /// Preferred voice identifier (from Settings). When nil, the best-quality
-    /// installed en-US voice is chosen automatically.
+    /// Default voice identifier (from Settings). When nil, the best-quality
+    /// installed en-US voice is chosen automatically. Per-role overrides below
+    /// fall back to this when nil, so one picker can still voice everything.
     var voiceIdentifier: String?
+    /// Per-role voice overrides (nil = use `voiceIdentifier`). The radio voice
+    /// covers both the controller and other traffic.
+    var radioVoiceIdentifier: String?
+    var sceneVoiceIdentifier: String?
+    var instructorVoiceIdentifier: String?
+    var notesVoiceIdentifier: String?
 
     /// Instructor speech rate (AVSpeechUtterance scale, ~0.0–1.0; default 0.5).
     var speechRate: Float = 0.5
@@ -80,8 +87,9 @@ final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
         if isSpeaking { stop() }
         vfrLog("speaking: \(trimmed.prefix(40))…")
 
-        // Radio effect for the over-the-air voices only; instructor stays clean.
-        if radioEffect, role != .instructor {
+        // Radio effect for the over-the-air voices only; the human voices
+        // (scene, instructor, notes) stay clean.
+        if radioEffect, Self.isRadio(role) {
             let ok = await speakWithEffect(trimmed, role: role)
             if ok { return }
             vfrLog("radio effect failed, falling back to clean voice")
@@ -138,14 +146,21 @@ final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
     private func makeUtterance(_ text: String, role: VoiceRole,
                                volume: Float = 1.0) -> AVSpeechUtterance {
         let utterance = AVSpeechUtterance(string: text)
-        // Instructor and controller have independent rates (Settings sliders).
-        utterance.rate = role == .instructor ? speechRate : controllerRate
+        // The radio voices talk faster (their own slider); the human voices
+        // (scene, instructor, notes) use the instructor rate.
+        utterance.rate = Self.isRadio(role) ? controllerRate : speechRate
         utterance.postUtteranceDelay = 0.1
         // 0.85, not 1.0: enhanced/premium voices at full scale clip on the
         // iPhone loudspeaker (audible crackle on loud syllables).
         utterance.volume = 0.85 * min(max(volume, 0), 1)
-        utterance.voice = resolvedVoice()
+        utterance.voice = resolvedVoice(for: role)
         return utterance
+    }
+
+    /// The over-the-air voices (controller + other traffic), as opposed to the
+    /// human voices spoken clean (scene, instructor, notes).
+    static func isRadio(_ role: VoiceRole) -> Bool {
+        role == .controller || role == .traffic
     }
 
     private func finishSpeaking() {
@@ -289,8 +304,15 @@ final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
 
     // MARK: - Voice selection
 
-    private func resolvedVoice() -> AVSpeechSynthesisVoice? {
-        if let id = voiceIdentifier, let v = AVSpeechSynthesisVoice(identifier: id) {
+    private func resolvedVoice(for role: VoiceRole) -> AVSpeechSynthesisVoice? {
+        let override: String?
+        switch role {
+        case .controller, .traffic: override = radioVoiceIdentifier
+        case .scene: override = sceneVoiceIdentifier
+        case .instructor: override = instructorVoiceIdentifier
+        case .notes: override = notesVoiceIdentifier
+        }
+        if let id = override ?? voiceIdentifier, let v = AVSpeechSynthesisVoice(identifier: id) {
             return v
         }
         return Self.bestQualityEnglishVoice()

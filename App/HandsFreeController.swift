@@ -176,6 +176,10 @@ final class HandsFreeController: ObservableObject {
         busy = settings.busyFrequency
         echo = settings.echoModelCall
         speaker.voiceIdentifier = settings.voiceIdentifier
+        speaker.radioVoiceIdentifier = settings.radioVoiceIdentifier
+        speaker.sceneVoiceIdentifier = settings.sceneVoiceIdentifier
+        speaker.instructorVoiceIdentifier = settings.instructorVoiceIdentifier
+        speaker.notesVoiceIdentifier = settings.notesVoiceIdentifier
         speaker.speechRate = Float(settings.speechRate)
         // Rapid-fire controllers talk noticeably faster.
         speaker.controllerRate = Float(settings.controllerSpeechRate)
@@ -463,9 +467,9 @@ final class HandsFreeController: ObservableObject {
                             volume: Float(settings?.instructorVolume ?? 1))
     }
 
-    /// Polish notes on a PASSED call have their own volume slider.
+    /// Polish notes on a PASSED call have their own volume slider and voice.
     private func speakPassNote(_ text: String) async {
-        await speaker.speak(text, as: .instructor,
+        await speaker.speak(text, as: .notes,
                             volume: Float(settings?.passNotesVolume ?? 0))
     }
 
@@ -473,7 +477,7 @@ final class HandsFreeController: ObservableObject {
     /// Its own volume so the scene stays audible even when the after-your-call
     /// instructor is silenced. Same synthesized voice as the instructor.
     private func speakScene(_ text: String) async {
-        await speaker.speak(text, as: .instructor,
+        await speaker.speak(text, as: .scene,
                             volume: Float(settings?.sceneVolume ?? 1))
     }
 

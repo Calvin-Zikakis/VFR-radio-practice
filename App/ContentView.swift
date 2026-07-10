@@ -850,9 +850,10 @@ struct ContentView: View {
     }
 
     private func bubble(_ line: HandsFreeController.Line) -> some View {
+        let instructorLabel = settings.instructorName.isEmpty ? "Instructor" : settings.instructorName
         let (label, color): (String, Color) = switch line.role {
         case .scene: ("Scene", Theme.teal)
-        case .instructor: ("Instructor", Theme.purple)
+        case .instructor: (instructorLabel, Theme.purple)
         case .pilot: ("You", Theme.accent)
         case .radio: ("Radio", Theme.success)
         case .system: ("Note", Theme.amber)

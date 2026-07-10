@@ -53,9 +53,28 @@ final class SettingsStore: ObservableObject {
     @Published var endOfSpeechPause: Double {
         didSet { defaults.set(endOfSpeechPause, forKey: "endOfSpeechPause") }
     }
-    /// Chosen TTS voice identifier; nil = best available automatically.
+    /// Default TTS voice identifier; nil = best available automatically. The
+    /// per-role overrides below fall back to this when nil.
     @Published var voiceIdentifier: String? {
         didSet { defaults.set(voiceIdentifier, forKey: "voiceIdentifier") }
+    }
+    /// Per-role voice overrides (nil = use the default voice). One radio voice
+    /// covers the controller and other traffic.
+    @Published var radioVoiceIdentifier: String? {
+        didSet { defaults.set(radioVoiceIdentifier, forKey: "radioVoiceIdentifier") }
+    }
+    @Published var sceneVoiceIdentifier: String? {
+        didSet { defaults.set(sceneVoiceIdentifier, forKey: "sceneVoiceIdentifier") }
+    }
+    @Published var instructorVoiceIdentifier: String? {
+        didSet { defaults.set(instructorVoiceIdentifier, forKey: "instructorVoiceIdentifier") }
+    }
+    @Published var notesVoiceIdentifier: String? {
+        didSet { defaults.set(notesVoiceIdentifier, forKey: "notesVoiceIdentifier") }
+    }
+    /// What to call the instructor in the transcript (e.g. "Instructor", "Bob").
+    @Published var instructorName: String {
+        didSet { defaults.set(instructorName, forKey: "instructorName") }
     }
     /// Speech rate for the synthesized voices (AVSpeechUtterance scale).
     @Published var speechRate: Double {
@@ -140,6 +159,12 @@ final class SettingsStore: ObservableObject {
         let savedPause = defaults.double(forKey: "endOfSpeechPause")
         self.endOfSpeechPause = savedPause > 0 ? savedPause : 2.0
         self.voiceIdentifier = defaults.string(forKey: "voiceIdentifier")
+        self.radioVoiceIdentifier = defaults.string(forKey: "radioVoiceIdentifier")
+        self.sceneVoiceIdentifier = defaults.string(forKey: "sceneVoiceIdentifier")
+        self.instructorVoiceIdentifier = defaults.string(forKey: "instructorVoiceIdentifier")
+        self.notesVoiceIdentifier = defaults.string(forKey: "notesVoiceIdentifier")
+        let savedName = defaults.string(forKey: "instructorName") ?? ""
+        self.instructorName = savedName.isEmpty ? "Instructor" : savedName
         let savedRate = defaults.double(forKey: "speechRate")
         self.speechRate = savedRate > 0 ? savedRate : 0.5   // AVSpeechUtterance default
         self.radioEffect = defaults.bool(forKey: "radioEffect")   // default false
