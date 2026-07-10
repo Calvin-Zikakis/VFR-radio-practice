@@ -59,6 +59,9 @@ final class SpeechRecognizer: NSObject, ObservableObject {
     private var latest = ""
     private var autoSilence: TimeInterval?
     private var torn = true
+    /// True while hands-free finalization is flushing the recognizer's tail.
+    private var flushing = false
+    private let voice = VoiceActivity()
 
     // `nonisolated`: the TCC permission callbacks fire on a background queue.
     // If this method were main-actor-isolated, those callbacks would inherit
@@ -107,8 +110,11 @@ final class SpeechRecognizer: NSObject, ObservableObject {
     }
 
     /// Stop capturing, but let the recognizer flush its FINAL result before
-    /// returning so the last word isn't clipped. Waits for `isFinal` (usually
-    /// well under a second) or a short timeout, whichever comes first.
+    /// returning so the last words aren't clipped. Waits for `isFinal` or a
+    /// timeout, whichever comes first. The timeout must be generous: on a
+    /// full-length radio call the final result can trail the release by well
+    /// over a second, and returning early hands back a stale partial with the
+    /// tail of the call missing.
     func stopAndCollect() async -> String {
         if torn { return latest }
         // Stop feeding new audio; keep the task alive to emit the final result.
@@ -119,11 +125,12 @@ final class SpeechRecognizer: NSObject, ObservableObject {
 
         let text: String = await withCheckedContinuation { (c: CheckedContinuation<String, Never>) in
             finalContinuation = c
-            finalTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in
+            finalTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
                 Task { @MainActor in self?.deliverFinal() }
             }
         }
         _ = teardown()
+        print("VFR: PTT heard: \(text.isEmpty ? "<nothing>" : text)")
         return text
     }
 
@@ -159,7 +166,9 @@ final class SpeechRecognizer: NSObject, ObservableObject {
         latest = ""
         partialText = ""
         torn = false
+        flushing = false
         self.autoSilence = autoSilence
+        voice.reset()
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
@@ -180,12 +189,23 @@ final class SpeechRecognizer: NSObject, ObservableObject {
         // trip the dispatch queue assertion. `append` is thread-safe; the
         // handler hops to the main actor itself.
         nonisolated(unsafe) let capturedRequest = request
+        let activity = voice
         let tapBlock: @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void = { buffer, _ in
             // Skip empty buffers — the first tap callback often delivers a
             // zero-length buffer, which logs "mDataByteSize (0) should be
             // non-zero" and gives the recognizer nothing anyway.
             guard buffer.frameLength > 0 else { return }
             capturedRequest.append(buffer)
+            // Track voice energy directly from the mic. The silence-detection
+            // timer trusts this over transcription updates: the recognizer
+            // often stalls its partials for seconds mid-utterance, and
+            // finalizing during such a stall truncates the call.
+            if let data = buffer.floatChannelData?[0] {
+                let n = Int(buffer.frameLength)
+                var sum: Float = 0
+                for i in stride(from: 0, to: n, by: 4) { sum += data[i] * data[i] }
+                activity.update(rms: (sum / Float((n + 3) / 4)).squareRoot())
+            }
         }
         input.installTap(onBus: 0, bufferSize: 1024, format: format, block: tapBlock)
 
@@ -205,11 +225,14 @@ final class SpeechRecognizer: NSObject, ObservableObject {
                 if let text {
                     self.latest = text
                     self.partialText = text
-                    if self.autoSilence != nil { self.armSilence() }
+                    if self.autoSilence != nil, !self.flushing { self.armSilence() }
                 }
-                if isFinal { self.deliverFinal() }       // push-to-talk: full result is in
+                if isFinal {
+                    self.deliverFinal()                  // push-to-talk: full result is in
+                    self.deliverAuto()                   // hands-free flush: tail is in
+                }
                 if hadError {
-                    if self.autoSilence != nil { self.finishAuto() }
+                    if self.autoSilence != nil { self.deliverAuto() }
                     else { self.deliverFinal() }         // don't hang the manual wait
                 }
             }
@@ -222,15 +245,40 @@ final class SpeechRecognizer: NSObject, ObservableObject {
         silenceTimer?.invalidate()
         silenceTimer = Timer.scheduledTimer(withTimeInterval: t, repeats: false) { [weak self] _ in
             Task { @MainActor in
-                guard let self else { return }
-                if !self.latest.isEmpty { self.finishAuto() } else { self.armSilence() }
+                guard let self, !self.flushing else { return }
+                guard !self.latest.isEmpty else { self.armSilence(); return }
+                // The mic is the authority on whether the pilot went quiet —
+                // partials stall mid-call, and finalizing on a stall clips it.
+                if self.voice.secondsSinceVoice < t {
+                    self.armSilence()
+                } else {
+                    self.finishAuto()
+                }
             }
         }
     }
 
+    /// Hands-free finalization: stop feeding audio and give the recognizer a
+    /// moment to emit its FINAL result — it frequently contains trailing words
+    /// no partial ever showed. `deliverAuto` resumes the listen either on that
+    /// final or on the timeout.
     private func finishAuto() {
+        guard continuation != nil, !flushing else { return }
+        flushing = true
+        audioEngine.inputNode.removeTap(onBus: 0)
+        if audioEngine.isRunning { audioEngine.stop() }
+        request?.endAudio()
+        isListening = false
+        finalTimer?.invalidate()
+        finalTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.deliverAuto() }
+        }
+    }
+
+    private func deliverAuto() {
         guard let c = continuation else { return }
         continuation = nil
+        flushing = false
         c.resume(returning: teardown())
     }
 
@@ -238,6 +286,7 @@ final class SpeechRecognizer: NSObject, ObservableObject {
     private func teardown() -> String {
         if torn { return latest }
         torn = true
+        flushing = false
         silenceTimer?.invalidate(); silenceTimer = nil
         finalTimer?.invalidate(); finalTimer = nil
         audioEngine.inputNode.removeTap(onBus: 0)
@@ -249,5 +298,41 @@ final class SpeechRecognizer: NSObject, ObservableObject {
         isListening = false
         if let c = finalContinuation { finalContinuation = nil; c.resume(returning: latest) }
         return latest
+    }
+}
+
+/// Cheap voice-activity detector fed from the mic tap (real-time audio
+/// thread), read from the main actor's silence timer. Tracks a slow-moving
+/// noise floor so steady cabin/road noise doesn't read as speech, while
+/// speech — which spikes well above the floor — refreshes `secondsSinceVoice`.
+private final class VoiceActivity: @unchecked Sendable {
+    private let lock = NSLock()
+    private var floor: Float = 0.005
+    private var lastVoice: TimeInterval = ProcessInfo.processInfo.systemUptime
+
+    func reset() {
+        lock.lock()
+        floor = 0.005
+        lastVoice = ProcessInfo.processInfo.systemUptime
+        lock.unlock()
+    }
+
+    func update(rms: Float) {
+        lock.lock()
+        defer { lock.unlock() }
+        // Floor falls quickly, rises slowly: transient speech barely lifts it,
+        // but sustained noise (a car at speed) is absorbed within seconds so
+        // silence detection still works over it.
+        floor = rms < floor ? 0.9 * floor + 0.1 * rms
+                            : 0.995 * floor + 0.005 * rms
+        if rms > max(0.008, floor * 2.5) {
+            lastVoice = ProcessInfo.processInfo.systemUptime
+        }
+    }
+
+    var secondsSinceVoice: TimeInterval {
+        lock.lock()
+        defer { lock.unlock() }
+        return ProcessInfo.processInfo.systemUptime - lastVoice
     }
 }

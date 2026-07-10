@@ -274,7 +274,11 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         SCENARIO: \(drill.scenario.displayName)
         AIRPORT: \(ap.name) (\(ap.icao)), field elevation \(ap.elevationFt) feet, \
         runway(s) in use \(ap.runwaysInUse.joined(separator: ", ")), \
-        CTAF/tower frequency \(ap.ctafOrTower).
+        CTAF/tower frequency \(ap.ctafOrTower). The runways listed are the ones \
+        IN USE today, not the only ones that exist (most fields also have the \
+        reciprocals and crosswind runways). If the pilot names a different \
+        runway, correct them to the one in use — never claim their runway \
+        doesn't exist.
         PILOT AIRCRAFT: \(a.type), callsign \(a.callsign), spoken as "\(a.phoneticCallsign)".
         SITUATION: \(drill.situation)
         \(continuityGuidance)
