@@ -519,6 +519,20 @@ struct FixedBrain: ATCEvaluating {
     #expect(await session.liveDrills.count == 2)
 }
 
+@Test func tripRequestPhasesChainReadbacks() {
+    let plan = TripPlan(stops: DrillLibrary.defaultTripStops,
+                        flightFollowing: true, patternWork: true)
+    let drills = TripBuilder.drills(for: plan, aircraft: DrillLibrary.defaultAircraft)
+    for prefix in ["Ready for departure —", "Clear of the runway —", "Request flight following —"] {
+        #expect(drills.contains { $0.title.hasPrefix(prefix) && $0.followUpReadback == true },
+                "no chained phase for \(prefix)")
+    }
+    // Towered inbound chains; untowered inbound (CTAF, no instruction) must not.
+    #expect(drills.contains { $0.title.hasPrefix("Inbound —") && $0.title.hasSuffix("Tower")
+                              && $0.followUpReadback == true })
+    #expect(!drills.contains { $0.scenario == .untowered && $0.followUpReadback == true })
+}
+
 @Test func pendingReadbackStillHoldsNonChainedDrills() async throws {
     // Without the follow-up flag, advancing while the reply demands a
     // readback (cross/hold short) is a contradiction — the step holds.

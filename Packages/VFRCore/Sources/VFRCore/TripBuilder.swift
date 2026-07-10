@@ -67,10 +67,17 @@ public enum TripBuilder {
 
         arrival(at: destination, touchAndGo: false, detailed: plan.patternWork, add: add)
 
-        // Taxi-in clearances chain: passing the request injects a readback
-        // drill built from whatever route the grader improvised.
-        for i in out.indices where out[i].title.hasPrefix("Clear of the runway —") {
-            out[i].followUpReadback = true
+        // Request-style phases chain: passing the request injects a readback
+        // drill built from whatever instruction the grader improvised —
+        // taxi-in routes, takeoff clearances, pattern entries, FF squawks.
+        for i in out.indices {
+            let t = out[i].title
+            if t.hasPrefix("Ready for departure —")
+                || t.hasPrefix("Request flight following —")
+                || (t.hasPrefix("Clear of the runway —") && t.hasSuffix("Ground"))
+                || (t.hasPrefix("Inbound —") && t.hasSuffix("Tower")) {
+                out[i].followUpReadback = true
+            }
         }
         return out
     }

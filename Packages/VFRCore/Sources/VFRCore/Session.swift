@@ -110,15 +110,19 @@ public actor PracticeSession {
     /// instruction the grader just issued. Inherits the parent drill's
     /// (already randomized) context; the clearance text itself is the content.
     private func readbackFollowUp(for drill: Drill, verdict: Verdict) -> Drill {
-        let voice = ["Ground", "Tower", "Approach"].contains(verdict.speaker)
-            ? "\(drill.airport.name) \(verdict.speaker)"
-            : (verdict.speaker == "none" ? "\(drill.airport.name) Ground" : verdict.speaker)
+        let voice: String
+        switch verdict.speaker {
+        case "Ground", "Tower": voice = "\(drill.airport.name) \(verdict.speaker)"
+        case "Approach", "Center": voice = "NorCal \(verdict.speaker)"
+        case "", "none": voice = "\(drill.airport.name) \(drill.airport.isTowered ? "Tower" : "Ground")"
+        default: voice = verdict.speaker
+        }
         return Drill(
             id: "\(drill.id)-readback",
             scenario: drill.scenario,
             title: "Read back your instructions",
-            setup: "\(voice) has just given you your instructions. Read them back before you move — and if you missed part of it, ask them to say again.",
-            situation: "Towered field, you are \(voice). You just issued exactly this instruction: '\(verdict.radioReplyText)'. Grade the pilot's readback against it: every runway instruction VERBATIM (the assigned runway, the route, any crossing or hold short), plus the callsign. If anything is missing or wrong, say exactly which item to read back and do not advance. If the pilot asks you to say again, repeat the instruction verbatim and do not advance. Set phaseAdvance true only on a complete, correct readback.",
+            setup: "\(voice) has just given you your instructions. Read them back — and if you missed part of it, ask them to say again.",
+            situation: "You are \(voice). You just issued exactly this instruction: '\(verdict.radioReplyText)'. Grade the pilot's readback against it — every element that requires a readback must be VERBATIM: runway instructions (assigned runway, route, crossings, hold shorts), squawk codes, frequencies, altitude restrictions, and clearances, plus the callsign. Advisory extras in your instruction (traffic, weather, 'radar contact') need no readback. If anything required is missing or wrong, say exactly which item to read back and do not advance. If the pilot asks you to say again, repeat the instruction verbatim and do not advance. Set phaseAdvance true only on a complete, correct readback.",
             aircraft: drill.aircraft,
             airport: drill.airport,
             callType: .readback)
