@@ -486,7 +486,7 @@ public enum DrillLibrary {
             id: "t-complex-taxi",
             scenario: .towered,
             title: "Complex taxi route readback",
-            setup: "You're at Monterey ready to taxi. Ground says: RV seven three seven juliet alpha, runway two eight right, taxi via Alpha, Charlie, cross runway one zero left, hold short of runway two eight left. Read back the full route.",
+            setup: "You've called Monterey Ground to taxi for departure. They come back with: RV seven three seven juliet alpha, runway two eight right, taxi via Alpha, Charlie, cross runway one zero left, hold short of runway two eight left. Read back the full route.",
             situation: "Towered field, you are Monterey Ground. You issued a multi-segment taxi: 'runway two eight right via Alpha, Charlie, cross runway one zero left, hold short of runway two eight left'. Grade the readback: it must include the assigned runway, the route, the crossing clearance, the hold-short VERBATIM, and the callsign. If any runway instruction (cross / hold short) is missing from the readback, ask for it specifically and do not advance.",
             aircraft: rv12, airport: monterey, callType: .taxi
         ),
@@ -494,7 +494,7 @@ public enum DrillLibrary {
             id: "t-ccr-parallel-taxi",
             scenario: .towered,
             title: "Taxi back for the parallel — cross the one niner",
-            setup: "You've landed on runway three two left at Concord, rolled to the end, and exited at hotel. You're taxiing back for another departure on three two left. Ground says: RV seven three seven juliet alpha, runway three two left, taxi via juliet, papa, cross runway one niner left. Read it back.",
+            setup: "You've landed on runway three two left at Concord, rolled to the end, and exited at hotel. You call ground to taxi back for another departure on three two left, and they come back with: RV seven three seven juliet alpha, runway three two left, taxi via juliet, papa, cross runway one niner left. Read it back.",
             situation: "Towered field, you are Concord Ground (Buchanan Field: parallel 32L/32R crossed by 19L/19R; the 19L crossing on this route is charted hot spot two). You issued: 'runway three two left, taxi via juliet, papa, cross runway one niner left'. Grade the readback: it MUST include the assigned runway ('runway three two left') — pilots concentrating on the route famously drop the runway itself; if it's missing, reply 'readback incomplete, say assigned runway' and do not advance. Also required: the crossing clearance ('cross runway one niner left') and the callsign; the route belongs in there too. Parallel trap: 'three two right' instead of 'three two left' gets corrected immediately. The chart itself warns: readback of ALL runway holding instructions is required.",
             aircraft: rv12, airport: concord, callType: .taxi
         ),
@@ -502,7 +502,7 @@ public enum DrillLibrary {
             id: "t-ccr-runway-switch",
             scenario: .towered,
             title: "Landed the right, departing the left",
-            setup: "You landed on runway three two right at Concord and exited onto alpha. You're departing on the parallel. Ground says: RV seven three seven juliet alpha, runway three two left, taxi via alpha, juliet, papa, cross runway one niner left. Read it back.",
+            setup: "You landed on runway three two right at Concord and exited onto alpha. You call ground to taxi for departure on the parallel, and they come back with: RV seven three seven juliet alpha, runway three two left, taxi via alpha, juliet, papa, cross runway one niner left. Read it back.",
             situation: "Towered field, you are Concord Ground. The pilot landed 32R but is assigned 32L for departure — muscle memory says 'three two right', and reading back the WRONG parallel is the failure this drill exists to catch. You issued: 'runway three two left, taxi via alpha, juliet, papa, cross runway one niner left'. Grade the readback: assigned runway three two left, the crossing VERBATIM ('cross runway one niner left'), the route, and the callsign. Any missing or wrong runway instruction: ask for that item specifically and do not advance.",
             aircraft: rv12, airport: concord, callType: .taxi
         ),
@@ -510,7 +510,7 @@ public enum DrillLibrary {
             id: "t-ccr-holdshort-request",
             scenario: .towered,
             title: "Hold short of the crossing runway — then ask",
-            setup: "At Concord, Ground says: RV seven three seven juliet alpha, runway three two left, taxi via juliet, hold short of runway one niner left. Read it back. Then, when you've taxied up juliet and are holding short of one niner left — hot spot two, right by the tower — with nothing further said to you, make the call that keeps you moving.",
+            setup: "You call Concord Ground to taxi for departure on three two left, and they come back with: RV seven three seven juliet alpha, runway three two left, taxi via juliet, hold short of runway one niner left. Read it back. Then, when you've taxied up juliet and are holding short of one niner left — hot spot two, right by the tower — with nothing further said to you, make the call that keeps you moving.",
             situation: "Towered field, you are Concord Ground. Step 1: you issued 'runway three two left, taxi via juliet, hold short of runway one niner left'. Grade the readback: the hold short VERBATIM with its runway, the assigned runway three two left, and the callsign — strict at every difficulty. Step 2: the pilot is now holding short of one niner left and has NOT been cleared to cross — crossing without explicit clearance is a runway incursion. The right call: 'Concord Ground, RV seven juliet alpha, holding short runway one niner left' (explicitly requesting crossing is fine too). Reply: 'RV seven juliet alpha, cross runway one niner left, continue via papa to runway three two left', then grade the crossing readback ('cross runway one niner left' plus callsign). Set phaseAdvance true only after the crossing clearance has been read back.",
             aircraft: rv12, airport: concord, callType: .taxi
         ),
@@ -534,7 +534,7 @@ public enum DrillLibrary {
             id: "t-ccr-long-route",
             scenario: .towered,
             title: "Four-segment taxi route",
-            setup: "You're at transient parking on the south side at Concord, ready to taxi for departure on runway one niner right — the far north end of the field. Ground says: RV seven three seven juliet alpha, runway one niner right, taxi via golf, foxtrot, kilo, echo, cross runway three two left. Read back the whole thing.",
+            setup: "You're at transient parking on the south side at Concord and you've called ground to taxi for departure on runway one niner right — the far north end of the field. Ground comes back with: RV seven three seven juliet alpha, runway one niner right, taxi via golf, foxtrot, kilo, echo, cross runway three two left. Read back the whole thing.",
             situation: "Towered field, you are Concord Ground. You issued a four-segment route up the west side: 'runway one niner right, taxi via golf, foxtrot, kilo, echo, cross runway three two left'. Grade the readback: the assigned runway, the segments IN ORDER (golf, foxtrot, kilo, echo — a jumbled order gets a specific correction), the crossing VERBATIM with its runway, and the callsign. If segments are dropped, reply 'read back full route'. Set phaseAdvance true only on a complete, ordered readback. Coach the habit: write long routes down as they're read — nobody holds four segments in their head under pressure.",
             aircraft: rv12, airport: concord, callType: .taxi
         ),
