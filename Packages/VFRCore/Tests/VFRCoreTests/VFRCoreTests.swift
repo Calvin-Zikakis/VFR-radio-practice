@@ -469,10 +469,14 @@ import Foundation
 }
 
 @Test func narratedTaxiDrillsNowStartWithTheRequest() {
-    // The taxi drills that used to jump straight to a readback now start with
-    // the scene, require the pilot's own ground call, and chain the readback.
+    // Drills that used to jump straight to a readback of a clearance the pilot
+    // would have REQUESTED now start with the scene, require the pilot's own
+    // call, and chain the readback. (Genuinely ATC-initiated drills — advisories,
+    // amendments, handoffs, go-around, LAHSO/wake on final — correctly still
+    // open with ATC's line and are not in this list.)
     for id in ["t-ccr-parallel-taxi", "t-ccr-runway-switch", "t-ccr-long-route",
-               "t-complex-taxi"] {
+               "t-complex-taxi", "t-ccr-clearance-traffic-tail",
+               "t-rhv-departure-traffic-tail", "ff-bravo-granted"] {
         let drill = DrillLibrary.all.first { $0.id == id }!
         #expect(drill.followUpReadback == true, "\(id) should chain a readback")
         #expect(drill.instructionVariants?.isEmpty == false, "\(id) needs authored clearances")

@@ -615,17 +615,27 @@ public enum DrillLibrary {
             id: "t-ccr-clearance-traffic-tail",
             scenario: .towered,
             title: "Takeoff clearance with a traffic tail",
-            setup: "You're holding short of runway three two left at Concord, ready to go. Tower says: RV seven three seven juliet alpha, runway three two left, cleared for takeoff, left crosswind departure approved — traffic is a Cessna on two-mile final for the parallel, and a helicopter transitioning midfield at five hundred feet. Read back what matters.",
-            situation: "Towered field, you are Concord Tower. You issued a takeoff clearance with a traffic advisory tacked on the end. The readback MUST contain the clearance: 'runway three two left, cleared for takeoff' plus the callsign (reading back 'left crosswind departure approved' is good form but optional). The traffic does NOT need to be read back — 'traffic in sight' or 'looking for the traffic' is plenty, and saying nothing about it is acceptable. THE FAILURE THIS DRILL EXISTS FOR: pilots recite the traffic and forget the clearance — if the runway or 'cleared for takeoff' is missing, reply 'read back the takeoff clearance' and do not advance. Never fail a readback for omitting the traffic. Coach: read back the clearance FIRST — the traffic is information, the clearance is the contract.",
-            aircraft: rv12, airport: concord, callType: .departure
+            setup: "You're holding short of runway three two left at Concord, ready to go — there's a Cessna on final for the parallel and a helicopter working midfield. Call the tower.",
+            situation: "Towered field, you are Concord Tower. Grade the REQUEST — who they're calling, aircraft, position (holding short three two left), and that they're ready for departure. The traffic-tail readback discipline (read back the clearance, not the traffic) is graded on their readback of your clearance, next.",
+            aircraft: rv12, airport: concord, callType: .departure, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, runway three two left, cleared for takeoff, left crosswind departure approved, traffic is a Cessna on a two-mile final for the parallel and a helicopter transitioning midfield at five hundred feet.",
+                "RV seven three seven juliet alpha, runway three two left, cleared for takeoff, traffic is a Cessna on a two-mile final for the parallel.",
+                "RV seven three seven juliet alpha, runway three two left, line up and wait, traffic landing the parallel.",
+            ]
         ),
         Drill(
             id: "t-rhv-departure-traffic-tail",
             scenario: .towered,
             title: "Cleared for takeoff, traffic both sides",
-            setup: "You're number one at runway three one right at Reid-Hillview. Tower says: RV seven three seven juliet alpha, runway three one right, cleared for takeoff, right turn on course approved — traffic departing the parallel is a Cherokee staying in the pattern, additional traffic a Skyhawk on four-mile final for your runway. Read it back.",
-            situation: "Towered field, you are Reid-Hillview Tower (parallel 31L/31R). You issued a takeoff clearance with two pieces of traffic appended. Required readback: 'runway three one right, cleared for takeoff' plus the callsign — and the runway must be the full 'three one right', not a bare 'three one' (parallels). The traffic needs no readback; a brief 'traffic in sight' or 'looking' is fine, or nothing. If the pilot's readback is all traffic and no clearance (the common scramble), reply 'read back the takeoff clearance' and do not advance. Coach: clearance first, in the order given — runway, cleared for takeoff, callsign — then deal with the traffic visually.",
-            aircraft: rv12, airport: reidHillview, callType: .departure
+            setup: "You're number one, holding short of runway three one right at Reid-Hillview, ready to depart, with traffic working both parallels. Call the tower.",
+            situation: "Towered field, you are Reid-Hillview Tower (parallel 31L/31R). Grade the REQUEST — who they're calling, aircraft, position (holding short three one right, number one), and that they're ready for departure. The readback discipline (clearance not traffic, and the full 'three one right' — never a bare 'three one') is graded on their readback of your clearance, next.",
+            aircraft: rv12, airport: reidHillview, callType: .departure, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, runway three one right, cleared for takeoff, right turn on course approved, traffic departing the parallel is a Cherokee staying in the pattern and additional traffic is a Skyhawk on a four-mile final for your runway.",
+                "RV seven three seven juliet alpha, runway three one right, cleared for takeoff, traffic is a Skyhawk on a four-mile final for your runway.",
+                "RV seven three seven juliet alpha, runway three one right, line up and wait, traffic landing the parallel.",
+            ]
         ),
         Drill(
             id: "t-request-option",
@@ -826,9 +836,14 @@ public enum DrillLibrary {
             id: "ff-bravo-granted",
             scenario: .flightFollowing,
             title: "Cleared through the Bravo — read it back",
-            setup: "NorCal Approach tells you: RV seven three seven juliet alpha, cleared through the San Francisco Class Bravo, maintain three thousand five hundred. Read it back.",
-            situation: "You are NorCal Approach. You just issued a Class Bravo clearance with an altitude: 'cleared through the San Francisco Class Bravo, maintain three thousand five hundred'. Grade the readback: it must include 'cleared through the Bravo' (the magic words — this is the explicit clearance), the altitude restriction, and the callsign. A vague 'roger' is NOT acceptable for a Bravo clearance; ask for a full readback. Coach that they may now enter, but must hold three thousand five hundred until amended.",
-            aircraft: rv12, airport: sfoBravo, callType: .bravo
+            setup: "You're northbound near San Bruno at three thousand five hundred and you'd like a clearance to transit San Francisco's Class Bravo. Call NorCal Approach and request it.",
+            situation: "You are NorCal Approach, working the San Francisco Bravo, and today you can approve it. Grade the REQUEST — who they're calling, aircraft, position and altitude, and an explicit request for a Bravo clearance (or to transit the Bravo). The magic-words readback ('cleared through the Bravo' + the altitude, no vague 'roger') is graded on their readback of your clearance, next.",
+            aircraft: rv12, airport: sfoBravo, callType: .bravo, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, cleared through the San Francisco Class Bravo, maintain three thousand five hundred.",
+                "RV seven three seven juliet alpha, cleared into the San Francisco Class Bravo, maintain at or below four thousand five hundred.",
+                "RV seven three seven juliet alpha, cleared through the San Francisco Class Bravo, maintain three thousand five hundred, expect higher in five miles.",
+            ]
         ),
         Drill(
             id: "ff-classc-entry",
