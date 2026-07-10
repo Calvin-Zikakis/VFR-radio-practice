@@ -245,13 +245,27 @@ final class HandsFreeController: ObservableObject {
         append(.system, "Paused.")
     }
 
-    /// Pick the session back up: re-brief the current drill and keep going.
+    /// Pick the session back up. Fresh drill: re-brief it. Mid-exchange
+    /// (the controller already said something and is waiting on the pilot):
+    /// re-briefing would restart the script — re-anchor by replaying the
+    /// controller's last transmission instead.
     func resumeSession() {
         guard phase == .paused else { return }
         append(.system, "Resuming.")
         runTask = Task { [weak self] in
             guard let self else { return }
-            await self.briefCurrent()
+            if await self.session?.isMidExchange == true {
+                self.phase = .briefing
+                if let reply = await self.session?.lastRadioReply {
+                    await self.speakInstructor("Resuming where you left off. They last said:")
+                    self.append(.radio, "(again) \(reply)")
+                    await self.speaker.speak(reply, as: .controller)
+                } else {
+                    await self.speakInstructor("Resuming where you left off — it's your call.")
+                }
+            } else {
+                await self.briefCurrent()
+            }
             if self.interaction == .handsFree {
                 await self.handsFreeLoop()
             } else if self.phase != .finished {

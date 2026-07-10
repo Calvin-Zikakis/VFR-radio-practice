@@ -57,6 +57,16 @@ public actor PracticeSession {
     /// the right drill.
     public var liveDrills: [Drill] { drills }
 
+    /// True when the current drill's exchange has already started — resuming
+    /// then must NOT re-brief the drill from the top.
+    public var isMidExchange: Bool { !history.isEmpty }
+
+    /// The controller's most recent radio line in the current exchange, for
+    /// re-anchoring the pilot after a pause.
+    public var lastRadioReply: String? {
+        history.last(where: { !$0.reply.isEmpty })?.reply
+    }
+
     public var isFinished: Bool { index >= drills.count }
 
     public var progress: Progress {
