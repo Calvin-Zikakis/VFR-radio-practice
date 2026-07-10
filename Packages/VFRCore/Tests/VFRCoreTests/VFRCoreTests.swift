@@ -399,8 +399,9 @@ import Foundation
     #expect(body["model"] as? String == "claude-haiku-4-5")
     let messages = body["messages"] as! [[String: Any]]
     #expect(messages.count == 3) // user, assistant, user
-    #expect(messages.first?["content"] as? String == "first call")
-    #expect(messages.last?["content"] as? String == "second call")
+    // History is labeled so the grader can't anchor on an earlier attempt.
+    #expect(messages.first?["content"] as? String == "[earlier transmission, already graded] first call")
+    #expect(messages.last?["content"] as? String == "[transmission to grade now] second call")
 
     // System prompt is cacheable.
     let system = body["system"] as! [[String: Any]]

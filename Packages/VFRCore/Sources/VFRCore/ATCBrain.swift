@@ -101,14 +101,19 @@ public struct ATCBrain: ATCEvaluating, Sendable {
 
     func requestBody(drill: Drill, mode: GradingMode, history: [Turn],
                      transmission: String, nextSetup: String? = nil) -> [String: Any] {
+        // Label every message so the model can never mistake an earlier
+        // attempt for the one being graded — untowered retries look nearly
+        // identical, and unlabeled history made the grader anchor on old
+        // mistakes ('runway two zero') the current call had already fixed.
         var messages: [[String: Any]] = []
         for turn in history {
-            messages.append(["role": "user", "content": turn.pilot])
-            if !turn.reply.isEmpty {
-                messages.append(["role": "assistant", "content": turn.reply])
-            }
+            messages.append(["role": "user",
+                             "content": "[earlier transmission, already graded] \(turn.pilot)"])
+            messages.append(["role": "assistant",
+                             "content": turn.reply.isEmpty ? "(no radio reply was due)" : turn.reply])
         }
-        messages.append(["role": "user", "content": transmission])
+        messages.append(["role": "user",
+                         "content": "[transmission to grade now] \(transmission)"])
 
         return [
             "model": model,
@@ -301,8 +306,15 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         was said; that kind of correction is always a transcription artifact, \
         not a pilot error.
 
-        GRADE ONLY THE CURRENT TRANSMISSION: `heard` is your reconstruction of \
-        THIS transmission — never copy an earlier attempt from the conversation. \
+        GRADE ONLY THE CURRENT TRANSMISSION: pilot messages are labeled — \
+        "[earlier transmission, already graded]" is context only; \
+        "[transmission to grade now]" is the ONE call you grade, fresh against \
+        the SITUATION each time. If it fixes something you flagged on an \
+        earlier attempt, that correction is GONE — do not repeat it. Flagging \
+        a mistake the current transmission doesn't contain (e.g. a runway \
+        number from a previous attempt) is the worst possible coaching. \
+        `heard` is your reconstruction of \
+        THIS transmission (without the label) — never copy an earlier attempt. \
         If the transmission is not a radio call at all (a side comment aimed at \
         the app — "that's wrong", "what?", "why did I fail?" — or stray cockpit \
         speech), do not grade it as one: set `correct` false, `phaseAdvance` \
