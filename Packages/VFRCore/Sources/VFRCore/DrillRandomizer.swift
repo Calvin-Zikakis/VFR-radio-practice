@@ -44,7 +44,16 @@ public enum DrillRandomizer {
 
     static func vary(_ drill: Drill, runway: String?, altitudeOffset: Int) -> Drill {
         var d = drill
-        var subs: [(String, String)] = []
+        // Identity mappings FIRST: `applying` placeholders pair lefts in
+        // order, so these shield every form of the flown callsign from all
+        // later substitutions — real taxiway letters (juliet, alpha) and
+        // runway words also live inside phonetic callsigns.
+        let cs = drill.aircraft.phoneticCallsign
+        var subs: [(String, String)] = [(cs, cs)]
+        let bare = DrillLibrary.bareCallsign(drill.aircraft)
+        if bare != cs { subs.append((bare, bare)) }
+        let short = DrillLibrary.shortCallsign(drill.aircraft)
+        if short != cs, short != bare { subs.append((short, short)) }
 
         // Runway swap FIRST, against the authored text — later substitutions
         // (random squawk digits, distances) could otherwise collide with the
@@ -180,19 +189,20 @@ public enum DrillRandomizer {
 
     /// Drills whose taxi-route letters are reshuffled every run, so a route
     /// can never be answered from memory. Opt-in by id: elsewhere a phonetic
-    /// word might be a callsign or traffic reference, not a taxiway. Authored
-    /// texts in this set must avoid taxiway letters that appear in the default
-    /// aircraft's phonetic callsign ("juliet", "alpha").
+    /// word might be a callsign or traffic reference, not a taxiway. The
+    /// flown callsign is shielded by the identity mappings in `vary`, so real
+    /// chart letters like juliet and alpha are safe to author.
     static let taxiwayVaried: Set<String> = [
         "t-ccr-parallel-taxi", "t-ccr-runway-switch", "t-ccr-holdshort-request",
         "t-ccr-taxiback", "t-ccr-runway-change", "t-ccr-long-route",
         "t-ccr-crossing-revoked",
     ]
 
-    /// The taxiway tokens the authored texts use, and the pool they're
-    /// renamed from. Both setup and situation get the same mapping, so the
-    /// briefing and the grader always agree on the route.
-    private static let taxiwaySources = ["echo", "kilo", "papa", "hotel", "golf"]
+    /// The taxiway tokens the authored texts use (real KCCR letters), and the
+    /// pool they're renamed from. Both setup and situation get the same
+    /// mapping, so the briefing and the grader always agree on the route.
+    private static let taxiwaySources = [
+        "juliet", "papa", "alpha", "echo", "hotel", "golf", "foxtrot", "kilo"]
     private static let taxiwayPalette = [
         "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel",
         "kilo", "mike", "november", "papa", "romeo", "sierra", "tango",
