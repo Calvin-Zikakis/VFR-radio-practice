@@ -439,6 +439,14 @@ import Foundation
     #expect(DrillLibrary.routableAirports.contains { $0.icao == "KCCR" })
 }
 
+@Test func trafficTailDeparturesExist() {
+    let departures = DrillLibrary.drills(matching: [.departure],
+                                         aircraft: DrillLibrary.defaultAircraft)
+    #expect(departures.count >= 5)
+    #expect(departures.contains { $0.id == "t-ccr-clearance-traffic-tail" })
+    #expect(departures.contains { $0.id == "t-rhv-departure-traffic-tail" })
+}
+
 @Test func contradictoryAdvanceIsClamped() throws {
     // Seen live: 'say your position' asked over the radio, correct=false,
     // yet phaseAdvance=true — and the session moved on mid-exchange. An

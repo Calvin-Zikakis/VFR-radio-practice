@@ -515,6 +515,22 @@ public enum DrillLibrary {
             aircraft: rv12, airport: concord, callType: .taxi
         ),
         Drill(
+            id: "t-ccr-clearance-traffic-tail",
+            scenario: .towered,
+            title: "Takeoff clearance with a traffic tail",
+            setup: "You're holding short of runway three two left at Concord, ready to go. Tower says: RV seven three seven juliet alpha, runway three two left, cleared for takeoff, left crosswind departure approved — traffic is a Cessna on two-mile final for the parallel, and a helicopter transitioning midfield at five hundred feet. Read back what matters.",
+            situation: "Towered field, you are Concord Tower. You issued a takeoff clearance with a traffic advisory tacked on the end. The readback MUST contain the clearance: 'runway three two left, cleared for takeoff' plus the callsign (reading back 'left crosswind departure approved' is good form but optional). The traffic does NOT need to be read back — 'traffic in sight' or 'looking for the traffic' is plenty, and saying nothing about it is acceptable. THE FAILURE THIS DRILL EXISTS FOR: pilots recite the traffic and forget the clearance — if the runway or 'cleared for takeoff' is missing, reply 'read back the takeoff clearance' and do not advance. Never fail a readback for omitting the traffic. Coach: read back the clearance FIRST — the traffic is information, the clearance is the contract.",
+            aircraft: rv12, airport: concord, callType: .departure
+        ),
+        Drill(
+            id: "t-rhv-departure-traffic-tail",
+            scenario: .towered,
+            title: "Cleared for takeoff, traffic both sides",
+            setup: "You're number one at runway three one right at Reid-Hillview. Tower says: RV seven three seven juliet alpha, runway three one right, cleared for takeoff, right turn on course approved — traffic departing the parallel is a Cherokee staying in the pattern, additional traffic a Skyhawk on four-mile final for your runway. Read it back.",
+            situation: "Towered field, you are Reid-Hillview Tower (parallel 31L/31R). You issued a takeoff clearance with two pieces of traffic appended. Required readback: 'runway three one right, cleared for takeoff' plus the callsign — and the runway must be the full 'three one right', not a bare 'three one' (parallels). The traffic needs no readback; a brief 'traffic in sight' or 'looking' is fine, or nothing. If the pilot's readback is all traffic and no clearance (the common scramble), reply 'read back the takeoff clearance' and do not advance. Coach: clearance first, in the order given — runway, cleared for takeoff, callsign — then deal with the traffic visually.",
+            aircraft: rv12, airport: reidHillview, callType: .departure
+        ),
+        Drill(
             id: "t-request-option",
             scenario: .towered,
             title: "Request the option",
