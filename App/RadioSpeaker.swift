@@ -1,4 +1,5 @@
 import AVFoundation
+import VFRCore
 
 /// Speaks text aloud via the on-device synthesizer. `await speak(_:)` returns
 /// only once the utterance has finished, so the hands-free loop can sequence
@@ -72,18 +73,18 @@ final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
         guard !trimmed.isEmpty, volume > 0.001 else { return }
 
         do { try AudioSession.activatePlayAndRecord() }
-        catch { print("VFR: audio session activate failed in speak: \(error)") }
+        catch { vfrLog("audio session activate failed in speak: \(error)") }
 
         // If something is already speaking (e.g. the user tapped Replay again),
         // cut it off cleanly instead of queueing a second utterance behind it.
         if isSpeaking { stop() }
-        print("VFR: speaking: \(trimmed.prefix(40))…")
+        vfrLog("speaking: \(trimmed.prefix(40))…")
 
         // Radio effect for the over-the-air voices only; instructor stays clean.
         if radioEffect, role != .instructor {
             let ok = await speakWithEffect(trimmed, role: role)
             if ok { return }
-            print("VFR: radio effect failed, falling back to clean voice")
+            vfrLog("radio effect failed, falling back to clean voice")
         }
 
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
@@ -174,7 +175,7 @@ final class RadioSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
         guard !voice.isEmpty else { return false }
 
         configureGraph(format: canonical)
-        do { try fxEngine.start() } catch { print("VFR: fxEngine start failed: \(error)"); return false }
+        do { try fxEngine.start() } catch { vfrLog("fxEngine start failed: \(error)"); return false }
 
         isSpeaking = true
         startNoise(format: canonical)

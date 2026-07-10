@@ -1,6 +1,7 @@
 import Foundation
 import Speech
 import AVFoundation
+import VFRCore
 
 /// Speech-to-text supporting two input styles:
 ///  - `listenWithSilence(timeout:)` — hands-free: auto-finalizes after the pilot
@@ -29,23 +30,15 @@ final class SpeechRecognizer: NSObject, ObservableObject {
 
     /// Radio vocabulary the on-device recognizer reliably mangles without a
     /// bias list: "VFR" → "BFR", "niner" → "diner", "juliet" → "Julia",
-    /// "holding short" → "Holden short".
+    /// "holding short" → "Holden short". DELIBERATELY SHORT: a big
+    /// contextualStrings list degrades the recognizer — with ~70 phrases it
+    /// repeatedly wedged mid-utterance right after re-scoring the callsign,
+    /// silently discarding the rest of the call.
     private static let aviationVocabulary: [String] = [
-        "VFR", "IFR", "CTAF", "ATIS", "UNICOM",
-        "niner", "juliet", "alpha", "bravo", "charlie", "delta", "echo",
-        "foxtrot", "golf", "hotel", "india", "kilo", "lima", "mike",
-        "november", "oscar", "papa", "quebec", "romeo", "sierra", "tango",
-        "uniform", "victor", "whiskey", "x-ray", "yankee", "zulu",
+        "VFR", "IFR", "ATIS", "CTAF", "UNICOM",
+        "niner", "juliet", "taxiing", "squawk", "wilco",
         "holding short", "line up and wait", "cleared for takeoff",
-        "cleared to land", "left downwind", "right downwind", "left base",
-        "right base", "final", "crosswind", "upwind", "go around",
-        "touch and go", "full stop", "the option", "traffic in sight",
-        "negative contact", "looking for traffic", "squawk", "ident",
-        "radar contact", "flight following", "frequency change approved",
-        "altimeter", "wilco", "unable", "say again", "roger",
-        "taxiing", "back-taxi", "midfield", "straight-in", "overhead",
-        "departing", "inbound", "outbound", "maintain", "climbing", "descending",
-        "minimum fuel", "mayday", "pan-pan", "resume own navigation"
+        "cleared to land", "traffic in sight", "flight following"
     ]
 
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
@@ -70,6 +63,14 @@ final class SpeechRecognizer: NSObject, ObservableObject {
     /// Invalidates handler callbacks from replaced recognition tasks.
     private var taskGen = 0
     private let voice = VoiceActivity()
+    /// Rolling copy of the last ~12s of mic audio. When the recognizer stalls
+    /// mid-utterance (no partials while the VAD hears speech) it silently
+    /// discards that audio — the flush final won't contain it either. We
+    /// detect the stall, restart recognition, and replay this buffer into the
+    /// new request so the words come back.
+    private let ring = AudioRing()
+    /// When the last partial transcription arrived (uptime clock).
+    private var lastPartialAt: TimeInterval = 0
 
     // `nonisolated`: the TCC permission callbacks fire on a background queue.
     // If this method were main-actor-isolated, those callbacks would inherit
@@ -78,7 +79,7 @@ final class SpeechRecognizer: NSObject, ObservableObject {
     nonisolated func requestAuthorization() async -> Bool {
         let speechStatus = SFSpeechRecognizer.authorizationStatus()
         let micStatus = AVAudioApplication.shared.recordPermission
-        print("VFR: auth — speech=\(speechStatus.rawValue) mic=\(micStatus.rawValue)")
+        vfrLog("auth — speech=\(speechStatus.rawValue) mic=\(micStatus.rawValue)")
 
         // Only request when not yet determined; re-requesting an already-granted
         // permission can hang because the completion handler never fires.
@@ -88,25 +89,25 @@ final class SpeechRecognizer: NSObject, ObservableObject {
         } else if speechStatus == .notDetermined {
             speechOK = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
                 SFSpeechRecognizer.requestAuthorization {
-                    print("VFR: speech auth callback \($0.rawValue)")
+                    vfrLog("speech auth callback \($0.rawValue)")
                     c.resume(returning: $0 == .authorized)
                 }
             }
         } else {
             speechOK = false
         }
-        print("VFR: speechOK=\(speechOK)")
+        vfrLog("speechOK=\(speechOK)")
         guard speechOK else { return false }
 
         if micStatus == .granted { return true }
         if micStatus == .denied { return false }
         let micOK = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
             AVAudioApplication.requestRecordPermission {
-                print("VFR: mic auth callback \($0)")
+                vfrLog("mic auth callback \($0)")
                 c.resume(returning: $0)
             }
         }
-        print("VFR: micOK=\(micOK)")
+        vfrLog("micOK=\(micOK)")
         return micOK
     }
 
@@ -138,7 +139,7 @@ final class SpeechRecognizer: NSObject, ObservableObject {
             }
         }
         _ = teardown()
-        print("VFR: PTT heard: \(text.isEmpty ? "<nothing>" : text)")
+        vfrLog("PTT heard: \(text.isEmpty ? "<nothing>" : text)")
         return text
     }
 
@@ -178,32 +179,43 @@ final class SpeechRecognizer: NSObject, ObservableObject {
         flushing = false
         self.autoSilence = autoSilence
         voice.reset()
+        ring.reset()
+        lastPartialAt = ProcessInfo.processInfo.systemUptime
 
-        print("VFR: startEngine — activating audio session")
+        vfrLog("startEngine — activating audio session")
         do { try AudioSession.activatePlayAndRecord() }
         catch { throw RecognizerError.audioSession(error.localizedDescription) }
 
         let format = audioEngine.inputNode.outputFormat(forBus: 0)
-        print("VFR: input format \(format.sampleRate)Hz \(format.channelCount)ch")
+        vfrLog("input format \(format.sampleRate)Hz \(format.channelCount)ch")
         installRecognition()
 
         audioEngine.prepare()
         do { try audioEngine.start() }
         catch { throw RecognizerError.audioSession(error.localizedDescription) }
-        print("VFR: audio engine started, listening")
+        vfrLog("audio engine started, listening")
         isListening = true
     }
 
     /// Create a recognition request + task and point the mic tap at it. Called
-    /// at listen start and again after every spontaneous FINAL result, so the
-    /// listen keeps going across the recognizer's own end-of-utterance calls.
-    private func installRecognition() {
+    /// at listen start, after every spontaneous FINAL result, and after a
+    /// detected stall — so the listen keeps going across the recognizer's own
+    /// end-of-utterance decisions. `replayingSince` feeds the new request the
+    /// ring-buffered mic audio from that uptime onward, recovering the words
+    /// the dying task swallowed.
+    private func installRecognition(replayingSince: TimeInterval? = nil) {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         request.contextualStrings = Self.aviationVocabulary + contextualPhrases
         self.request = request
         taskGen += 1
         let gen = taskGen
+
+        if let since = replayingSince {
+            let buffered = ring.buffers(since: since)
+            vfrLog("stt#\(gen) replaying \(buffered.count) buffered chunks")
+            for b in buffered { request.append(b) }
+        }
 
         // The tap runs on the real-time audio thread, and the recognition
         // handler on an arbitrary queue. Both closures are explicitly @Sendable
@@ -212,12 +224,14 @@ final class SpeechRecognizer: NSObject, ObservableObject {
         // handler hops to the main actor itself.
         nonisolated(unsafe) let capturedRequest = request
         let activity = voice
+        let audioRing = ring
         let tapBlock: @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void = { buffer, _ in
             // Skip empty buffers — the first tap callback often delivers a
             // zero-length buffer, which logs "mDataByteSize (0) should be
             // non-zero" and gives the recognizer nothing anyway.
             guard buffer.frameLength > 0 else { return }
             capturedRequest.append(buffer)
+            audioRing.append(buffer)
             // Track voice energy directly from the mic. The silence-detection
             // timer trusts this over transcription updates: the recognizer
             // often stalls its partials for seconds mid-utterance, and
@@ -242,18 +256,19 @@ final class SpeechRecognizer: NSObject, ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 guard gen == self.taskGen else {
-                    print("VFR: stt#\(gen) stale callback ignored (final=\(isFinal) err=\(errText != nil))")
+                    vfrLog("stt#\(gen) stale callback ignored (final=\(isFinal) err=\(errText != nil))")
                     return
                 }
                 if let text, !text.isEmpty {
                     let full = self.committed.isEmpty ? text : self.committed + " " + text
                     self.latest = full
                     self.partialText = full
-                    print("VFR: stt#\(gen) partial: …\(full.suffix(60))")
+                    self.lastPartialAt = ProcessInfo.processInfo.systemUptime
+                    vfrLog("stt#\(gen) partial: …\(full.suffix(60))")
                     if self.autoSilence != nil, !self.flushing { self.armSilence() }
                 }
                 if isFinal {
-                    print("VFR: stt#\(gen) FINAL (flushing=\(self.flushing) ptt=\(self.finalContinuation != nil) torn=\(self.torn)): \(text ?? "<nil>")")
+                    vfrLog("stt#\(gen) FINAL (flushing=\(self.flushing) ptt=\(self.finalContinuation != nil) torn=\(self.torn)): \(text ?? "<nil>")")
                     if self.finalContinuation != nil {
                         self.deliverFinal()          // push-to-talk release: full result is in
                     } else if self.flushing {
@@ -261,20 +276,24 @@ final class SpeechRecognizer: NSObject, ObservableObject {
                     } else if !self.torn {
                         // Spontaneous final mid-listen: the recognizer decided
                         // the utterance was over, but the pilot gets to decide
-                        // that, not the recognizer. Bank the text, keep going.
+                        // that, not the recognizer. Bank the text and keep
+                        // going, replaying any audio since the last partial —
+                        // the dying task won't have transcribed it.
                         self.committed = self.latest
-                        self.installRecognition()
+                        let since = self.lastPartialAt - 0.3
+                        self.lastPartialAt = ProcessInfo.processInfo.systemUptime
+                        self.installRecognition(replayingSince: since)
                     }
                 }
                 if let errText {
-                    print("VFR: stt#\(gen) error (flushing=\(self.flushing) torn=\(self.torn)): \(errText.prefix(160))")
+                    vfrLog("stt#\(gen) error (flushing=\(self.flushing) torn=\(self.torn)): \(errText.prefix(160))")
                     if self.autoSilence != nil { self.deliverAuto() }
                     else { self.deliverFinal() }     // don't hang the manual wait
                 }
             }
         }
         task = recognizer?.recognitionTask(with: request, resultHandler: handler)
-        print("VFR: stt#\(gen) task installed (committed \(committed.count) chars)")
+        vfrLog("stt#\(gen) task installed (committed \(committed.count) chars)")
     }
 
     private func armSilence() {
@@ -287,8 +306,30 @@ final class SpeechRecognizer: NSObject, ObservableObject {
                 // The mic is the authority on whether the pilot went quiet —
                 // partials stall mid-call, and finalizing on a stall clips it.
                 let quiet = self.voice.secondsSinceVoice
-                print("VFR: silence check — mic quiet \(String(format: "%.1f", quiet))s (need \(t)s), text …\(self.latest.suffix(40))")
+                let stall = ProcessInfo.processInfo.systemUptime - self.lastPartialAt
+                vfrLog("silence check — mic quiet \(String(format: "%.1f", quiet))s (need \(t)s), partials stalled \(String(format: "%.1f", stall))s, text …\(self.latest.suffix(40))")
                 if quiet < t {
+                    // Pilot is talking but the transcriber has gone quiet: the
+                    // task has wedged and is discarding audio (seen repeatedly
+                    // right after callsign re-scoring). Restart it, replaying
+                    // the buffered mic audio so the words come back.
+                    if stall >= t, !self.torn {
+                        vfrLog("transcriber wedged while pilot talking — restarting with replay")
+                        self.committed = self.latest
+                        let since = self.lastPartialAt - 0.3
+                        self.lastPartialAt = ProcessInfo.processInfo.systemUptime
+                        self.installRecognition(replayingSince: since)
+                    }
+                    self.armSilence()
+                } else if self.voice.lastVoiceAt > self.lastPartialAt + 0.5, !self.torn {
+                    // Quiet now, but speech happened after the last partial —
+                    // the wedged task never transcribed it and its flush final
+                    // won't contain it. Restart with replay, flush next pass.
+                    vfrLog("tail audio never transcribed — restart with replay before flushing")
+                    self.committed = self.latest
+                    let since = self.lastPartialAt - 0.3
+                    self.lastPartialAt = ProcessInfo.processInfo.systemUptime
+                    self.installRecognition(replayingSince: since)
                     self.armSilence()
                 } else {
                     self.finishAuto()
@@ -304,7 +345,7 @@ final class SpeechRecognizer: NSObject, ObservableObject {
     private func finishAuto() {
         guard continuation != nil, !flushing else { return }
         flushing = true
-        print("VFR: silence confirmed — flushing recognizer (have: …\(latest.suffix(40)))")
+        vfrLog("silence confirmed — flushing recognizer (have: …\(latest.suffix(40)))")
         audioEngine.inputNode.removeTap(onBus: 0)
         if audioEngine.isRunning { audioEngine.stop() }
         request?.endAudio()
@@ -312,7 +353,7 @@ final class SpeechRecognizer: NSObject, ObservableObject {
         finalTimer?.invalidate()
         finalTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
             Task { @MainActor in
-                print("VFR: flush timed out — delivering what we have")
+                vfrLog("flush timed out — delivering what we have")
                 self?.deliverAuto()
             }
         }
@@ -322,7 +363,7 @@ final class SpeechRecognizer: NSObject, ObservableObject {
         guard let c = continuation else { return }
         continuation = nil
         flushing = false
-        print("VFR: listen delivered (\(latest.count) chars)")
+        vfrLog("listen delivered (\(latest.count) chars)")
         c.resume(returning: teardown())
     }
 
@@ -391,5 +432,51 @@ private final class VoiceActivity: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return ProcessInfo.processInfo.systemUptime - lastVoice
+    }
+
+    /// Uptime of the last detected voice, for comparing against the time of
+    /// the last partial transcription.
+    var lastVoiceAt: TimeInterval {
+        lock.lock()
+        defer { lock.unlock() }
+        return lastVoice
+    }
+}
+
+/// Thread-safe rolling buffer of copied mic audio (last ~12s), written from
+/// the tap and drained on the main actor when a wedged recognition task is
+/// replaced — the replacement request gets the audio the old task swallowed.
+private final class AudioRing: @unchecked Sendable {
+    private let lock = NSLock()
+    private var entries: [(time: TimeInterval, buffer: AVAudioPCMBuffer)] = []
+
+    func append(_ buffer: AVAudioPCMBuffer) {
+        // Copy: the tap's buffer is reused by the engine after the callback.
+        guard let copy = AVAudioPCMBuffer(pcmFormat: buffer.format,
+                                          frameCapacity: buffer.frameLength),
+              let src = buffer.floatChannelData,
+              let dst = copy.floatChannelData else { return }
+        copy.frameLength = buffer.frameLength
+        for ch in 0..<Int(buffer.format.channelCount) {
+            dst[ch].update(from: src[ch], count: Int(buffer.frameLength))
+        }
+        let now = ProcessInfo.processInfo.systemUptime
+        lock.lock()
+        entries.append((now, copy))
+        let cutoff = now - 12
+        while let first = entries.first, first.time < cutoff { entries.removeFirst() }
+        lock.unlock()
+    }
+
+    func buffers(since: TimeInterval) -> [AVAudioPCMBuffer] {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries.filter { $0.time >= since }.map(\.buffer)
+    }
+
+    func reset() {
+        lock.lock()
+        entries = []
+        lock.unlock()
     }
 }

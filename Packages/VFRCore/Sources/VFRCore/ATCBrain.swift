@@ -70,7 +70,7 @@ public struct ATCBrain: ATCEvaluating, Sendable {
             // Hitting an 8000-token cap on a ~300-token verdict means the model
             // degenerated into rambling, not that the pilot did anything wrong.
             // A fresh sample almost always parses — retry before bothering them.
-            print("VFR: grader rambled into the token cap — retrying once")
+            vfrLog("grader rambled into the token cap — retrying once")
             return try await send(body, historyCount: history.count)
         }
     }
@@ -83,15 +83,15 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        print("VFR: POST api model=\(model) keyLen=\(apiKey.count) history=\(historyCount)")
+        vfrLog("POST api model=\(model) keyLen=\(apiKey.count) history=\(historyCount)")
         let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else {
             throw ATCBrainError.badResponse("no HTTP response")
         }
-        print("VFR: HTTP \(http.statusCode)")
+        vfrLog("HTTP \(http.statusCode)")
         guard (200..<300).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? ""
-            print("VFR: error body: \(body.prefix(400))")
+            vfrLog("error body: \(body.prefix(400))")
             throw ATCBrainError.http(status: http.statusCode, body: body)
         }
         return try Self.parseVerdict(from: data)
@@ -454,7 +454,7 @@ public struct ATCBrain: ATCEvaluating, Sendable {
             throw ATCBrainError.badResponse("no text block")
         }
         let json = extractJSONObject(text)
-        print("VFR: grader json: \(json.prefix(600))")
+        vfrLog("grader json: \(json.prefix(600))")
         guard let jsonData = json.data(using: .utf8) else {
             throw ATCBrainError.badResponse("empty text")
         }
@@ -464,12 +464,12 @@ public struct ATCBrain: ATCEvaluating, Sendable {
             // something ("say your position") while also setting phaseAdvance.
             // Advancing on an incorrect call is never right — hold the step.
             if verdict.phaseAdvance && !verdict.correct {
-                print("VFR: grader contradiction — phaseAdvance with correct=false; holding the step")
+                vfrLog("grader contradiction — phaseAdvance with correct=false; holding the step")
                 verdict.phaseAdvance = false
             }
             return verdict
         } catch {
-            print("VFR: verdict decode failed. text was: \(text.prefix(600))")
+            vfrLog("verdict decode failed. text was: \(text.prefix(600))")
             throw ATCBrainError.badResponse("grader reply wasn't valid JSON.\nRAW: \(text.prefix(500))")
         }
     }

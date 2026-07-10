@@ -325,15 +325,15 @@ final class HandsFreeController: ObservableObject {
     // MARK: - Core
 
     private func begin() async {
-        print("VFR: begin() — requesting authorization")
+        vfrLog("begin() — requesting authorization")
         guard await speech.requestAuthorization() else {
             errorMessage = "Microphone or speech permission denied."
             phase = .idle
             return
         }
-        print("VFR: authorized. interaction=\(interaction)")
+        vfrLog("authorized. interaction=\(interaction)")
         await briefCurrent()
-        print("VFR: first briefing complete")
+        vfrLog("first briefing complete")
         if interaction == .handsFree {
             await handsFreeLoop()
         } else if phase != .finished {
@@ -347,14 +347,14 @@ final class HandsFreeController: ObservableObject {
         while !Task.isCancelled {
             guard await session?.currentDrill != nil else { return }
             phase = .listening
-            print("VFR: listening (silence timeout \(pause)s)")
+            vfrLog("listening (silence timeout \(pause)s)")
             let text: String
             do { text = try await speech.listenWithSilence(timeout: pause) }
             catch {
-                print("VFR: listen error: \(error)")
+                vfrLog("listen error: \(error)")
                 errorMessage = error.localizedDescription; phase = .idle; return
             }
-            print("VFR: heard: \(text.isEmpty ? "<nothing>" : text)")
+            vfrLog("heard: \(text.isEmpty ? "<nothing>" : text)")
             if Task.isCancelled { return }
             let finished = await process(text)
             if finished { return }
@@ -379,7 +379,7 @@ final class HandsFreeController: ObservableObject {
         progressText = await progressLabel()
         append(.instructor, drill.setup)
         phase = .briefing
-        print("VFR: briefing drill '\(drill.title)'")
+        vfrLog("briefing drill '\(drill.title)'")
         await persistSnapshot()
         await speakInstructor(drill.setup)
 
@@ -486,7 +486,7 @@ final class HandsFreeController: ObservableObject {
             // Redone while grading: throw the stale verdict away and re-listen.
             guard myTurn == turnID else { return await settleAfterTurn() }
             guard let verdict = graded else { return true }
-            print("VFR: verdict correct=\(verdict.correct) advance=\(verdict.phaseAdvance) speaker=\(verdict.speaker) reply=\"\(verdict.radioReplyText)\" coaching=\"\(verdict.coaching)\" corrections=\(verdict.corrections)")
+            vfrLog("verdict correct=\(verdict.correct) advance=\(verdict.phaseAdvance) speaker=\(verdict.speaker) reply=\"\(verdict.radioReplyText)\" coaching=\"\(verdict.coaching)\" corrections=\(verdict.corrections)")
             lastVerdict = verdict
             if !verdict.expectedExample.isEmpty { currentExample = verdict.expectedExample }
             // Red means exactly one thing: "say that again." A call can be
@@ -539,7 +539,7 @@ final class HandsFreeController: ObservableObject {
             // Debug: surface the actual error (API status/body or raw model text)
             // in the transcript instead of a generic message.
             let detail = error.localizedDescription
-            print("VFR: brain error: \(detail)")
+            vfrLog("brain error: \(detail)")
             errorMessage = detail
             append(.system, "⚠️ \(detail)")
             await speakInstructor("Say again, I didn't catch that.")
