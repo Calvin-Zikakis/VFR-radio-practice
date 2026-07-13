@@ -799,6 +799,41 @@ final class SequenceBrain: ATCEvaluating, @unchecked Sendable {
     #expect(await session.currentDrill == nil)
 }
 
+@Test func moreToweredGroundTaxiDrillsExist() {
+    let plane = DrillLibrary.defaultAircraft
+    let taxi = DrillLibrary.drills(matching: [.taxi], aircraft: plane)
+    for id in ["t-lvk-taxi", "t-rhv-taxi", "t-sql-taxi"] {
+        let d = taxi.first { $0.id == id }
+        #expect(d != nil, "missing \(id)")
+        #expect(d?.followUpReadback == true, "\(id) should chain a readback")
+        #expect(d?.instructionVariants?.isEmpty == false)
+        // Parked / cold start → the setup establishes an ATIS code to copy.
+        #expect(d?.setup.contains("information") == true, "\(id) parked start needs ATIS")
+        // ...but the pilot still doesn't pick their runway.
+        let s = d!.setup.lowercased()
+        for bad in ["departure on runway", "taxi to runway", "depart runway"] {
+            #expect(!s.contains(bad), "\(id) makes the pilot pick a runway")
+        }
+    }
+    #expect(taxi.first { $0.id == "t-lvk-taxi" }?.airport.icao == "KLVK")
+    #expect(taxi.first { $0.id == "t-rhv-taxi" }?.airport.icao == "KRHV")
+    #expect(taxi.first { $0.id == "t-sql-taxi" }?.airport.icao == "KSQL")
+    // Livermore's clearance names both parallels — runway swap must skip it.
+    #expect(DrillRandomizer.runwaySwapExempt.contains("t-lvk-taxi"))
+}
+
+@Test func atisRequiredWhenParkedNotWhenInThePattern() {
+    // A parked departure copies the current ATIS; a pattern taxi-back already
+    // has it and must not be graded for omitting it.
+    let parked = DrillLibrary.all.first { $0.id == "t-ccr-long-route" }!
+    #expect(parked.setup.contains("information") && parked.situation.contains("ATIS letter"))
+    let patternBack = DrillLibrary.all.first { $0.id == "t-ccr-parallel-taxi" }!
+    #expect(patternBack.situation.contains("no ATIS code is needed"))
+    #expect(!patternBack.setup.contains("information"))
+    // The towered prompt states the cold-only rule so it holds library-wide.
+    #expect(ATCBrain.systemPrompt(drill: parked, mode: .live).contains("ATIS ONLY WHEN COLD"))
+}
+
 @Test func taxiRequestsDoNotMakeThePilotPickARunway() {
     // At a towered field Ground assigns the departure runway — the pilot
     // requests taxi for departure (with direction/intentions), never "taxi to

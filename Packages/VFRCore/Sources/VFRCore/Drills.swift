@@ -490,6 +490,44 @@ public enum DrillLibrary {
             ]
         ),
         Drill(
+            id: "t-lvk-taxi",
+            scenario: .towered,
+            title: "Request taxi — Livermore Ground",
+            setup: "You're parked at the Livermore ramp with information Delta, ready for a VFR departure to the east. Call Livermore Ground.",
+            situation: "Towered field, you are Livermore Ground (KLVK, parallel runways 25L/25R). Grade the REQUEST — who they're calling, aircraft, position (the ramp), the ATIS letter (current is information Delta; a different letter gets 'verify you have information Delta'), the direction of flight, and the request to taxi for departure. The pilot does NOT pick their runway — YOU assign it; don't require a runway in their request.",
+            aircraft: rv12, airport: livermore, callType: .taxi, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, Livermore Ground, runway two five right, taxi via alpha, cross runway two five left.",
+                "RV seven three seven juliet alpha, Livermore Ground, runway two five right, taxi via alpha, hold short of runway two five left.",
+                "RV seven three seven juliet alpha, Livermore Ground, runway two five left, taxi via alpha, bravo.",
+            ]
+        ),
+        Drill(
+            id: "t-rhv-taxi",
+            scenario: .towered,
+            title: "Request taxi — Reid-Hillview Ground",
+            setup: "You're parked at the Reid-Hillview ramp with information Whiskey, ready for a VFR departure to the south. Call Reid-Hillview Ground.",
+            situation: "Towered field, you are Reid-Hillview Ground (KRHV, parallel runways 31L/31R). Grade the REQUEST — who they're calling, aircraft, position (the ramp), the ATIS letter (current is information Whiskey; a different letter gets 'verify you have information Whiskey'), the direction of flight, and the request to taxi for departure. The pilot does NOT pick their runway — YOU assign it; don't require a runway in their request.",
+            aircraft: rv12, airport: reidHillview, callType: .taxi, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, Reid-Hillview Ground, runway three one right, taxi via alpha, cross runway three one left.",
+                "RV seven three seven juliet alpha, Reid-Hillview Ground, runway three one right, taxi via alpha, hold short of runway three one left.",
+                "RV seven three seven juliet alpha, Reid-Hillview Ground, runway three one left, taxi via alpha.",
+            ]
+        ),
+        Drill(
+            id: "t-sql-taxi",
+            scenario: .towered,
+            title: "Request taxi — San Carlos Ground",
+            setup: "You're parked at the San Carlos ramp with information Romeo, ready for a VFR departure to the north — it's a busy little Delta tucked under the San Francisco Bravo shelf. Call San Carlos Ground.",
+            situation: "Towered field, you are San Carlos Ground (KSQL, single runway 12/30, and the pattern is busy). Grade the REQUEST — who they're calling, aircraft, position (the ramp), the ATIS letter (current is information Romeo; a different letter gets 'verify you have information Romeo'), the direction of flight, and the request to taxi for departure. The pilot does NOT pick their runway — YOU assign it; don't require a runway in their request. Keep your transmissions brisk — it's a busy frequency.",
+            aircraft: rv12, airport: sanCarlos, callType: .taxi, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, San Carlos Ground, runway three zero, taxi via alpha.",
+                "RV seven three seven juliet alpha, San Carlos Ground, runway three zero, taxi via alpha, give way to a Cherokee taxiing opposite.",
+            ]
+        ),
+        Drill(
             id: "t-luaw",
             scenario: .towered,
             title: "Line up and wait",
@@ -547,7 +585,7 @@ public enum DrillLibrary {
             scenario: .towered,
             title: "Taxi back for the parallel — cross the one niner",
             setup: "You've landed on runway three two left at Concord, rolled to the end, and exited at hotel. You want another lap — call Ground to taxi back for departure, staying in the pattern.",
-            situation: "Towered field, you are Concord Ground (Buchanan Field: parallel 32L/32R crossed by 19L/19R; the route back crosses 19L at charted hot spot two). Grade the REQUEST — who they're calling, aircraft, position (clear of three two left at hotel), and the request to taxi back for departure (closed traffic / another departure). The pilot does NOT pick their runway — YOU assign it; don't require a runway in their request. (You'll assign three two left across one niner left; the readback is graded next.)",
+            situation: "Towered field, you are Concord Ground (Buchanan Field: parallel 32L/32R crossed by 19L/19R; the route back crosses 19L at charted hot spot two). Grade the REQUEST — who they're calling, aircraft, position (clear of three two left at hotel), and the request to taxi back for departure (closed traffic / another departure). The pilot has been in the pattern, so no ATIS code is needed. The pilot does NOT pick their runway — YOU assign it; don't require a runway in their request. (You'll assign three two left across one niner left; the readback is graded next.)",
             aircraft: rv12, airport: concord, callType: .taxi, followUpReadback: true,
             instructionVariants: [
                 "RV seven three seven juliet alpha, Concord Ground, runway three two left, taxi via juliet, papa, cross runway one niner left.",
@@ -560,7 +598,7 @@ public enum DrillLibrary {
             scenario: .towered,
             title: "Landed the right, departing the left",
             setup: "You landed on runway three two right at Concord and exited onto alpha. You want another departure — call Ground to taxi back, staying in the pattern.",
-            situation: "Towered field, you are Concord Ground. The pilot just landed 32R; you'll send them back out on the parallel 32L — and muscle memory will want them to read back 'three two right'. Grade the REQUEST — who they're calling, aircraft, position (clear of three two right at alpha), and the request to taxi back for departure. The pilot does NOT pick their runway — YOU assign it; don't require a runway in their request. (You'll assign three two left; the wrong-parallel trap is graded on their readback, next.)",
+            situation: "Towered field, you are Concord Ground. The pilot just landed 32R; you'll send them back out on the parallel 32L — and muscle memory will want them to read back 'three two right'. Grade the REQUEST — who they're calling, aircraft, position (clear of three two right at alpha), and the request to taxi back for departure. The pilot has been in the pattern, so no ATIS code is needed. The pilot does NOT pick their runway — YOU assign it; don't require a runway in their request. (You'll assign three two left; the wrong-parallel trap is graded on their readback, next.)",
             aircraft: rv12, airport: concord, callType: .taxi, followUpReadback: true,
             instructionVariants: [
                 "RV seven three seven juliet alpha, Concord Ground, runway three two left, taxi via alpha, juliet, papa, cross runway one niner left.",
@@ -592,7 +630,7 @@ public enum DrillLibrary {
             scenario: .towered,
             title: "Runway change mid-taxi",
             setup: "You've landed on runway three two left at Concord and exited at hotel. You want another lap — call Ground to taxi back for departure, staying in the pattern.",
-            situation: "Towered field, you are Concord Ground (Buchanan Field: parallel 32L/32R crossed by 19L/19R). Grade the REQUEST — who they're calling, aircraft, position (clear of three two left at hotel), and the request to taxi back for departure. The pilot does NOT pick their runway — YOU assign it; don't require a runway in their request. (You'll clear them to 32L across one niner left; after they read it back, you AMEND to 32R mid-taxi — the readbacks are graded next.)",
+            situation: "Towered field, you are Concord Ground (Buchanan Field: parallel 32L/32R crossed by 19L/19R). Grade the REQUEST — who they're calling, aircraft, position (clear of three two left at hotel), and the request to taxi back for departure. The pilot has been in the pattern, so no ATIS code is needed. The pilot does NOT pick their runway — YOU assign it; don't require a runway in their request. (You'll clear them to 32L across one niner left; after they read it back, you AMEND to 32R mid-taxi — the readbacks are graded next.)",
             aircraft: rv12, airport: concord, callType: .taxi, followUpReadback: true,
             instructionVariants: [
                 "RV seven three seven juliet alpha, Concord Ground, runway three two left, taxi via juliet, papa, cross runway one niner left.",
@@ -607,8 +645,8 @@ public enum DrillLibrary {
             id: "t-ccr-long-route",
             scenario: .towered,
             title: "Four-segment taxi route",
-            setup: "You're at transient parking on the south side at Concord, ready to depart VFR to the south. Call Ground for taxi — you'll be sent to the far north end of the field, so be ready to write the route down.",
-            situation: "Towered field, you are Concord Ground. Grade the REQUEST — who they're calling, aircraft, position (transient parking, south side), the direction of flight (VFR to the south), and the request to taxi for departure. The pilot does NOT pick their runway — YOU assign it; don't require a runway in their request. (You'll assign one niner right at the north end with a long four-segment route; the readback is graded next.)",
+            setup: "You're at transient parking on the south side at Concord with information Sierra, ready to depart VFR to the south. Call Ground for taxi — you'll be sent to the far north end of the field, so be ready to write the route down.",
+            situation: "Towered field, you are Concord Ground. Grade the REQUEST — who they're calling, aircraft, position (transient parking, south side), the ATIS letter (current is information Sierra; a different letter gets 'verify you have information Sierra'), the direction of flight (VFR to the south), and the request to taxi for departure. The pilot does NOT pick their runway — YOU assign it; don't require a runway in their request. (You'll assign one niner right at the north end with a long four-segment route; the readback is graded next.)",
             aircraft: rv12, airport: concord, callType: .taxi, followUpReadback: true,
             instructionVariants: [
                 "RV seven three seven juliet alpha, Concord Ground, runway one niner right, taxi via golf, foxtrot, kilo, echo, cross runway three two left.",

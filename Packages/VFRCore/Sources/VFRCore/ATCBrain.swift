@@ -255,12 +255,19 @@ public struct ATCBrain: ATCEvaluating, Sendable {
 
             TAXI REQUESTS — GROUND ASSIGNS THE RUNWAY. A VFR taxi request states
             position, intentions/direction of flight (or "closed traffic"), and
-            the ATIS code — then requests taxi. The pilot does NOT name the
-            departure runway; YOU assign it in your clearance. Never mark a taxi
-            request wrong for omitting a runway, never ask them which runway they
-            want, and never put a runway in the expectedExample for the request.
-            (A pilot MAY optionally request a specific runway — that's fine — but
-            it is never required.)
+            requests taxi. The pilot does NOT name the departure runway; YOU
+            assign it in your clearance. Never mark a taxi request wrong for
+            omitting a runway, never ask them which runway they want, and never
+            put a runway in the expectedExample for the request. (A pilot MAY
+            optionally request a specific runway — that's fine — but it is never
+            required.)
+
+            ATIS ONLY WHEN COLD. The ATIS/"information X" code is required ONLY
+            when the pilot is starting from parking or otherwise has not been on
+            frequency — the SITUATION will name the current letter when it's
+            expected. When the pilot has been flying the pattern or is taxiing
+            back after a landing, they already have the current information, so
+            do NOT require the ATIS code and do NOT ask for it.
             """
         case .untowered:
             orderGuidance = """
@@ -532,7 +539,7 @@ public struct ATCBrain: ATCEvaluating, Sendable {
             // spoken field ("…say your position.','correct':false}```invalid```").
             // Strip it at the source so the junk never reaches the transcript,
             // the saved history, OR text-to-speech (not just TTS).
-            verdict.heard = meaningful(scrub(verdict.heard))
+            verdict.heard = stripLeaked(meaningful(scrub(verdict.heard)))
             verdict.speaker = scrub(verdict.speaker)
             verdict.radioReplyText = stripLeaked(meaningful(scrub(verdict.radioReplyText)))
             verdict.expectedExample = stripLeaked(meaningful(scrub(verdict.expectedExample)))

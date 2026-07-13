@@ -121,7 +121,7 @@ public enum DrillRandomizer {
     /// Drills whose text names more than one runway at the airport — swapping
     /// the primary would collide with the other (e.g. LAHSO's hold-short
     /// runway 26 at Salinas).
-    static let runwaySwapExempt: Set<String> = ["t-lahso", "t-sns-taxi"]
+    static let runwaySwapExempt: Set<String> = ["t-lahso", "t-sns-taxi", "t-lvk-taxi"]
 
     // Verified against AirNav (FAA data), 2026-07. KRHV is excluded like KMRY:
     // its parallel-runway drill names both 31L and 31R, so a blind swap would
