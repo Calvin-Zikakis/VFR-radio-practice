@@ -799,6 +799,23 @@ final class SequenceBrain: ATCEvaluating, @unchecked Sendable {
     #expect(await session.currentDrill == nil)
 }
 
+@Test func taxiRequestsDoNotMakeThePilotPickARunway() {
+    // At a towered field Ground assigns the departure runway — the pilot
+    // requests taxi for departure (with direction/intentions), never "taxi to
+    // runway X". The prompt says so, and no departure-taxi drill's scene tells
+    // the pilot to name a runway.
+    let taxi = DrillLibrary.all.first { $0.id == "t-taxi" }!
+    #expect(ATCBrain.systemPrompt(drill: taxi, mode: .live).contains("GROUND ASSIGNS THE RUNWAY"))
+    for id in ["t-ccr-parallel-taxi", "t-ccr-runway-switch", "t-ccr-long-route",
+               "t-ccr-runway-change", "t-ccr-crossing-revoked"] {
+        let setup = DrillLibrary.all.first { $0.id == id }!.setup.lowercased()
+        for bad in ["departure on runway", "taxi to runway", "depart runway",
+                    "for departure runway"] {
+            #expect(!setup.contains(bad), "\(id) setup tells the pilot to pick a runway: '\(bad)'")
+        }
+    }
+}
+
 @Test func amendmentDrillChainsRequestThenInitialThenAmendment() async throws {
     // t-ccr-runway-change now starts with the pilot's own ground call and runs
     // the full real flow: request → initial clearance → readback → amendment →

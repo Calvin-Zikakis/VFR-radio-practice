@@ -252,6 +252,15 @@ public struct ATCBrain: ATCEvaluating, Sendable {
             READBACK or acknowledgment of a clearance/instruction, the callsign
             conventionally goes at the END (e.g. "cleared to land runway three
             one, three seven juliet alpha") — do NOT flag that as out of order.
+
+            TAXI REQUESTS — GROUND ASSIGNS THE RUNWAY. A VFR taxi request states
+            position, intentions/direction of flight (or "closed traffic"), and
+            the ATIS code — then requests taxi. The pilot does NOT name the
+            departure runway; YOU assign it in your clearance. Never mark a taxi
+            request wrong for omitting a runway, never ask them which runway they
+            want, and never put a runway in the expectedExample for the request.
+            (A pilot MAY optionally request a specific runway — that's fine — but
+            it is never required.)
             """
         case .untowered:
             orderGuidance = """
