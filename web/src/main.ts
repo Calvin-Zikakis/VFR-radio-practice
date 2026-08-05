@@ -48,9 +48,6 @@ interface LogEntry {
   corrections: string[];
 }
 let sessionLog: LogEntry[] = [];
-// The current "You" transcript line, so grading can replace the raw STT text
-// with Claude's cleaned interpretation (verdict.heard).
-let lastYouText: HTMLElement | null = null;
 // Show the "use Chrome" notice at most once per session.
 let voiceNoticeShown = false;
 
@@ -480,7 +477,7 @@ function renderSession() {
   send.onclick = () => {
     const t = textInput.value.trim();
     if (t) {
-      lastYouText = addLine("you", t);
+      addLine("you", t);
       textInput.value = "";
       submit(t);
     }
@@ -624,7 +621,7 @@ function beginBrowserListen() {
       talkBtn.classList.remove("live");
       listening = null;
       if (said) {
-        lastYouText = addLine("you", said);
+        addLine("you", said);
         submit(said);
       } else {
         status("Didn't catch that — hold the button and try again, or type it.");
@@ -643,7 +640,7 @@ async function finishWorkerCapture(blob: Blob) {
   try {
     const said = await transcribe(graderConfig(), blob);
     if (said) {
-      lastYouText = addLine("you", said);
+      addLine("you", said);
       submit(said);
     } else {
       status("Didn't catch that — hold the button and try again, or type it.");
@@ -687,10 +684,6 @@ async function submit(text: string) {
       coaching: v0.coaching,
       corrections: v0.corrections,
     });
-    // Replace the raw STT "You" line with Claude's cleaned interpretation, which
-    // corrects mis-heard callsigns/numbers. (Typed input reads back near-identical.)
-    if (lastYouText && v0.heard) lastYouText.textContent = v0.heard;
-    lastYouText = null;
     showVerdict(result.verdict);
     if (result.spokenInstruction) {
       addLine("radio", result.spokenInstruction);
