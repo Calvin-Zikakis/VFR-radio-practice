@@ -91,7 +91,7 @@ export class PracticeSession {
     this.history = [];
   }
 
-  async submit(transmission: string): Promise<SubmitResult | null> {
+  async submit(transmission: string, signal?: AbortSignal): Promise<SubmitResult | null> {
     const drill = this.currentDrill;
     if (!drill) return null;
 
@@ -105,7 +105,8 @@ export class PracticeSession {
       this.mode,
       this.history,
       transmission,
-      nextSetup
+      nextSetup,
+      signal
     );
 
     // App-composed instruction: on the advancing turn the SESSION issues the

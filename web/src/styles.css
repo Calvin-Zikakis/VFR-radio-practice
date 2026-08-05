@@ -48,10 +48,26 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 #app {
-  max-width: 720px;
+  max-width: 760px;
   margin: 0 auto;
   padding: 16px 16px 48px;
   min-height: 100%;
+}
+/* Session is a chat-style column that fills the screen: transcript grows, the
+   controls pin to the bottom (with the phone's safe-area inset). */
+#app.session-view {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  padding-bottom: 0;
+}
+#app.session-view .transcript {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+#app.session-view .controls {
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
 }
 
 .topbar {
@@ -160,27 +176,49 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .debrief { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 16px; }
 .debrief .line-role { color: var(--text); }
 
-.controls { position: sticky; bottom: 0; padding-top: 8px; }
+.controls { padding-top: 8px; background: var(--bg); }
+.ic { width: 18px; height: 18px; flex: 0 0 auto; }
+.talkrow { display: flex; gap: 8px; margin-bottom: 8px; }
 .talk {
-  width: 100%;
-  padding: 18px;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
   font-size: 1.05rem;
   font-weight: 600;
   background: var(--panel2);
-  margin-bottom: 8px;
   user-select: none;
 }
+.talk .ic { width: 20px; height: 20px; }
 .talk.live { background: var(--accent); border-color: var(--accent); color: #fff; }
+.voicetoggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+}
+.abandon {
+  width: 100%;
+  margin-bottom: 8px;
+  font-weight: 600;
+  background: color-mix(in srgb, #f85149 16%, var(--panel));
+  border-color: color-mix(in srgb, #f85149 50%, transparent);
+  color: var(--text);
+}
 .typed { display: flex; gap: 8px; }
 .text {
   flex: 1;
   font: inherit;
-  resize: vertical;
+  resize: none;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--text);
   padding: 10px 12px;
+  min-height: 42px;
 }
 
 /* Settings / forms */

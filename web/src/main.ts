@@ -85,6 +85,7 @@ function renderHome() {
   stopSpeaking();
   session = null;
   app.innerHTML = "";
+  app.classList.remove("session-view");
 
   const header = el("header", "topbar");
   header.append(el("div", "brand", "VFR Radio — Practice"));
@@ -369,34 +370,29 @@ let transcriptEl: HTMLElement;
 let statusEl: HTMLElement;
 let bannerEl: HTMLElement;
 let talkBtn: HTMLButtonElement;
+let abandonBtn: HTMLButtonElement;
 let textInput: HTMLTextAreaElement;
+let gradeAbort: AbortController | null = null;
+
+// Inline SVG icons (emoji render inconsistently across platforms).
+const ICON_MIC = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>`;
+const ICON_VOL_ON = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>`;
+const ICON_VOL_OFF = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>`;
+
+/** Set a button's contents to an inline icon plus a text label. */
+function setBtn(btn: HTMLElement, icon: string, label: string) {
+  btn.innerHTML = `${icon}<span>${label}</span>`;
+}
 
 function renderSession() {
   app.innerHTML = "";
+  app.classList.add("session-view");
   const header = el("header", "topbar");
   const back = el("button", "ghost", "← Exit");
   back.onclick = renderHome;
   header.append(back);
   const prog = session!.progress;
   header.append(el("div", "brand", `Drill ${prog.index + 1} of ${prog.total}`));
-
-  // Voice / text-only toggle (mutes spoken replies without leaving the session).
-  const speaker = el("button", "ghost") as HTMLButtonElement;
-  const paintSpeaker = () => {
-    speaker.textContent = settings.speakReplies ? "🔊" : "🔇";
-    speaker.title = settings.speakReplies
-      ? "Voice on — tap for text only"
-      : "Text only — tap to hear replies";
-  };
-  paintSpeaker();
-  speaker.onclick = () => {
-    settings.speakReplies = !settings.speakReplies;
-    persist();
-    if (!settings.speakReplies) stopSpeaking();
-    paintSpeaker();
-  };
-  header.append(speaker);
-
   const skip = el("button", "ghost", "Skip ›");
   skip.onclick = skipCurrent;
   header.append(skip);
@@ -408,23 +404,28 @@ function renderSession() {
   transcriptEl = el("div", "transcript");
   app.append(transcriptEl);
 
+  // ---- Controls (pinned to the bottom) ----
+  const controls = el("div", "controls");
+
   statusEl = el("div", "status muted");
-  app.append(statusEl);
+  controls.append(statusEl);
+
+  abandonBtn = el("button", "abandon", "Abandon grading") as HTMLButtonElement;
+  abandonBtn.style.display = "none";
+  abandonBtn.onclick = () => gradeAbort?.abort();
+  controls.append(abandonBtn);
 
   // Voice input works via the browser (Chrome/Android) OR the Worker (Whisper,
   // which also covers Firefox/Safari). Enable the button if either is available.
   voiceInputAvailable = recognitionSupported || workerVoiceConfigured(graderConfig());
-  const controls = el("div", "controls");
+
+  const talkRow = el("div", "talkrow");
   talkBtn = el("button", "talk") as HTMLButtonElement;
-  talkBtn.textContent = voiceInputAvailable
-    ? "🎙 Hold to talk"
-    : "🎙 Voice unavailable — type below";
+  setBtn(talkBtn, ICON_MIC, voiceInputAvailable ? "Hold to talk" : "Voice unavailable — type below");
   talkBtn.disabled = !voiceInputAvailable;
   if (voiceInputAvailable) {
-    // Pointer events (mouse + touch + pen, unified) with capture so the release
-    // always fires even if the cursor/finger drifts off the button mid-hold.
-    // preventDefault keeps the press from focusing the button (which could
-    // summon autofill) or starting a text selection / scroll.
+    // Pointer events (mouse + touch + pen) with capture so the release always
+    // fires even if the cursor/finger drifts off the button mid-hold.
     talkBtn.style.touchAction = "none";
     talkBtn.onpointerdown = (e) => {
       e.preventDefault();
@@ -447,12 +448,27 @@ function renderSession() {
     talkBtn.onpointerup = release;
     talkBtn.onpointercancel = release;
   }
-  controls.append(talkBtn);
+  talkRow.append(talkBtn);
+
+  // Voice / text-only toggle (mutes spoken replies without leaving the session).
+  const voiceBtn = el("button", "voicetoggle ghost") as HTMLButtonElement;
+  const paintVoice = () =>
+    setBtn(voiceBtn, settings.speakReplies ? ICON_VOL_ON : ICON_VOL_OFF, settings.speakReplies ? "Voice" : "Muted");
+  paintVoice();
+  voiceBtn.title = "Toggle spoken replies (text-only)";
+  voiceBtn.onclick = () => {
+    settings.speakReplies = !settings.speakReplies;
+    persist();
+    if (!settings.speakReplies) stopSpeaking();
+    paintVoice();
+  };
+  talkRow.append(voiceBtn);
+  controls.append(talkRow);
 
   const typed = el("div", "typed");
   textInput = el("textarea", "text") as HTMLTextAreaElement;
   textInput.placeholder = "…or type your radio call and press Send";
-  textInput.rows = 2;
+  textInput.rows = 1;
   const send = el("button", "primary", "Send");
   send.onclick = () => {
     const t = textInput.value.trim();
@@ -648,9 +664,11 @@ async function submit(text: string) {
   if (!session) return;
   status("Grading…");
   talkBtn.disabled = true;
+  gradeAbort = new AbortController();
+  abandonBtn.style.display = "";
   const label = session.currentDrill?.title ?? "";
   try {
-    const result = await session.submit(text);
+    const result = await session.submit(text, gradeAbort.signal);
     if (!result) {
       finish();
       return;
@@ -685,9 +703,15 @@ async function submit(text: string) {
       status("Try that again.");
     }
   } catch (e: any) {
-    status("");
-    addLine("note", `⚠️ ${e.message}`);
+    if (gradeAbort?.signal.aborted) {
+      status("Grading abandoned — make your call again.");
+    } else {
+      status("");
+      addLine("note", `⚠️ ${e.message}`);
+    }
   } finally {
+    gradeAbort = null;
+    abandonBtn.style.display = "none";
     if (voiceInputAvailable) talkBtn.disabled = false;
   }
 }
@@ -729,6 +753,7 @@ function skipCurrent() {
 function finish() {
   stopSpeaking();
   app.innerHTML = "";
+  app.classList.remove("session-view");
   const header = el("header", "topbar");
   header.append(el("div", "brand", "Session complete"));
   app.append(header);

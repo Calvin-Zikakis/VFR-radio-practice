@@ -124,15 +124,25 @@ function parseVerdict(root: any): Verdict {
   return cleanVerdict(decoded);
 }
 
-async function sendOnce(config: GraderConfig, body: unknown): Promise<Verdict> {
+async function sendOnce(
+  config: GraderConfig,
+  body: unknown,
+  external?: AbortSignal
+): Promise<Verdict> {
   const controller = new AbortController();
   // Preempt Cloudflare's ~100s 524 while allowing a genuinely slow grade.
   const timer = setTimeout(() => controller.abort(), 45000);
+  const onAbort = () => controller.abort();
+  if (external) {
+    if (external.aborted) controller.abort();
+    else external.addEventListener("abort", onAbort);
+  }
   let res: Response;
   try {
     res = await post(config, body, controller.signal);
   } finally {
     clearTimeout(timer);
+    external?.removeEventListener("abort", onAbort);
   }
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
@@ -154,7 +164,8 @@ export async function grade(
   mode: GradingMode,
   history: Turn[],
   transmission: string,
-  nextSetup: string | null
+  nextSetup: string | null,
+  signal?: AbortSignal
 ): Promise<Verdict> {
   const body = requestBody(
     drill,
@@ -166,13 +177,14 @@ export async function grade(
     nextSetup
   );
   try {
-    return await sendOnce(config, body);
+    return await sendOnce(config, body, signal);
   } catch (e) {
+    if (signal?.aborted) throw e; // user abandoned — do not retry
     const retryable =
       e instanceof DegenerateVerdictError ||
       (e instanceof DOMException && e.name === "AbortError") ||
       (e instanceof ApiError && (e.status >= 500 || e.status === 429));
-    if (retryable) return await sendOnce(config, body);
+    if (retryable) return await sendOnce(config, body, signal);
     throw e;
   }
 }
