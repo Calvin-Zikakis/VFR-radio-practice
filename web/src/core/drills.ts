@@ -8,6 +8,9 @@ const data = bundle as unknown as DrillBundle;
 
 export const allDrills: Drill[] = data.drills;
 export const generatedAt = data.generatedAt;
+export const routableAirports = data.routableAirports;
+export const defaultAircraft = data.defaultAircraft;
+export const defaultTripStops = data.defaultTripStops;
 
 export interface Category {
   type: CallType;

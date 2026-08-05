@@ -202,3 +202,49 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .checkrow { display: flex; align-items: center; gap: 10px; }
 .sliderrow { display: flex; align-items: center; gap: 12px; }
 .sliderrow input[type="range"] { flex: 1; }
+
+/* Route map */
+.routemap {
+  width: 100%;
+  height: auto;
+  max-height: 54vh;
+  display: block;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin: 8px 0 12px;
+}
+.routemap .apt { cursor: pointer; }
+.routemap .apt circle {
+  fill: var(--muted);
+  stroke: var(--bg);
+  stroke-width: 3;
+  transition: fill 0.1s;
+}
+.routemap .apt.towered circle { fill: var(--accent); }
+.routemap .apt.untowered circle { fill: var(--green); }
+.routemap .apt.sel circle { fill: var(--amber); stroke: var(--text); }
+.routemap .apt:hover circle { stroke: var(--text); }
+.routemap .apt-label {
+  fill: var(--text);
+  font-size: 26px;
+  text-anchor: middle;
+  font-weight: 600;
+  pointer-events: none;
+}
+.routemap .apt-badge {
+  fill: #0d1117;
+  font-size: 18px;
+  text-anchor: middle;
+  font-weight: 800;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+.route-line {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: 4;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: 0.85;
+}

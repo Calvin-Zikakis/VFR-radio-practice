@@ -1,7 +1,16 @@
 import "./styles.css";
-import { CATEGORIES, categoryCount, drillsMatching, generatedAt } from "./core/drills";
+import {
+  CATEGORIES,
+  categoryCount,
+  drillsMatching,
+  generatedAt,
+  routableAirports,
+  defaultAircraft,
+} from "./core/drills";
+import { tripDrills } from "./core/trip";
+import { AIRPORT_COORDS } from "./core/geo";
 import { PracticeSession } from "./core/session";
-import type { CallType, Verdict } from "./core/types";
+import type { CallType, Verdict, Airport, Drill } from "./core/types";
 import { MODELS, workerVoiceConfigured, transcribe, synthesize } from "./core/client";
 import type { GraderConfig, KeyMode } from "./core/client";
 import { loadSettings, saveSettings, type Settings } from "./settings";
@@ -118,6 +127,11 @@ function renderHome() {
   mixBtn.onclick = renderMix;
   app.append(mixBtn);
 
+  const mapBtn = el("button", "ghost mixlink", "🗺  Plan a route on the map →") as HTMLButtonElement;
+  mapBtn.disabled = !keyReady();
+  mapBtn.onclick = renderMap;
+  app.append(mapBtn);
+
   const foot = el("footer", "foot");
   const built = new Date(generatedAt);
   foot.append(
@@ -192,10 +206,143 @@ function renderMix() {
   refresh();
 }
 
+// ------------------------------------------------------------- Map route builder
+
+function renderMap() {
+  stopSpeaking();
+  session = null;
+  app.innerHTML = "";
+  const header = el("header", "topbar");
+  const back = el("button", "ghost", "← Back");
+  back.onclick = renderHome;
+  header.append(back);
+  header.append(el("div", "brand", "Plan a route"));
+  app.append(header);
+
+  app.append(
+    el(
+      "p",
+      "muted",
+      "Tap airports in the order you'll fly them. Two or more builds a cross-country — taxi, departure, flight following, arrivals, the whole trip."
+    )
+  );
+
+  const airports = routableAirports.filter((a) => AIRPORT_COORDS[a.icao]);
+
+  // Equirectangular projection, longitude scaled by cos(lat) so the shape stays
+  // true across this small region.
+  const meanLat =
+    airports.reduce((s, a) => s + AIRPORT_COORDS[a.icao].lat, 0) / airports.length;
+  const k = Math.cos((meanLat * Math.PI) / 180);
+  const px = (a: Airport) => AIRPORT_COORDS[a.icao].lon * k;
+  const py = (a: Airport) => AIRPORT_COORDS[a.icao].lat;
+  const minX = Math.min(...airports.map(px));
+  const maxX = Math.max(...airports.map(px));
+  const minY = Math.min(...airports.map(py));
+  const maxY = Math.max(...airports.map(py));
+  const pad = 0.12 * Math.max(maxX - minX, maxY - minY);
+  const W = maxX - minX + 2 * pad;
+  const H = maxY - minY + 2 * pad;
+  const scale = 900 / Math.max(W, H);
+  const VW = W * scale;
+  const VH = H * scale;
+  const project = (a: Airport): [number, number] => [
+    (px(a) - minX + pad) * scale,
+    (maxY - py(a) + pad) * scale, // invert Y: north is up
+  ];
+
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${VW.toFixed(1)} ${VH.toFixed(1)}`);
+  svg.setAttribute("class", "routemap");
+  const routeLine = document.createElementNS(NS, "polyline");
+  routeLine.setAttribute("class", "route-line");
+  svg.appendChild(routeLine);
+
+  const selected: string[] = [];
+  const markers: Record<string, { group: SVGGElement; badge: SVGTextElement }> = {};
+  const byIcao = (icao: string) => airports.find((a) => a.icao === icao)!;
+
+  const summary = el("div", "notice");
+  const startBtn = el("button", "primary", "Start route") as HTMLButtonElement;
+
+  const redraw = () => {
+    routeLine.setAttribute(
+      "points",
+      selected.map((i) => project(byIcao(i)).map((n) => n.toFixed(1)).join(",")).join(" ")
+    );
+    for (const a of airports) {
+      const m = markers[a.icao];
+      const idx = selected.indexOf(a.icao);
+      m.group.classList.toggle("sel", idx >= 0);
+      m.badge.textContent = idx >= 0 ? String(idx + 1) : "";
+    }
+    summary.textContent =
+      selected.length === 0
+        ? "Tap two or more airports to build a route."
+        : selected.length === 1
+          ? `${selected[0]} — tap another to make a route.`
+          : `Route: ${selected.join(" → ")}`;
+    startBtn.disabled = selected.length < 2;
+  };
+  const toggle = (icao: string) => {
+    const i = selected.indexOf(icao);
+    if (i >= 0) selected.splice(i, 1);
+    else selected.push(icao);
+    redraw();
+  };
+
+  for (const a of airports) {
+    const [x, y] = project(a);
+    const g = document.createElementNS(NS, "g");
+    g.setAttribute("class", `apt ${a.isTowered ? "towered" : "untowered"}`);
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("cx", x.toFixed(1));
+    c.setAttribute("cy", y.toFixed(1));
+    c.setAttribute("r", "12");
+    g.appendChild(c);
+    const label = document.createElementNS(NS, "text");
+    label.setAttribute("x", x.toFixed(1));
+    label.setAttribute("y", (y - 18).toFixed(1));
+    label.setAttribute("class", "apt-label");
+    label.textContent = a.icao;
+    g.appendChild(label);
+    const badge = document.createElementNS(NS, "text");
+    badge.setAttribute("x", x.toFixed(1));
+    badge.setAttribute("y", (y + 1).toFixed(1));
+    badge.setAttribute("class", "apt-badge");
+    g.appendChild(badge);
+    g.addEventListener("click", () => toggle(a.icao));
+    svg.appendChild(g);
+    markers[a.icao] = { group: g, badge };
+  }
+  app.append(svg);
+  app.append(summary);
+
+  const ffCb = el("input") as HTMLInputElement;
+  ffCb.type = "checkbox";
+  ffCb.checked = true;
+  const pwCb = el("input") as HTMLInputElement;
+  pwCb.type = "checkbox";
+  pwCb.checked = true;
+  const ffRow = el("label", "checkrow");
+  ffRow.append(ffCb, el("span", undefined, "Flight following enroute"));
+  const pwRow = el("label", "checkrow");
+  pwRow.append(pwCb, el("span", undefined, "Pattern work at stops"));
+
+  startBtn.onclick = () => {
+    if (selected.length >= 2) startTripSession(selected.map(byIcao), ffCb.checked, pwCb.checked);
+  };
+
+  const opts = el("div", "form");
+  opts.append(ffRow, pwRow, startBtn);
+  app.append(opts);
+  redraw();
+}
+
 // ---------------------------------------------------------------- Session
 
-function startSession(types: Set<CallType>) {
-  const drills = drillsMatching(types);
+function runDrills(drills: Drill[]) {
   if (drills.length === 0) {
     renderHome();
     return;
@@ -207,8 +354,15 @@ function startSession(types: Set<CallType>) {
   briefCurrent();
 }
 
+function startSession(types: Set<CallType>) {
+  runDrills(drillsMatching(types));
+}
+
+function startTripSession(stops: Airport[], flightFollowing: boolean, patternWork: boolean) {
+  runDrills(tripDrills(stops, flightFollowing, patternWork, defaultAircraft));
+}
+
 let transcriptEl: HTMLElement;
-let sceneEl: HTMLElement;
 let statusEl: HTMLElement;
 let bannerEl: HTMLElement;
 let talkBtn: HTMLButtonElement;
@@ -247,9 +401,6 @@ function renderSession() {
 
   bannerEl = el("div", "banner");
   app.append(bannerEl);
-
-  sceneEl = el("div", "scene");
-  app.append(sceneEl);
 
   transcriptEl = el("div", "transcript");
   app.append(transcriptEl);
@@ -342,7 +493,6 @@ async function briefCurrent() {
   }
   const a = drill.aircraft;
   bannerEl.textContent = `${a.callsign}  ·  ${a.type}  ·  “${a.phoneticCallsign}”`;
-  sceneEl.textContent = drill.setup;
   if (drill.injectedReadback === true) {
     addLine("instructor", drill.setup);
   } else {
