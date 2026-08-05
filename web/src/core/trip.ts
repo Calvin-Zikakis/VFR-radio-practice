@@ -69,6 +69,10 @@ export function tripDrills(
 
   const origin = stops[0];
   const destination = stops[stops.length - 1];
+  // For the enroute flight-following request (issued right after departing the
+  // origin), name the outbound leg's destination. On a round trip the final stop
+  // IS the origin, so "en route to <origin>" would be nonsense — use stops[1].
+  const ffDest = destination.icao !== origin.icao ? destination : stops[1];
   const cs = aircraft.phoneticCallsign;
 
   const departure = (ap: Airport, dest: string) => {
@@ -144,8 +148,8 @@ export function tripDrills(
       `You are NorCal Approach, and you are busy. Best practice on a busy frequency is a brief initial callup: facility, aircraft, and 'request VFR flight following' or 'with a request'. Reply with 'go ahead' or 'say request'. Grade whether the pilot kept it brief and did not dump all the details at once.`,
       origin);
     add("flightFollowing", "Request flight following — NorCal Approach",
-      `NorCal Approach answers 'go ahead'. You're climbing through two thousand five hundred, en route to ${destination.name} at four thousand five hundred. Make your request.`,
-      `You are NorCal Approach. The pilot is following up their initial callup. Expect: aircraft type/callsign, position and altitude, request (VFR flight following), destination (${destination.name}), and requested altitude. While anything is missing, ask only for the missing item.`,
+      `NorCal Approach answers 'go ahead'. You're climbing through two thousand five hundred, en route to ${ffDest.name} at four thousand five hundred. Make your request.`,
+      `You are NorCal Approach. The pilot is following up their initial callup. Expect: aircraft type/callsign, position and altitude, request (VFR flight following), destination (${ffDest.name}), and requested altitude. While anything is missing, ask only for the missing item.`,
       origin);
     add("flightFollowing", "Traffic advisory",
       `You're on flight following with NorCal Approach. NorCal calls: traffic, two o'clock, three miles, opposite direction, a Cirrus, altitude indicates three thousand five hundred. Respond appropriately.`,
