@@ -13,13 +13,23 @@ let loading = false;
 let seq = 0;
 const pending = new Map<number, { resolve: (v: any) => void; reject: (e: any) => void }>();
 let statusCb: ((text: string) => void) | null = null;
+let lastStatus = "";
 const files: Record<string, { loaded: number; total: number }> = {};
+
+function emit(text: string) {
+  lastStatus = text;
+  statusCb?.(text);
+}
 
 export function kokoroReady(): boolean {
   return ready;
 }
 export function kokoroLoading(): boolean {
   return loading;
+}
+/** The current load phase text (e.g. "Downloading… 42%"), for a re-rendered UI. */
+export function kokoroStatus(): string {
+  return lastStatus;
 }
 
 function ensureWorker(): Worker {
@@ -35,12 +45,13 @@ function ensureWorker(): Worker {
           loaded += f.loaded;
           total += f.total;
         }
-        if (total && statusCb) statusCb(`Downloading… ${Math.round((loaded / total) * 100)}%`);
+        if (total) emit(`Downloading… ${Math.round((loaded / total) * 100)}%`);
       } else if (m.type === "warming") {
-        statusCb?.("Preparing voice…");
+        emit("Preparing voice…");
       } else if (m.type === "ready") {
         ready = true;
         loading = false;
+        lastStatus = "";
         pending.get(m.id)?.resolve(undefined);
         pending.delete(m.id);
       } else if (m.type === "audio") {

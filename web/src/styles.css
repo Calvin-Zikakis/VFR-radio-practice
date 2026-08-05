@@ -472,3 +472,7 @@ button:active:not(:disabled) { transform: translateY(1px); }
   border-radius: 8px;
 }
 .intro-x:hover { color: var(--text); }
+
+.intro-list { margin: 4px 0 0; padding-left: 22px; color: var(--muted); font-size: 0.9rem; list-style: decimal; }
+.intro-list li { margin-bottom: 6px; }
+.intro-tip { margin-top: 10px; }

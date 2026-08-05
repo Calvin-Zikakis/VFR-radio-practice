@@ -18,7 +18,7 @@ import { AIRPORT_COORDS } from "./core/geo";
 import { PracticeSession, callType } from "./core/session";
 import { loadStats, recordResult, resetStats } from "./core/stats";
 import { saveResume, loadResume, clearResume } from "./core/resume";
-import { loadKokoro, kokoroReady, kokoroLoading, kokoroSpeak } from "./core/kokoro";
+import { loadKokoro, kokoroReady, kokoroLoading, kokoroStatus, kokoroSpeak } from "./core/kokoro";
 import type { CallType, Verdict, Airport, Aircraft, Drill } from "./core/types";
 import { MODELS, workerVoiceConfigured, transcribe, synthesize } from "./core/client";
 import type { GraderConfig, KeyMode } from "./core/client";
@@ -161,6 +161,35 @@ function renderHome() {
   app.append(sectionLabel("Voice"));
   app.append(kokoroRow());
 
+  // Dismissable getting-started banner.
+  if (localStorage.getItem("vfr.web.introDismissed") !== "1") {
+    const intro = el("div", "intro-banner");
+    intro.append(el("div", "intro-title", "New here? Getting started"));
+    const list = el("ol", "intro-list");
+    [
+      "In Settings, add your Anthropic API key (or the class passcode).",
+      "Pick a category — or build a mix, or plan a route on the map.",
+      "Hold the mic and make your radio call out loud; the controller replies and your phraseology is graded.",
+    ].forEach((t) => list.append(el("li", undefined, t)));
+    intro.append(list);
+    intro.append(
+      el(
+        "p",
+        "muted small intro-tip",
+        "Tip: enable the higher-quality voice above for the best sound, and set the Instructor / Scene volumes in Settings to control how much is read aloud."
+      )
+    );
+    const x = el("button", "intro-x", "×") as HTMLButtonElement;
+    x.title = "Dismiss";
+    x.onclick = () => {
+      localStorage.setItem("vfr.web.introDismissed", "1");
+      intro.remove();
+    };
+    intro.append(x);
+    app.append(intro);
+  }
+
+  // Footer stays at the very bottom of the page.
   const foot = el("footer", "foot");
   const gh = document.createElement("a");
   gh.className = "githublink";
@@ -179,27 +208,6 @@ function renderHome() {
     )
   );
   app.append(foot);
-
-  // Dismissable getting-started banner (bottom of the page).
-  if (localStorage.getItem("vfr.web.introDismissed") !== "1") {
-    const intro = el("div", "intro-banner");
-    intro.append(el("div", "intro-title", "New here? Getting started"));
-    intro.append(
-      el(
-        "p",
-        "muted small",
-        "1) In Settings, add your Anthropic API key (or the class passcode). 2) Pick a category — or build a mix / plan a route on the map. 3) Hold the mic and make your radio call out loud; the controller replies and your phraseology is graded. Enable the higher-quality voice above for the best sound, and set the Instructor / Scene volumes in Settings to control how much is read aloud."
-      )
-    );
-    const x = el("button", "intro-x", "×") as HTMLButtonElement;
-    x.title = "Dismiss";
-    x.onclick = () => {
-      localStorage.setItem("vfr.web.introDismissed", "1");
-      intro.remove();
-    };
-    intro.append(x);
-    app.append(intro);
-  }
 }
 
 // ------------------------------------------------------------- Mix builder
@@ -657,10 +665,17 @@ function kokoroRow(): HTMLElement {
       : kokoroReady()
         ? "Voice ready."
         : kokoroLoading()
-          ? "Downloading…"
+          ? kokoroStatus() || "Preparing…"
           : "";
   };
   paint();
+  // Attach to an in-flight load (e.g. after a reload preloaded it) so this row
+  // updates through to "Voice ready." instead of freezing on the first status.
+  if (settings.kokoroEnabled && !kokoroReady()) {
+    loadKokoro((t) => (status.textContent = t))
+      .then(() => (status.textContent = "Voice ready."))
+      .catch(() => (status.textContent = "Download failed — using the standard voice."));
+  }
   cb.onchange = async () => {
     settings.kokoroEnabled = cb.checked;
     persist();
