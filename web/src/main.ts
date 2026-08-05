@@ -14,7 +14,8 @@ import { tripDrills } from "./core/trip";
 import { vary } from "./core/randomizer";
 import { retarget } from "./core/aircraft";
 import { AIRPORT_COORDS } from "./core/geo";
-import { PracticeSession } from "./core/session";
+import { PracticeSession, callType } from "./core/session";
+import { loadStats, recordResult, resetStats } from "./core/stats";
 import type { CallType, Verdict, Airport, Aircraft, Drill } from "./core/types";
 import { MODELS, workerVoiceConfigured, transcribe, synthesize } from "./core/client";
 import type { GraderConfig, KeyMode } from "./core/client";
@@ -134,6 +135,10 @@ function renderHome() {
   mapBtn.disabled = !keyReady();
   mapBtn.onclick = renderMap;
   app.append(mapBtn);
+
+  const statsBtn = el("button", "ghost mixlink", "📊  Progress & weak spots →") as HTMLButtonElement;
+  statsBtn.onclick = renderStats;
+  app.append(statsBtn);
 
   const foot = el("footer", "foot");
   const built = new Date(generatedAt);
@@ -347,6 +352,75 @@ function renderMap() {
     startTripSession(stops, ffCb.checked, pwCb.checked);
   };
   redraw();
+}
+
+// ------------------------------------------------------------- Progress / stats
+
+function renderStats() {
+  stopSpeaking();
+  session = null;
+  app.innerHTML = "";
+  app.classList.remove("session-view");
+  const header = el("header", "topbar");
+  const back = el("button", "ghost", "← Back");
+  back.onclick = renderHome;
+  header.append(back);
+  header.append(el("div", "brand", "Progress"));
+  app.append(header);
+
+  const stats = loadStats();
+  const rows = CATEGORIES.map((c) => {
+    const e = stats[c.type];
+    const total = e ? e.pass + e.fail : 0;
+    return { cat: c, total, rate: total ? (e as { pass: number }).pass / total : 0 };
+  }).filter((r) => r.total > 0);
+
+  if (rows.length === 0) {
+    app.append(
+      el(
+        "p",
+        "muted",
+        "No calls graded yet. Fly a session and your per-call-type results show up here."
+      )
+    );
+  } else {
+    rows.sort((a, b) => a.rate - b.rate);
+    const list = el("div", "statlist");
+    for (const r of rows) {
+      const row = el("div", "statrow");
+      row.append(el("div", "statname", r.cat.label));
+      const bar = el("div", "statbar");
+      const fill = el("div", "statfill");
+      const pct = Math.round(r.rate * 100);
+      fill.style.width = `${pct}%`;
+      fill.classList.add(r.rate < 0.7 ? "low" : r.rate < 0.85 ? "mid" : "high");
+      bar.append(fill);
+      row.append(bar);
+      row.append(el("div", "statpct", `${pct}% · ${r.total}`));
+      list.append(row);
+    }
+    app.append(list);
+
+    const weak = rows.filter((r) => r.rate < 0.85).map((r) => r.cat.type);
+    const weakBtn = el(
+      "button",
+      "primary",
+      weak.length
+        ? `Practice weak spots (${weak.length} type${weak.length === 1 ? "" : "s"})`
+        : "Solid across the board — practice everything"
+    ) as HTMLButtonElement;
+    weakBtn.disabled = !keyReady();
+    weakBtn.onclick = () =>
+      startSession(new Set(weak.length ? weak : CATEGORIES.map((c) => c.type)));
+    app.append(weakBtn);
+  }
+
+  const reset = el("button", "ghost small resetbtn", "Reset progress") as HTMLButtonElement;
+  reset.onclick = () => {
+    resetStats();
+    renderStats();
+  };
+  app.append(reset);
 }
 
 // ---------------------------------------------------------------- Session
@@ -683,7 +757,8 @@ async function submit(text: string) {
   talkBtn.disabled = true;
   gradeAbort = new AbortController();
   abandonBtn.style.display = "";
-  const label = session.currentDrill?.title ?? "";
+  const gradedDrill = session.currentDrill;
+  const label = gradedDrill?.title ?? "";
   try {
     const result = await session.submit(text, gradeAbort.signal);
     if (!result) {
@@ -691,9 +766,11 @@ async function submit(text: string) {
       return;
     }
     const v0 = result.verdict;
+    const passed = v0.correct || v0.phaseAdvance;
+    if (gradedDrill) recordResult(callType(gradedDrill), passed);
     sessionLog.push({
       label,
-      pass: v0.correct || v0.phaseAdvance,
+      pass: passed,
       coaching: v0.coaching,
       corrections: v0.corrections,
     });

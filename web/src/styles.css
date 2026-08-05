@@ -176,6 +176,17 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .debrief { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 16px; }
 .debrief .line-role { color: var(--text); }
 
+/* Progress / stats */
+.statlist { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 16px; }
+.statrow { display: grid; grid-template-columns: 7.5em 1fr auto; align-items: center; gap: 10px; }
+.statname { font-size: 0.9rem; }
+.statbar { height: 8px; background: var(--panel2); border-radius: 999px; overflow: hidden; }
+.statfill { height: 100%; border-radius: 999px; background: var(--green); }
+.statfill.mid { background: var(--amber); }
+.statfill.low { background: #f85149; }
+.statpct { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.resetbtn { margin-top: 8px; }
+
 .controls { padding-top: 8px; background: var(--bg); }
 .ic { width: 18px; height: 18px; flex: 0 0 auto; }
 .talkrow { display: flex; gap: 8px; margin-bottom: 8px; }
