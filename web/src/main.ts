@@ -28,6 +28,11 @@ function keyReady(): boolean {
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
   const e = document.createElement(tag);
+  // Buttons default to type="submit". With a password field on the page,
+  // Chrome's password manager then reads a button press as a login-form submit
+  // — popping "save password" and stealing the press from push-to-talk. We
+  // never submit a form, so force type="button".
+  if (tag === "button") (e as HTMLButtonElement).type = "button";
   if (cls) e.className = cls;
   if (text != null) e.textContent = text;
   return e;
@@ -136,16 +141,31 @@ function renderSession() {
   talkBtn.textContent = recognitionSupported ? "🎙 Hold to talk" : "🎙 Voice unavailable — type below";
   talkBtn.disabled = !recognitionSupported;
   if (recognitionSupported) {
-    talkBtn.onmousedown = beginTalk;
-    talkBtn.onmouseup = endTalk;
-    talkBtn.ontouchstart = (e) => {
+    // Pointer events (mouse + touch + pen, unified) with capture so the release
+    // always fires even if the cursor/finger drifts off the button mid-hold.
+    // preventDefault keeps the press from focusing the button (which could
+    // summon autofill) or starting a text selection / scroll.
+    talkBtn.style.touchAction = "none";
+    talkBtn.onpointerdown = (e) => {
       e.preventDefault();
+      try {
+        talkBtn.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
       beginTalk();
     };
-    talkBtn.ontouchend = (e) => {
+    const release = (e: PointerEvent) => {
       e.preventDefault();
+      try {
+        talkBtn.releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
       endTalk();
     };
+    talkBtn.onpointerup = release;
+    talkBtn.onpointercancel = release;
   }
   controls.append(talkBtn);
 
@@ -441,7 +461,21 @@ function textField(
   const wrap = el("div", "field");
   wrap.append(el("label", "field-label", label));
   const input = el("input", "input") as HTMLInputElement;
-  input.type = type;
+  // Secrets (API key / passcode) are masked WITHOUT type="password": that type
+  // is exactly what makes Chrome offer to "save the login" and hijack focus. A
+  // text field masked via -webkit-text-security stays hidden but is invisible to
+  // the password manager. (Firefox lacks that CSS, so it shows plaintext — fine
+  // for a locally-stored key on your own machine.)
+  const secret = type === "password";
+  input.type = "text";
+  if (secret) {
+    input.style.setProperty("-webkit-text-security", "disc");
+    input.autocomplete = "off";
+    input.setAttribute("autocapitalize", "none");
+    input.setAttribute("autocorrect", "off");
+    input.spellcheck = false;
+    input.name = label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  }
   input.value = value;
   input.oninput = () => {
     onChange(input.value);
