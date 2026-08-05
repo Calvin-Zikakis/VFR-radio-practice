@@ -9,9 +9,9 @@ class passcode, and rate-limits per IP. It serves three POST endpoints:
 - `/stt` — speech-to-text (Whisper on Workers AI): audio bytes → text.
 - `/tts` — text-to-speech (MeloTTS on Workers AI): text → base64 audio.
 
-Voice runs on Workers AI (free daily allowance, no card) so Firefox and Safari —
-which lack the browser speech APIs — get voice both ways. Voice is optional: skip
-its two secrets and `/grade` still works on the browser's own speech.
+Voice runs on Workers AI (free daily allowance, no card, no API token — the
+binding grants access) so Firefox and Safari, which lack the browser speech
+APIs, get voice both ways.
 
 **Why this exists:** a static site can't hide a secret — a key put in the page's
 JavaScript is readable by anyone and gets auto-disabled by Anthropic. The Worker
@@ -42,14 +42,9 @@ wrangler kv namespace create RATE_LIMIT
 wrangler secret put ANTHROPIC_API_KEY      # your prepaid key, auto-reload OFF
 wrangler secret put CLASS_PASSCODE         # the passcode you hand students
 
-# 3. (Optional — for voice) enable Workers AI STT/TTS.
-#    Create a free API token at dash.cloudflare.com → My Profile → API Tokens
-#    → Create Token → permission "Account · Workers AI · Read". Copy your
-#    account id from the dashboard URL / Workers overview.
-wrangler secret put CF_ACCOUNT_ID          # your Cloudflare account id
-wrangler secret put CF_AI_TOKEN            # the Workers AI token
-
-# 4. Deploy
+# 3. Deploy. Voice (/stt, /tts) works automatically through the [ai] binding in
+#    wrangler.toml — no token. Workers AI is free; the account enables it on
+#    first use.
 wrangler deploy
 ```
 

@@ -19,7 +19,6 @@
 use worker::*;
 
 const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/messages";
-const CF_AI_BASE: &str = "https://api.cloudflare.com/client/v4/accounts";
 // Per IP. A full practice turn is up to 3 calls (grade + STT + TTS), so this is
 // ~50 turns/hour — plenty for a session, still a guard on the shared balance.
 const MAX_PER_HOUR: u32 = 150;
@@ -123,7 +122,7 @@ async fn handle_grade(req: &mut Request, env: &Env) -> Result<Response> {
     };
     let body = req.text().await.unwrap_or_default();
 
-    let mut headers = Headers::new();
+    let headers = Headers::new();
     headers.set("content-type", "application/json")?;
     headers.set("x-api-key", &api_key)?;
     headers.set("anthropic-version", "2023-06-01")?;
@@ -146,51 +145,21 @@ async fn handle_grade(req: &mut Request, env: &Env) -> Result<Response> {
     }
 }
 
-/// (account_id, api_token) for the Cloudflare AI REST API, from secrets.
-/// workers-rs 0.4 has no native AI binding, so we call the REST endpoint with a
-/// scoped API token (free to create, no card).
-fn ai_creds(env: &Env) -> Option<(String, String)> {
-    let acct = env.secret("CF_ACCOUNT_ID").ok()?.to_string();
-    let token = env.secret("CF_AI_TOKEN").ok()?.to_string();
-    if acct.is_empty() || token.is_empty() {
-        None
-    } else {
-        Some((acct, token))
-    }
-}
-
-/// Run a Workers AI model over REST; returns its `result` object.
-async fn ai_run(env: &Env, model: &str, body: String) -> Result<serde_json::Value> {
-    let (acct, token) =
-        ai_creds(env).ok_or_else(|| Error::RustError("no AI credentials".into()))?;
-    let url = format!("{CF_AI_BASE}/{acct}/ai/run/{model}");
-
-    let mut headers = Headers::new();
-    headers.set("content-type", "application/json")?;
-    headers.set("authorization", &format!("Bearer {token}"))?;
-
-    let mut init = RequestInit::new();
-    init.with_method(Method::Post)
-        .with_headers(headers)
-        .with_body(Some(body.into()));
-    let upstream = Request::new_with_init(&url, &init)?;
-
-    let mut resp = Fetch::Request(upstream).send().await?;
-    let v: serde_json::Value = resp.json().await?;
-    Ok(v.get("result").cloned().unwrap_or(serde_json::Value::Null))
-}
-
 /// Speech-to-text: audio bytes in the POST body → { "text": "..." }.
 async fn handle_stt(req: &mut Request, env: &Env) -> Result<Response> {
+    let ai = match env.ai("AI") {
+        Ok(ai) => ai,
+        Err(_) => return deny(500, "Proxy misconfigured: no AI binding."),
+    };
     let audio = req.bytes().await.unwrap_or_default();
     if audio.is_empty() {
         return deny(400, "Empty audio.");
     }
     // Whisper takes the audio file as an array of byte values.
-    let body = serde_json::json!({ "audio": audio }).to_string();
-    match ai_run(env, WHISPER_MODEL, body).await {
-        Ok(result) => {
-            let text = result.get("text").and_then(|t| t.as_str()).unwrap_or("").trim();
+    let input = serde_json::json!({ "audio": audio });
+    match ai.run::<_, serde_json::Value>(WHISPER_MODEL, input).await {
+        Ok(v) => {
+            let text = v.get("text").and_then(|t| t.as_str()).unwrap_or("").trim();
             json_ok(serde_json::json!({ "text": text }))
         }
         Err(_) => deny(502, "Transcription failed."),
@@ -199,16 +168,20 @@ async fn handle_stt(req: &mut Request, env: &Env) -> Result<Response> {
 
 /// Text-to-speech: { "text": "..." } → { "audio": "<base64 mp3>" } (MeloTTS).
 async fn handle_tts(req: &mut Request, env: &Env) -> Result<Response> {
+    let ai = match env.ai("AI") {
+        Ok(ai) => ai,
+        Err(_) => return deny(500, "Proxy misconfigured: no AI binding."),
+    };
     let payload: serde_json::Value = req.json().await.unwrap_or(serde_json::Value::Null);
     let text = payload.get("text").and_then(|t| t.as_str()).unwrap_or("");
     if text.trim().is_empty() {
         return deny(400, "Empty text.");
     }
-    let body = serde_json::json!({ "prompt": text, "lang": "en" }).to_string();
-    match ai_run(env, TTS_MODEL, body).await {
+    let input = serde_json::json!({ "prompt": text, "lang": "en" });
+    match ai.run::<_, serde_json::Value>(TTS_MODEL, input).await {
         // MeloTTS returns { audio: "<base64 mp3>" }; pass it straight through.
-        Ok(result) => {
-            let audio = result.get("audio").and_then(|a| a.as_str()).unwrap_or("");
+        Ok(v) => {
+            let audio = v.get("audio").and_then(|a| a.as_str()).unwrap_or("");
             if audio.is_empty() {
                 return deny(502, "Speech synthesis returned no audio.");
             }

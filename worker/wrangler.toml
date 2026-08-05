@@ -14,11 +14,10 @@ command = "cargo install -q worker-build && worker-build --release"
 binding = "RATE_LIMIT"
 id = "REPLACE_WITH_KV_NAMESPACE_ID"
 
-# Voice (/stt Whisper, /tts MeloTTS) runs on Workers AI via its REST API — free
-# daily allowance, no credit card. Set these two as secrets (never committed):
-#   wrangler secret put CF_ACCOUNT_ID   # your Cloudflare account id
-#   wrangler secret put CF_AI_TOKEN     # API token scoped to "Workers AI: Read"
-# Omit them and /stt + /tts simply return an error; /grade still works.
+# Voice (/stt Whisper, /tts MeloTTS) runs on Workers AI — free daily allowance,
+# no credit card, no API token. The binding itself grants access; just name it.
+[ai]
+binding = "AI"
 
 # Secrets are NOT stored here (that's the whole point). Set them with:
 #   wrangler secret put ANTHROPIC_API_KEY
