@@ -39,6 +39,8 @@ let sessionLog: LogEntry[] = [];
 // The current "You" transcript line, so grading can replace the raw STT text
 // with Claude's cleaned interpretation (verdict.heard).
 let lastYouText: HTMLElement | null = null;
+// Show the "use Chrome" notice at most once per session.
+let voiceNoticeShown = false;
 
 function graderConfig(): GraderConfig {
   const key: KeyMode =
@@ -199,6 +201,7 @@ function startSession(types: Set<CallType>) {
     return;
   }
   sessionLog = [];
+  voiceNoticeShown = false;
   session = new PracticeSession(drills, graderConfig(), settings.gradingMode);
   renderSession();
   briefCurrent();
@@ -219,6 +222,24 @@ function renderSession() {
   header.append(back);
   const prog = session!.progress;
   header.append(el("div", "brand", `Drill ${prog.index + 1} of ${prog.total}`));
+
+  // Voice / text-only toggle (mutes spoken replies without leaving the session).
+  const speaker = el("button", "ghost") as HTMLButtonElement;
+  const paintSpeaker = () => {
+    speaker.textContent = settings.speakReplies ? "🔊" : "🔇";
+    speaker.title = settings.speakReplies
+      ? "Voice on — tap for text only"
+      : "Text only — tap to hear replies";
+  };
+  paintSpeaker();
+  speaker.onclick = () => {
+    settings.speakReplies = !settings.speakReplies;
+    persist();
+    if (!settings.speakReplies) stopSpeaking();
+    paintSpeaker();
+  };
+  header.append(speaker);
+
   const skip = el("button", "ghost", "Skip ›");
   skip.onclick = skipCurrent;
   header.append(skip);
@@ -342,6 +363,24 @@ function forSpeech(text: string): string {
   return text.replace(/\bRV\b/g, "R V");
 }
 
+function isChromeLike(): boolean {
+  const ua = navigator.userAgent;
+  return /Chrome|Chromium|CriOS|Edg/i.test(ua) && !/Firefox|FxiOS/i.test(ua);
+}
+
+/** Once per session on a non-Chrome browser, note that Chrome's built-in voice
+ *  is much better — shown when the class voice server falls back. */
+function noteVoiceFallback() {
+  if (voiceNoticeShown || isChromeLike()) return;
+  voiceNoticeShown = true;
+  const banner = el(
+    "div",
+    "notice",
+    "The class voice server is having trouble, so we've switched to your browser's built-in voice. Chrome's is much better — open this page in Chrome for the best experience."
+  );
+  if (bannerEl?.parentElement) bannerEl.after(banner);
+}
+
 /** Speak text aloud, honoring the Speak setting. Uses the Worker's TTS when
  *  configured (good voice in every browser), else browser speechSynthesis. */
 async function say(text: string, role: Voice) {
@@ -356,8 +395,10 @@ async function say(text: string, role: Voice) {
         return;
       }
       addLine("note", "Voice: Worker returned no audio — using browser voice.");
+      noteVoiceFallback();
     } catch (e: any) {
       addLine("note", `Voice fell back to browser: ${e.message}`);
+      noteVoiceFallback();
     }
   }
   await speak(spoken, role);
