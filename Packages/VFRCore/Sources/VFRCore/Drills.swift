@@ -532,7 +532,8 @@ public enum DrillLibrary {
             id: "t-luaw",
             scenario: .towered,
             title: "Line up and wait",
-            setup: "You're holding short of runway three one at Palo Alto. Tower says: RV seven three seven juliet alpha, runway three one, line up and wait. Read it back.",
+            setup: "You're holding short of runway three one at Palo Alto.",
+            radioOpener: "RV seven three seven juliet alpha, runway three one, line up and wait.",
             situation: "Towered field, you are Palo Alto Tower. You just issued 'runway three one, line up and wait'. This readback is REQUIRED and must include 'line up and wait' (not 'position and hold', not 'cleared for takeoff') plus the runway and callsign. If the pilot says anything implying they think they're cleared for takeoff, mark it wrong and correct it firmly — moving without takeoff clearance is a runway incursion. After a correct readback, a short beat later clear them for takeoff.",
             aircraft: rv12, airport: paloAlto, callType: .readback
         ),
@@ -540,7 +541,8 @@ public enum DrillLibrary {
             id: "t-holdshort-cross",
             scenario: .towered,
             title: "Hold short of a crossing runway",
-            setup: "You're taxiing at Monterey. Ground says: RV seven three seven juliet alpha, taxi to runway two eight right via Alpha, hold short of runway one zero left. Read it back.",
+            setup: "You're taxiing at Monterey.",
+            radioOpener: "RV seven three seven juliet alpha, taxi to runway two eight right via Alpha, hold short of runway one zero left.",
             situation: "Towered field, you are Monterey Ground. You issued a taxi clearance with a hold-short: 'runway two eight right via Alpha, hold short of runway one zero left'. Hold-short instructions require a VERBATIM readback including the words 'hold short of runway one zero left' and the callsign — 'roger' or 'wilco' is NOT acceptable and you must ask for a full readback if you don't get one. This is the classic runway-incursion trap; grade it strictly at every difficulty.",
             aircraft: rv12, airport: monterey, callType: .readback
         ),
@@ -556,7 +558,8 @@ public enum DrillLibrary {
             id: "t-extend-downwind",
             scenario: .towered,
             title: "Extend downwind / spacing",
-            setup: "You're on left downwind for runway three one at Palo Alto. Tower says: RV seven juliet alpha, extend your downwind, I'll call your base. Respond.",
+            setup: "You're on left downwind for runway three one at Palo Alto.",
+            radioOpener: "RV seven juliet alpha, extend your downwind, I'll call your base.",
             situation: "Towered field, you are Palo Alto Tower sequencing traffic. You told the pilot to extend downwind and that you'll call the base turn. Expect a concise acknowledgment: 'extending downwind' (or 'wilco') plus callsign. After a correct response, call their base: 'seven juliet alpha, turn base now'.",
             aircraft: rv12, airport: paloAlto, callType: .pattern
         ),
@@ -564,7 +567,8 @@ public enum DrillLibrary {
             id: "t-wake-turbulence",
             scenario: .towered,
             title: "Wake turbulence on landing",
-            setup: "You're on final at Monterey behind an airliner. Tower says: RV seven three seven juliet alpha, runway two eight right, cleared to land, caution wake turbulence, departing Boeing seven three seven. Read it back.",
+            setup: "You're on final at Monterey behind an airliner.",
+            radioOpener: "RV seven three seven juliet alpha, runway two eight right, cleared to land, caution wake turbulence, departing Boeing seven three seven.",
             situation: "Towered field, you are Monterey Tower. You issued a landing clearance with a wake turbulence caution for a departing Boeing 737. Expect a readback of the landing clearance with runway and callsign; acknowledging the wake caution is good form (e.g. 'cleared to land two eight right, caution the wake, seven juliet alpha'). Bonus points in coaching if they state a plan (land beyond the jet's rotation point), but don't fail the call for omitting it.",
             aircraft: rv12, airport: monterey, callType: .arrival
         ),
@@ -732,7 +736,8 @@ public enum DrillLibrary {
             id: "t-phone-number",
             scenario: .towered,
             title: "Possible pilot deviation — copy a number",
-            setup: "After landing at Monterey, tower says: RV seven three seven juliet alpha, possible pilot deviation, advise you have a phone number ready to copy. Respond.",
+            setup: "You've just landed at Monterey.",
+            radioOpener: "RV seven three seven juliet alpha, possible pilot deviation, advise you have a phone number ready to copy.",
             situation: "Towered field, you are Monterey Tower issuing a Brasher warning. The pilot should stay calm and professional: acknowledge with callsign and 'ready to copy'. When they say ready, read the number 'six five zero, five five five, one two zero zero' and expect a readback of the digits with callsign. Coach that the right move is fly the airplane first, be polite, copy the number, and talk to a CFI or AOPA legal before calling — do not argue on frequency.",
             aircraft: rv12, airport: monterey, callType: .emergency
         ),
@@ -768,7 +773,8 @@ public enum DrillLibrary {
             id: "t-lahso",
             scenario: .towered,
             title: "LAHSO — accept or decline",
-            setup: "You're on final for runway three one at Salinas. Tower says: RV seven three seven juliet alpha, runway three one, cleared to land, hold short of runway two six, traffic departing runway two six. You may accept with a full readback — or decline. Your call.",
+            setup: "You're on final for runway three one at Salinas. You may accept with a full readback, or decline.",
+            radioOpener: "RV seven three seven juliet alpha, runway three one, cleared to land, hold short of runway two six, traffic departing runway two six.",
             situation: "Towered field, you are Salinas Tower (KSNS, intersecting runways 31 and 26) issuing a land-and-hold-short clearance. TWO correct answers, grade whichever the pilot chooses. ACCEPT: the readback must be verbatim and complete — 'cleared to land runway three one, hold short of runway two six' plus callsign; a partial readback ('cleared to land, 737JA') is NOT acceptable for LAHSO, demand the full hold-short readback. DECLINE: 'unable hold short, RV seven three seven juliet alpha' is completely legitimate — reply 'roger, runway three one, cleared to land, no restriction' and expect a normal readback. Either path advances once done correctly. In coaching, note the teaching point: pilots may ALWAYS decline LAHSO, and students generally should unless they know their landing distance cold.",
             aircraft: rv12, airport: salinas, callType: .readback
         ),

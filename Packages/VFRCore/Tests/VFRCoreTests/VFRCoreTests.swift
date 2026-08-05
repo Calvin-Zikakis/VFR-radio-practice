@@ -335,9 +335,9 @@ import Foundation
             #expect(!text.contains(form), "leaked RV callsign form '\(form)' in: \(text.prefix(80))")
         }
     }
-    // And the LUAW briefing now addresses the Cirrus.
+    // And the LUAW controller call (now a radioOpener) addresses the Cirrus.
     let luaw = DrillLibrary.drills(for: .towered, aircraft: cirrus).first { $0.id == "t-luaw" }!
-    #expect(luaw.setup.contains("Cirrus five two three charlie delta"))
+    #expect((luaw.radioOpener ?? "").contains("Cirrus five two three charlie delta"))
 }
 
 @Test func retargetLeavesOtherTrafficAlone() {
@@ -347,7 +347,7 @@ import Foundation
     // The wake-turbulence drill's "Boeing seven three seven" is traffic, not
     // the pilot — it must survive retargeting.
     let wake = DrillLibrary.drills(for: .towered, aircraft: cirrus).first { $0.id == "t-wake-turbulence" }!
-    #expect(wake.setup.contains("Boeing seven three seven"))
+    #expect((wake.radioOpener ?? "").contains("Boeing seven three seven"))
     // The negotiation drill's Cherokee traffic keeps its own callsign.
     let negotiate = DrillLibrary.drills(for: .untowered, aircraft: cirrus).first { $0.id == "u-negotiate-traffic" }!
     #expect(negotiate.situation.contains("Cherokee four eight two zero lima"))
