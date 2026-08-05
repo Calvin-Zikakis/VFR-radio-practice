@@ -326,8 +326,9 @@ async function say(text: string, role: Voice) {
         await playClip(clip);
         return;
       }
-    } catch {
-      /* fall back to the browser voice below */
+      addLine("note", "Voice: Worker returned no audio — using browser voice.");
+    } catch (e: any) {
+      addLine("note", `Voice fell back to browser: ${e.message}`);
     }
   }
   await speak(text, role);

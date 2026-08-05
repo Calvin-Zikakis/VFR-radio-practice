@@ -11,6 +11,14 @@ const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 export const DEFAULT_MODEL = "claude-sonnet-5";
 export const MODELS = ["claude-sonnet-5", "claude-haiku-4-5", "claude-opus-4-8"];
 
+/** Carries the HTTP status so grade() can decide whether to retry. */
+class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 export type KeyMode =
   | { kind: "byo"; apiKey: string }
   | { kind: "shared"; workerUrl: string; passcode: string };
@@ -62,7 +70,11 @@ function requestBody(
   };
 }
 
-async function post(config: GraderConfig, body: unknown): Promise<Response> {
+async function post(
+  config: GraderConfig,
+  body: unknown,
+  signal: AbortSignal
+): Promise<Response> {
   if (config.key.kind === "byo") {
     return fetch(ANTHROPIC_URL, {
       method: "POST",
@@ -74,6 +86,7 @@ async function post(config: GraderConfig, body: unknown): Promise<Response> {
         "anthropic-dangerous-direct-browser-access": "true",
       },
       body: JSON.stringify(body),
+      signal,
     });
   }
   // Shared mode: the Worker injects the key; we send only the passcode.
@@ -84,6 +97,7 @@ async function post(config: GraderConfig, body: unknown): Promise<Response> {
       "x-class-passcode": config.key.passcode.trim(),
     },
     body: JSON.stringify(body),
+    signal,
   });
 }
 
@@ -112,20 +126,22 @@ function parseVerdict(root: any): Verdict {
 
 async function sendOnce(config: GraderConfig, body: unknown): Promise<Verdict> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
+  // Preempt Cloudflare's ~100s 524 while allowing a genuinely slow grade.
+  const timer = setTimeout(() => controller.abort(), 45000);
   let res: Response;
   try {
-    res = await post(config, body);
+    res = await post(config, body, controller.signal);
   } finally {
     clearTimeout(timer);
   }
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
     if (res.status === 429)
-      throw new Error(
+      throw new ApiError(
+        429,
         "Rate limited — the shared key is busy. Try again in a moment, or add your own key in Settings."
       );
-    throw new Error(`API error ${res.status}: ${errText.slice(0, 200)}`);
+    throw new ApiError(res.status, `API error ${res.status}: ${errText.slice(0, 200)}`);
   }
   const json = await res.json();
   return parseVerdict(json);
@@ -154,7 +170,8 @@ export async function grade(
   } catch (e) {
     const retryable =
       e instanceof DegenerateVerdictError ||
-      (e instanceof DOMException && e.name === "AbortError");
+      (e instanceof DOMException && e.name === "AbortError") ||
+      (e instanceof ApiError && (e.status >= 500 || e.status === 429));
     if (retryable) return await sendOnce(config, body);
     throw e;
   }
@@ -188,17 +205,38 @@ async function voiceFetch(url: string, init: RequestInit): Promise<Response> {
   }
 }
 
+/** POST to a Worker voice route, retrying transient 5xx/429/timeout up to 3x.
+ *  Workers AI (esp. MeloTTS) intermittently fails a call on the free tier. */
+async function voiceRequest(
+  url: string,
+  headers: Record<string, string>,
+  body: BodyInit
+): Promise<Response> {
+  let last: Response | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await voiceFetch(url, { method: "POST", headers, body });
+      if (res.ok || (res.status < 500 && res.status !== 429)) return res;
+      last = res;
+    } catch {
+      /* timeout / network — retry */
+    }
+  }
+  if (last) return last;
+  throw new Error("Voice request failed (network or timeout).");
+}
+
 /** Transcribe recorded audio via the Worker's /stt (Whisper). */
 export async function transcribe(config: GraderConfig, audio: Blob): Promise<string> {
   if (config.key.kind !== "shared") throw new Error("Voice needs the class Worker.");
-  const res = await voiceFetch(`${workerBase(config)}/stt`, {
-    method: "POST",
-    headers: {
+  const res = await voiceRequest(
+    `${workerBase(config)}/stt`,
+    {
       "content-type": audio.type || "application/octet-stream",
       "x-class-passcode": config.key.passcode.trim(),
     },
-    body: audio,
-  });
+    audio
+  );
   if (!res.ok) {
     if (res.status === 429) throw new Error("Voice is busy — try again in a moment.");
     const detail = await res.text().catch(() => "");
@@ -214,14 +252,14 @@ export async function synthesize(
   text: string
 ): Promise<Blob | null> {
   if (config.key.kind !== "shared") return null;
-  const res = await voiceFetch(`${workerBase(config)}/tts`, {
-    method: "POST",
-    headers: {
+  const res = await voiceRequest(
+    `${workerBase(config)}/tts`,
+    {
       "content-type": "application/json",
       "x-class-passcode": config.key.passcode.trim(),
     },
-    body: JSON.stringify({ text }),
-  });
+    JSON.stringify({ text })
+  );
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     throw new Error(`Speech failed (${res.status})${detail ? ": " + detail.slice(0, 300) : ""}`);
