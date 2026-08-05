@@ -105,6 +105,16 @@ function renderHome() {
   );
   app.append(intro);
 
+  if (!isChromeLike()) {
+    app.append(
+      el(
+        "div",
+        "notice info",
+        "Best experience is in Chrome — it has a faster, higher-quality built-in voice. Firefox and Safari work too, just slower for speech."
+      )
+    );
+  }
+
   if (!keyReady()) {
     const warn = el(
       "div",

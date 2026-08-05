@@ -109,6 +109,10 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   border-radius: 10px;
   margin: 8px 0 16px;
 }
+.notice.info {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
 
 .grid {
   display: grid;
