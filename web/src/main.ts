@@ -2,15 +2,30 @@ import "./styles.css";
 import { CATEGORIES, categoryCount, drillsMatching, generatedAt } from "./core/drills";
 import { PracticeSession } from "./core/session";
 import type { CallType, Verdict } from "./core/types";
-import { MODELS } from "./core/client";
+import { MODELS, workerVoiceConfigured, transcribe, synthesize } from "./core/client";
 import type { GraderConfig, KeyMode } from "./core/client";
 import { loadSettings, saveSettings, type Settings } from "./settings";
-import { recognitionSupported, startListening, speak, stopSpeaking } from "./speech";
+import {
+  recognitionSupported,
+  startListening,
+  speak,
+  stopSpeaking,
+  startRecording,
+  playClip,
+  type Recorder,
+  type Voice,
+} from "./speech";
 
 const app = document.getElementById("app")!;
 let settings = loadSettings();
 let session: PracticeSession | null = null;
 let listening: { stop: () => void } | null = null;
+// Worker/Whisper capture state (used when the shared Worker is configured).
+let recorder: Recorder | null = null;
+let startingRecorder = false;
+let stopRequested = false;
+// Recomputed per session: true if the mic works via the browser OR the Worker.
+let voiceInputAvailable = false;
 
 function graderConfig(): GraderConfig {
   const key: KeyMode =
@@ -136,11 +151,16 @@ function renderSession() {
   statusEl = el("div", "status muted");
   app.append(statusEl);
 
+  // Voice input works via the browser (Chrome/Android) OR the Worker (Whisper,
+  // which also covers Firefox/Safari). Enable the button if either is available.
+  voiceInputAvailable = recognitionSupported || workerVoiceConfigured(graderConfig());
   const controls = el("div", "controls");
   talkBtn = el("button", "talk") as HTMLButtonElement;
-  talkBtn.textContent = recognitionSupported ? "🎙 Hold to talk" : "🎙 Voice unavailable — type below";
-  talkBtn.disabled = !recognitionSupported;
-  if (recognitionSupported) {
+  talkBtn.textContent = voiceInputAvailable
+    ? "🎙 Hold to talk"
+    : "🎙 Voice unavailable — type below";
+  talkBtn.disabled = !voiceInputAvailable;
+  if (voiceInputAvailable) {
     // Pointer events (mouse + touch + pen, unified) with capture so the release
     // always fires even if the cursor/finger drifts off the button mid-hold.
     // preventDefault keeps the press from focusing the button (which could
@@ -217,7 +237,7 @@ async function briefCurrent() {
     addLine("instructor", drill.setup);
   } else {
     addLine("scene", drill.setup);
-    if (settings.speakReplies) await speak(drill.setup, "scene");
+    await say(drill.setup, "scene");
   }
   status("Make your call.");
 }
@@ -226,8 +246,55 @@ function status(s: string) {
   statusEl.textContent = s;
 }
 
-function beginTalk() {
-  if (listening) return;
+/** Speak text aloud, honoring the Speak setting. Uses the Worker's TTS when
+ *  configured (good voice in every browser), else browser speechSynthesis. */
+async function say(text: string, role: Voice) {
+  if (!settings.speakReplies) return;
+  const cfg = graderConfig();
+  if (workerVoiceConfigured(cfg)) {
+    try {
+      const clip = await synthesize(cfg, text);
+      if (clip) {
+        await playClip(clip);
+        return;
+      }
+    } catch {
+      /* fall back to the browser voice below */
+    }
+  }
+  await speak(text, role);
+}
+
+async function beginTalk() {
+  if (listening || recorder || startingRecorder) return;
+  const cfg = graderConfig();
+  if (workerVoiceConfigured(cfg)) {
+    // Worker/Whisper path: record now, transcribe on release.
+    startingRecorder = true;
+    stopRequested = false;
+    status("Listening…");
+    talkBtn.classList.add("live");
+    try {
+      const r = await startRecording();
+      if (stopRequested) {
+        // Released before the recorder was ready — capture what we have.
+        await finishWorkerCapture(await r.stop());
+      } else {
+        recorder = r;
+      }
+    } catch (e: any) {
+      talkBtn.classList.remove("live");
+      status(`Mic error: ${e.message}. Type your call instead.`);
+    } finally {
+      startingRecorder = false;
+    }
+    return;
+  }
+  beginBrowserListen();
+}
+
+/** Browser SpeechRecognition path (Chrome/Android): streams partials. */
+function beginBrowserListen() {
   status("Listening…");
   talkBtn.classList.add("live");
   let partial = "";
@@ -235,11 +302,7 @@ function beginTalk() {
     partial = t;
     status(t || "Listening…");
   });
-  listening = {
-    stop: () => {
-      handle.stop();
-    },
-  };
+  listening = { stop: () => handle.stop() };
   handle.result
     .then((finalText) => {
       const said = (finalText || partial).trim();
@@ -259,7 +322,33 @@ function beginTalk() {
     });
 }
 
-function endTalk() {
+async function finishWorkerCapture(blob: Blob) {
+  talkBtn.classList.remove("live");
+  status("Transcribing…");
+  try {
+    const said = await transcribe(graderConfig(), blob);
+    if (said) {
+      addLine("you", said);
+      submit(said);
+    } else {
+      status("Didn't catch that — hold the button and try again, or type it.");
+    }
+  } catch (e: any) {
+    status(`Voice error: ${e.message}. Type your call instead.`);
+  }
+}
+
+async function endTalk() {
+  if (startingRecorder) {
+    stopRequested = true;
+    return;
+  }
+  if (recorder) {
+    const r = recorder;
+    recorder = null;
+    await finishWorkerCapture(await r.stop());
+    return;
+  }
   if (listening) listening.stop();
 }
 
@@ -276,10 +365,10 @@ async function submit(text: string) {
     showVerdict(result.verdict);
     if (result.spokenInstruction) {
       addLine("radio", result.spokenInstruction);
-      if (settings.speakReplies) await speak(result.spokenInstruction, "controller");
+      await say(result.spokenInstruction, "controller");
     } else if (result.verdict.radioReplyText) {
       addLine("radio", `${result.verdict.speaker}: ${result.verdict.radioReplyText}`);
-      if (settings.speakReplies) await speak(result.verdict.radioReplyText, "controller");
+      await say(result.verdict.radioReplyText, "controller");
     }
     if (result.verdict.phaseAdvance) {
       if (result.finished) {
@@ -295,7 +384,7 @@ async function submit(text: string) {
     status("");
     addLine("note", `⚠️ ${e.message}`);
   } finally {
-    if (recognitionSupported) talkBtn.disabled = false;
+    if (voiceInputAvailable) talkBtn.disabled = false;
   }
 }
 
@@ -376,17 +465,24 @@ function renderSettings() {
   form.append(modeRow);
 
   if (settings.keyMode === "shared") {
-    form.append(el("p", "muted small", "Uses the class's shared account. Ask your CFI for the passcode."));
+    form.append(
+      el(
+        "p",
+        "muted small",
+        "Uses the class's shared account for grading and voice. Ask your CFI for the passcode; the server URL is usually preset."
+      )
+    );
+    form.append(
+      textField("Class server URL (Worker)", settings.workerUrl, (v) => (settings.workerUrl = v.trim()))
+    );
     form.append(textField("Class passcode", settings.passcode, (v) => (settings.passcode = v), "password"));
-    if (!settings.workerUrl) {
-      form.append(
-        el(
-          "p",
-          "muted small",
-          "No class server is configured in this build. Switch to “My own key,” or ask whoever deployed this to set VITE_WORKER_URL."
-        )
-      );
-    }
+    form.append(
+      el(
+        "p",
+        "muted small",
+        "With the Worker set, voice (mic + spoken replies) works in every browser — including Firefox and Safari."
+      )
+    );
   } else {
     form.append(
       el(

@@ -131,4 +131,152 @@ export function stopSpeaking() {
   } catch {
     /* ignore */
   }
+  stopClip();
+}
+
+// -------------------------------------------------------- WAV mic capture
+// For the Worker/Whisper path we capture 16-bit PCM WAV (16 kHz mono) — the
+// format Whisper reliably decodes — via Web Audio, rather than MediaRecorder's
+// webm/opus which Whisper may reject. Works in Chrome, Firefox, and Safari.
+
+export interface Recorder {
+  stop: () => Promise<Blob>;
+  cancel: () => void;
+}
+
+export async function startRecording(): Promise<Recorder> {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const AC: typeof AudioContext =
+    window.AudioContext ?? (window as any).webkitAudioContext;
+  if (!AC) {
+    stream.getTracks().forEach((t) => t.stop());
+    throw new Error("Audio capture not supported here.");
+  }
+  const ctx = new AC();
+  const source = ctx.createMediaStreamSource(stream);
+  const processor = ctx.createScriptProcessor(4096, 1, 1);
+  const mute = ctx.createGain();
+  mute.gain.value = 0; // keep the graph running without echoing the mic
+  const chunks: Float32Array[] = [];
+  processor.onaudioprocess = (e) => {
+    chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+  };
+  source.connect(processor);
+  processor.connect(mute);
+  mute.connect(ctx.destination);
+  const inRate = ctx.sampleRate;
+
+  const teardown = () => {
+    processor.onaudioprocess = null;
+    try {
+      processor.disconnect();
+      source.disconnect();
+      mute.disconnect();
+    } catch {
+      /* ignore */
+    }
+    stream.getTracks().forEach((t) => t.stop());
+    ctx.close().catch(() => {});
+  };
+  return {
+    stop: async () => {
+      teardown();
+      return new Blob([encodeWav(chunks, inRate, 16000)], { type: "audio/wav" });
+    },
+    cancel: teardown,
+  };
+}
+
+function flatten(chunks: Float32Array[]): Float32Array {
+  let len = 0;
+  for (const c of chunks) len += c.length;
+  const out = new Float32Array(len);
+  let o = 0;
+  for (const c of chunks) {
+    out.set(c, o);
+    o += c.length;
+  }
+  return out;
+}
+
+function downsample(buf: Float32Array, inRate: number, outRate: number): Float32Array {
+  const ratio = inRate / outRate;
+  const newLen = Math.max(1, Math.round(buf.length / ratio));
+  const out = new Float32Array(newLen);
+  let iOff = 0;
+  for (let o = 0; o < newLen; o++) {
+    const next = Math.round((o + 1) * ratio);
+    let sum = 0;
+    let count = 0;
+    for (let i = iOff; i < next && i < buf.length; i++) {
+      sum += buf[i];
+      count++;
+    }
+    out[o] = count ? sum / count : 0;
+    iOff = next;
+  }
+  return out;
+}
+
+function encodeWav(chunks: Float32Array[], inRate: number, outRate: number): ArrayBuffer {
+  const flat = flatten(chunks);
+  const samples = outRate < inRate ? downsample(flat, inRate, outRate) : flat;
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  const writeStr = (off: number, s: string) => {
+    for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i));
+  };
+  writeStr(0, "RIFF");
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  view.setUint32(16, 16, true); // PCM chunk size
+  view.setUint16(20, 1, true); // PCM format
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, outRate, true);
+  view.setUint32(28, outRate * 2, true); // byte rate
+  view.setUint16(32, 2, true); // block align
+  view.setUint16(34, 16, true); // bits per sample
+  writeStr(36, "data");
+  view.setUint32(40, samples.length * 2, true);
+  let off = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    off += 2;
+  }
+  return buffer;
+}
+
+// -------------------------------------------------------- Clip playback (TTS)
+let currentClip: HTMLAudioElement | null = null;
+
+/** Play an audio Blob (the Worker's TTS mp3), resolving when it finishes. */
+export function playClip(blob: Blob, rate = 1): Promise<void> {
+  return new Promise((resolve) => {
+    stopClip();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.playbackRate = rate;
+    currentClip = audio;
+    const done = () => {
+      URL.revokeObjectURL(url);
+      if (currentClip === audio) currentClip = null;
+      resolve();
+    };
+    audio.onended = done;
+    audio.onerror = done;
+    audio.play().catch(done);
+  });
+}
+
+export function stopClip() {
+  if (currentClip) {
+    try {
+      currentClip.pause();
+    } catch {
+      /* ignore */
+    }
+    currentClip = null;
+  }
 }

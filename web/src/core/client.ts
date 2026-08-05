@@ -159,3 +159,72 @@ export async function grade(
     throw e;
   }
 }
+
+// ----------------------------------------------------- Voice (Worker-backed)
+// STT/TTS run on the Cloudflare Worker (Workers AI). Available only in shared
+// mode with a Worker URL + passcode; BYO mode falls back to browser speech.
+
+function workerBase(config: GraderConfig): string {
+  if (config.key.kind !== "shared") return "";
+  return config.key.workerUrl.trim().replace(/\/+$/, "");
+}
+
+/** True when the shared Worker is configured for voice (URL + passcode set). */
+export function workerVoiceConfigured(config: GraderConfig): boolean {
+  return (
+    config.key.kind === "shared" &&
+    workerBase(config).length > 0 &&
+    config.key.passcode.trim().length > 0
+  );
+}
+
+async function voiceFetch(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Transcribe recorded audio via the Worker's /stt (Whisper). */
+export async function transcribe(config: GraderConfig, audio: Blob): Promise<string> {
+  if (config.key.kind !== "shared") throw new Error("Voice needs the class Worker.");
+  const res = await voiceFetch(`${workerBase(config)}/stt`, {
+    method: "POST",
+    headers: {
+      "content-type": audio.type || "application/octet-stream",
+      "x-class-passcode": config.key.passcode.trim(),
+    },
+    body: audio,
+  });
+  if (!res.ok) {
+    if (res.status === 429) throw new Error("Voice is busy — try again in a moment.");
+    throw new Error(`Transcription failed (${res.status}).`);
+  }
+  const json = await res.json();
+  return String(json?.text ?? "").trim();
+}
+
+/** Synthesize speech via the Worker's /tts (MeloTTS). Returns an mp3 Blob. */
+export async function synthesize(
+  config: GraderConfig,
+  text: string
+): Promise<Blob | null> {
+  if (config.key.kind !== "shared") return null;
+  const res = await voiceFetch(`${workerBase(config)}/tts`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-class-passcode": config.key.passcode.trim(),
+    },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) throw new Error(`Speech failed (${res.status}).`);
+  const json = await res.json();
+  const b64 = String(json?.audio ?? "");
+  if (!b64) return null;
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  return new Blob([bytes], { type: "audio/mpeg" });
+}
