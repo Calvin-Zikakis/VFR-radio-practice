@@ -50,6 +50,21 @@ export interface Drill {
   injectedReadback?: boolean | null;
   amendmentVariants?: string[] | null;
   amendment?: string | null;
+  /** A second exchange chained after the readback chain completes, starting
+   *  from a NEW scene (time passed, position changed) rather than a
+   *  same-frequency continuation. See `FollowUpScene`. */
+  followUpScene?: FollowUpScene | null;
+}
+
+/** A scene-and-exchange chained after a drill's initial readback chain
+ *  completes — see `Drill.followUpScene`. */
+export interface FollowUpScene {
+  setup: string;
+  situation: string;
+  title: string;
+  callType?: CallType | null;
+  instructionVariants?: string[] | null;
+  instruction?: string | null;
 }
 
 export interface Verdict {

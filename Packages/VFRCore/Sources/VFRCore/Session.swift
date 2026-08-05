@@ -141,20 +141,40 @@ public actor PracticeSession {
             if let issueText {
                 let followUp = readbackFollowUp(for: drill, verdict: verdict,
                                                 instruction: issueText,
-                                                amendment: carryAmendment)
+                                                amendment: carryAmendment,
+                                                followUpScene: drill.followUpScene)
                 drills.insert(followUp, at: index + 1)
                 vfrLog("injected readback drill for '\(drill.id)'\(carryAmendment != nil ? " (amendment to follow)" : "")")
+            } else if drill.injectedReadback == true, let scene = drill.followUpScene {
+                // The readback chain (instruction, then amendment if any) is
+                // fully read back — time to break the scene: a fresh request →
+                // app-issued clearance → readback chain, starting from a new
+                // Scene card rather than a same-frequency continuation.
+                drills.insert(followUpSceneDrill(for: drill, scene: scene), at: index + 1)
+                vfrLog("injected follow-up scene for '\(drill.id)'")
             }
             advance()
         }
         return verdict
     }
 
+    /// The request drill that opens the follow-up scene chained after a
+    /// `Drill.followUpScene` — same shape as an authored `followUpReadback`
+    /// drill, just built at runtime from the parent's scene data.
+    private func followUpSceneDrill(for drill: Drill, scene: FollowUpScene) -> Drill {
+        Drill(id: "\(drill.id)-followup", scenario: drill.scenario, title: scene.title,
+              setup: scene.setup, situation: scene.situation,
+              aircraft: drill.aircraft, airport: drill.airport,
+              callType: scene.callType, followUpReadback: true,
+              instructionVariants: scene.instructionVariants, instruction: scene.instruction)
+    }
+
     /// The synthesized drill that grades the pilot's readback of the exact
     /// instruction the session just spoke. Inherits the parent drill's
     /// (already randomized) context; the clearance text itself is the content.
     private func readbackFollowUp(for drill: Drill, verdict: Verdict,
-                                  instruction: String, amendment: String? = nil) -> Drill {
+                                  instruction: String, amendment: String? = nil,
+                                  followUpScene: FollowUpScene? = nil) -> Drill {
         let voice: String
         switch verdict.speaker {
         case "Ground", "Tower": voice = "\(drill.airport.name) \(verdict.speaker)"
@@ -182,7 +202,10 @@ public actor PracticeSession {
             // When set, the app issues this amendment after the pilot reads back
             // the instruction above, then injects a second readback drill for it
             // (request → clearance → readback → amendment → readback).
-            amendment: amendment)
+            amendment: amendment,
+            // Carried through so it fires once THIS readback (or its amendment
+            // readback, if any) completes with nothing left to issue.
+            followUpScene: followUpScene)
     }
 
     /// Skip the current drill without grading (e.g. voice command "skip").

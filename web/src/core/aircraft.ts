@@ -51,5 +51,14 @@ export function retarget(drill: Drill, plane: Aircraft): Drill {
   if (d.instructionVariants) d.instructionVariants = d.instructionVariants.map(rewrite);
   if (d.amendment != null) d.amendment = rewrite(d.amendment);
   if (d.amendmentVariants) d.amendmentVariants = d.amendmentVariants.map(rewrite);
+  if (d.followUpScene) {
+    d.followUpScene = {
+      ...d.followUpScene,
+      setup: rewrite(d.followUpScene.setup),
+      situation: rewrite(d.followUpScene.situation),
+      instruction: d.followUpScene.instruction != null ? rewrite(d.followUpScene.instruction) : d.followUpScene.instruction,
+      instructionVariants: d.followUpScene.instructionVariants?.map(rewrite),
+    };
+  }
   return d;
 }

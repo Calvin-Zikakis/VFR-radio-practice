@@ -50,6 +50,10 @@ public enum DrillRandomizer {
         // briefing, grader script, and spoken clearances can never disagree.
         if d.instruction == nil { d.instruction = d.instructionVariants?.randomElement() }
         if d.amendment == nil { d.amendment = d.amendmentVariants?.randomElement() }
+        if var scene0 = d.followUpScene, scene0.instruction == nil {
+            scene0.instruction = scene0.instructionVariants?.randomElement()
+            d.followUpScene = scene0
+        }
         // Identity mappings FIRST: `applying` placeholders pair lefts in
         // order, so these shield every form of the flown callsign from all
         // later substitutions — real taxiway letters (juliet, alpha) and
@@ -83,6 +87,12 @@ public enum DrillRandomizer {
         d.radioOpener = d.radioOpener.map { applying(subs, to: $0) }
         d.instruction = d.instruction.map { applying(subs, to: $0) }
         d.amendment = d.amendment.map { applying(subs, to: $0) }
+        if var scene = d.followUpScene {
+            scene.setup = applying(subs, to: scene.setup)
+            scene.situation = applying(subs, to: scene.situation)
+            scene.instruction = scene.instruction.map { applying(subs, to: $0) }
+            d.followUpScene = scene
+        }
         return d
     }
 
@@ -94,6 +104,10 @@ public enum DrillRandomizer {
             var d = $0
             if d.instruction == nil { d.instruction = d.instructionVariants?.first }
             if d.amendment == nil { d.amendment = d.amendmentVariants?.first }
+            if var scene = d.followUpScene, scene.instruction == nil {
+                scene.instruction = scene.instructionVariants?.first
+                d.followUpScene = scene
+            }
             return d
         }
     }
@@ -233,7 +247,9 @@ public enum DrillRandomizer {
     /// route's taxiway letters can live in the chosen instruction or amendment.
     private static func scannableText(of drill: Drill) -> String {
         drill.setup + " " + drill.situation + " " + (drill.radioOpener ?? "") + " "
-            + (drill.instruction ?? "") + " " + (drill.amendment ?? "")
+            + (drill.instruction ?? "") + " " + (drill.amendment ?? "") + " "
+            + (drill.followUpScene?.setup ?? "") + " " + (drill.followUpScene?.situation ?? "") + " "
+            + (drill.followUpScene?.instruction ?? "")
     }
 
     private static func taxiwaySubstitutions(for drill: Drill) -> [(String, String)] {

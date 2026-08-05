@@ -166,6 +166,14 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
     /// The chosen amendment for this session (resolved + varied like
     /// `instruction`); nil when the drill has no amendment.
     public var amendment: String?
+    /// A second exchange that starts from a NEW scene — time has passed and the
+    /// pilot's situation changed (e.g. taxied up and now holding short) — rather
+    /// than a same-frequency continuation. Fires once the readback chain above
+    /// (instruction, then amendment if any) is fully read back: the app injects
+    /// a fresh request → app-issued clearance → readback drill built from this,
+    /// so the scene break is a real card on screen, not prose buried in
+    /// `situation`. Only meaningful on a drill that also sets `followUpReadback`.
+    public var followUpScene: FollowUpScene?
 
     public init(id: String, scenario: ScenarioType, title: String, setup: String,
                 radioOpener: String? = nil, situation: String,
@@ -173,7 +181,8 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
                 callType: CallType? = nil, followUpReadback: Bool? = nil,
                 instructionVariants: [String]? = nil, instruction: String? = nil,
                 injectedReadback: Bool? = nil,
-                amendmentVariants: [String]? = nil, amendment: String? = nil) {
+                amendmentVariants: [String]? = nil, amendment: String? = nil,
+                followUpScene: FollowUpScene? = nil) {
         self.id = id
         self.scenario = scenario
         self.title = title
@@ -189,6 +198,38 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
         self.injectedReadback = injectedReadback
         self.amendmentVariants = amendmentVariants
         self.amendment = amendment
+        self.followUpScene = followUpScene
+    }
+}
+
+/// A second scene-and-exchange chained after a drill's initial readback chain
+/// completes — see `Drill.followUpScene`.
+public struct FollowUpScene: Codable, Sendable, Equatable {
+    /// Spoken to the pilot to set the new scene (what changed, where they are now).
+    public var setup: String
+    /// Extra situational facts handed to the ATC brain for grading the pilot's
+    /// call in this new scene (not spoken to the pilot).
+    public var situation: String
+    /// Title for the injected drill (shown in the header / debrief).
+    public var title: String
+    /// Explicit call-type tag for the injected drill.
+    public var callType: CallType?
+    /// Authored templates for the clearance the controller issues once the
+    /// pilot's call is complete — same authoring contract as
+    /// `Drill.instructionVariants`.
+    public var instructionVariants: [String]?
+    /// The variant chosen for this session (resolved once, alongside the
+    /// parent drill's own `instruction`/`amendment`).
+    public var instruction: String?
+
+    public init(setup: String, situation: String, title: String, callType: CallType? = nil,
+                instructionVariants: [String]? = nil, instruction: String? = nil) {
+        self.setup = setup
+        self.situation = situation
+        self.title = title
+        self.callType = callType
+        self.instructionVariants = instructionVariants
+        self.instruction = instruction
     }
 }
 

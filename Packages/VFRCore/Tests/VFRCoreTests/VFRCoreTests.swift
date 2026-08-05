@@ -165,8 +165,11 @@ import Foundation
 @Test func randomizerVariesSquawkConsistently() {
     let drill = DrillLibrary.all.first { $0.id == "ff-squawk-verify" }!
     let varied = DrillRandomizer.vary(drill)
-    // Some spoken 4-digit code is present in both fields, and it's valid.
-    #expect(!varied.setup.contains("4521") || varied.setup.contains("four five two one"))
+    // The squawk lives in radioOpener now (setup is background-only); situation
+    // must agree with whatever radioOpener ended up with — both keep the
+    // authored code, or both get substituted together, never independently.
+    let opener = try! #require(varied.radioOpener)
+    #expect(opener.contains("four five two one") == varied.situation.contains("four five two one"))
     // Extract nothing fancy — just confirm setup/situation agree on the spoken code.
     let code = DrillRandomizer.randomSquawk()
     #expect(code.count == 4)
@@ -889,10 +892,63 @@ final class SequenceBrain: ATCEvaluating, @unchecked Sendable {
     #expect(await session.currentDrill == nil)
 }
 
+@Test func chainedHoldShortThenCrossingRequestFlow() async throws {
+    // t-ccr-holdshort-request: request → clearance → readback → NEW SCENE
+    // (taxied up, holding short) → the pilot's own crossing request → crossing
+    // clearance → readback. The scene break must be a real injected drill with
+    // its own setup, not prose glued onto the first readback's situation.
+    let request = DrillRandomizer.resolveInstructions(
+        [DrillLibrary.all.first { $0.id == "t-ccr-holdshort-request" }!])[0]
+    #expect(request.followUpReadback == true)
+    let holdShort = try #require(request.instruction)
+    let scene = try #require(request.followUpScene)
+    let crossing = try #require(scene.instruction)
+    #expect(holdShort != crossing)
+
+    let brain = FixedBrain(verdict: Verdict(
+        heard: "x", speaker: "Ground", radioReplyText: "", correct: true,
+        corrections: [], expectedExample: "", phaseAdvance: true, coaching: ""))
+    let session = PracticeSession(brain: brain, mode: .live, drills: [request])
+
+    // 1) Request → app issues the hold-short clearance, injects readback #1.
+    let v1 = try await session.submit("Concord Ground, request taxi for departure")
+    #expect(v1?.radioReplyText == holdShort)
+    let rb1 = try #require(await session.currentDrill)
+    #expect(rb1.injectedReadback == true)
+    #expect(rb1.instruction == holdShort)
+    #expect(rb1.amendment == nil)
+    #expect(rb1.followUpScene?.setup == scene.setup)   // carried through to fire next
+
+    // 2) Read back the hold-short → no amendment pending, so the FOLLOW-UP
+    // SCENE is injected: a fresh request drill with the new setup, not a
+    // continuation of the readback drill's own situation text.
+    _ = try await session.submit("runway three two left, hold short one niner left, 7JA")
+    let followUp = try #require(await session.currentDrill)
+    #expect(followUp.id == "\(rb1.id)-followup")
+    #expect(followUp.setup == scene.setup)
+    #expect(followUp.followUpReadback == true)
+    #expect(followUp.instruction == crossing)
+
+    // 3) The pilot's own call in the new scene → app issues the crossing
+    // clearance, injects the final readback.
+    let v3 = try await session.submit("Concord Ground, holding short one niner left, 7JA")
+    #expect(v3?.radioReplyText == crossing)
+    let rb2 = try #require(await session.currentDrill)
+    #expect(rb2.injectedReadback == true)
+    #expect(rb2.instruction == crossing)
+    #expect(rb2.followUpScene == nil)   // the scene already fired — no further chain
+
+    // 4) Read back the crossing clearance → done.
+    _ = try await session.submit("cross one niner left, 7JA")
+    #expect(await session.currentDrill == nil)
+}
+
 @Test func pendingReadbackStillHoldsNonChainedDrills() async throws {
     // Without the follow-up flag, advancing while the reply demands a
     // readback (cross/hold short) is a contradiction — the step holds.
-    let drill = DrillLibrary.all.first { $0.id == "t-ccr-holdshort-request" }!
+    // (t-ccr-holdshort-request now chains via followUpReadback + followUpScene —
+    // see chainedHoldShortThenCrossingRequestFlow — so use a plain drill here.)
+    let drill = DrillLibrary.all.first { $0.id == "t-goaround" }!
     #expect(drill.followUpReadback != true)
     let brain = FixedBrain(verdict: Verdict(
         heard: "holding short", speaker: "Ground",

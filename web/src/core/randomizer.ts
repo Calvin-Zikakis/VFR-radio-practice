@@ -49,6 +49,9 @@ function varyOne(drill: Drill, runway: string | null, altitudeOffset: number): D
   // so one pass rewrites setup, situation, instruction, and amendment together.
   if (d.instruction == null && d.instructionVariants?.length) d.instruction = pick(d.instructionVariants);
   if (d.amendment == null && d.amendmentVariants?.length) d.amendment = pick(d.amendmentVariants);
+  if (d.followUpScene && d.followUpScene.instruction == null && d.followUpScene.instructionVariants?.length) {
+    d.followUpScene = { ...d.followUpScene, instruction: pick(d.followUpScene.instructionVariants) };
+  }
 
   // Identity mappings FIRST: shield every form of the flown callsign from all
   // later substitutions (taxiway letters and runway/number words live inside it).
@@ -75,6 +78,14 @@ function varyOne(drill: Drill, runway: string | null, altitudeOffset: number): D
   if (d.radioOpener != null) d.radioOpener = applying(subs, d.radioOpener);
   if (d.instruction != null) d.instruction = applying(subs, d.instruction);
   if (d.amendment != null) d.amendment = applying(subs, d.amendment);
+  if (d.followUpScene) {
+    d.followUpScene = {
+      ...d.followUpScene,
+      setup: applying(subs, d.followUpScene.setup),
+      situation: applying(subs, d.followUpScene.situation),
+      instruction: d.followUpScene.instruction != null ? applying(subs, d.followUpScene.instruction) : d.followUpScene.instruction,
+    };
+  }
   return d;
 }
 
@@ -137,7 +148,7 @@ function digitsAltitude(feet: number): string {
 // ---- Incidental (ATIS, distance, squawk) --------------------------------
 
 function scannableText(d: Drill): string {
-  return `${d.setup} ${d.situation} ${d.radioOpener ?? ""} ${d.instruction ?? ""} ${d.amendment ?? ""}`;
+  return `${d.setup} ${d.situation} ${d.radioOpener ?? ""} ${d.instruction ?? ""} ${d.amendment ?? ""} ${d.followUpScene?.setup ?? ""} ${d.followUpScene?.situation ?? ""} ${d.followUpScene?.instruction ?? ""}`;
 }
 
 function incidentalSubstitutions(d: Drill): Sub[] {

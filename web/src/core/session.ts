@@ -41,6 +41,8 @@ export function resolveInstructions(drill: Drill): Drill {
     d.instruction = pick(d.instructionVariants);
   if (d.amendment == null && d.amendmentVariants?.length)
     d.amendment = pick(d.amendmentVariants);
+  if (d.followUpScene && d.followUpScene.instruction == null && d.followUpScene.instructionVariants?.length)
+    d.followUpScene = { ...d.followUpScene, instruction: pick(d.followUpScene.instructionVariants) };
   return d;
 }
 
@@ -168,8 +170,13 @@ export class PracticeSession {
         this.drills.splice(
           this.index + 1,
           0,
-          this.readbackFollowUp(drill, verdict, issueText, carryAmendment)
+          this.readbackFollowUp(drill, verdict, issueText, carryAmendment, drill.followUpScene ?? null)
         );
+      } else if (drill.injectedReadback === true && drill.followUpScene) {
+        // The readback chain (instruction, then amendment if any) is fully
+        // read back — break the scene: a fresh request → app-issued clearance
+        // → readback chain, starting from a new Scene card.
+        this.drills.splice(this.index + 1, 0, this.followUpSceneDrill(drill, drill.followUpScene));
       }
       this.index += 1;
       this.history = [];
@@ -178,11 +185,31 @@ export class PracticeSession {
     return { verdict, spokenInstruction, finished: this.isFinished };
   }
 
+  /** The request drill that opens the follow-up scene chained after
+   *  `Drill.followUpScene` — same shape as an authored `followUpReadback`
+   *  drill, just built at runtime from the parent's scene data. */
+  private followUpSceneDrill(drill: Drill, scene: NonNullable<Drill["followUpScene"]>): Drill {
+    return {
+      id: `${drill.id}-followup`,
+      scenario: drill.scenario,
+      title: scene.title,
+      setup: scene.setup,
+      situation: scene.situation,
+      aircraft: drill.aircraft,
+      airport: drill.airport,
+      callType: scene.callType ?? null,
+      followUpReadback: true,
+      instructionVariants: scene.instructionVariants ?? null,
+      instruction: scene.instruction ?? null,
+    };
+  }
+
   private readbackFollowUp(
     drill: Drill,
     verdict: Verdict,
     instruction: string,
-    amendment: string | null
+    amendment: string | null,
+    followUpScene: Drill["followUpScene"] = null
   ): Drill {
     let voice: string;
     switch (verdict.speaker) {
@@ -213,6 +240,7 @@ export class PracticeSession {
       instruction,
       injectedReadback: true,
       amendment,
+      followUpScene,
     };
   }
 }

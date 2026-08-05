@@ -183,6 +183,15 @@ public enum DrillLibrary {
             d.amendmentVariants = d.amendmentVariants?.map {
                 $0.replacingOccurrences(of: from, with: to)
             }
+            if var scene = d.followUpScene {
+                scene.setup = scene.setup.replacingOccurrences(of: from, with: to)
+                scene.situation = scene.situation.replacingOccurrences(of: from, with: to)
+                scene.instruction = scene.instruction?.replacingOccurrences(of: from, with: to)
+                scene.instructionVariants = scene.instructionVariants?.map {
+                    $0.replacingOccurrences(of: from, with: to)
+                }
+                d.followUpScene = scene
+            }
         }
         return d
     }
@@ -414,7 +423,8 @@ public enum DrillLibrary {
             id: "t-readback",
             scenario: .towered,
             title: "Read back a clearance",
-            setup: "Palo Alto Tower tells you: cleared to land runway three one. Read it back.",
+            setup: "You're on final for runway three one at Palo Alto.",
+            radioOpener: "Skyhawk one seven two sierra papa, cleared to land runway three one.",
             situation: "Towered field. The tower has just issued 'cleared to land runway 31'. Grade the pilot's readback: it must include the clearance and the callsign. No further ATC reply is needed unless the readback is wrong.",
             aircraft: skyhawk, airport: paloAlto
         ),
@@ -550,7 +560,8 @@ public enum DrillLibrary {
             id: "t-goaround",
             scenario: .towered,
             title: "Go around",
-            setup: "You're on short final for runway three one at Palo Alto and tower calls: RV seven three seven juliet alpha, go around, traffic on the runway. Respond while you fly the go-around.",
+            setup: "You're on short final for runway three one at Palo Alto.",
+            radioOpener: "RV seven three seven juliet alpha, go around, traffic on the runway.",
             situation: "Towered field, you are Palo Alto Tower. You just sent the pilot around for traffic on the runway. Expect a brief acknowledgment — 'going around' plus callsign. Brevity is correct here; they're busy flying. After they acknowledge, give a pattern instruction like 'fly runway heading, I'll call your crosswind'.",
             aircraft: rv12, airport: paloAlto, callType: .pattern
         ),
@@ -614,9 +625,21 @@ public enum DrillLibrary {
             id: "t-ccr-holdshort-request",
             scenario: .towered,
             title: "Hold short of the crossing runway — then ask",
-            setup: "You call Concord Ground to taxi for departure on three two left, and they come back with: RV seven three seven juliet alpha, runway three two left, taxi via juliet, hold short of runway one niner left. Read it back. Then, when you've taxied up juliet and are holding short of one niner left — hot spot two, right by the tower — with nothing further said to you, make your next call.",
-            situation: "Towered field, you are Concord Ground. Step 1: you issued 'runway three two left, taxi via juliet, hold short of runway one niner left'. Grade the readback: the hold short VERBATIM with its runway, the assigned runway three two left, and the callsign — strict at every difficulty. Step 2: the pilot is now holding short of one niner left and has NOT been cleared to cross — crossing without explicit clearance is a runway incursion. The right call: 'Concord Ground, RV seven juliet alpha, holding short runway one niner left' (explicitly requesting crossing is fine too). Reply: 'RV seven juliet alpha, cross runway one niner left, continue via papa to runway three two left', then grade the crossing readback ('cross runway one niner left' plus callsign). Set phaseAdvance true only after the crossing clearance has been read back.",
-            aircraft: rv12, airport: concord, callType: .taxi
+            setup: "You've landed on runway three two left at Concord and exited at hotel. You want another lap — call Ground to taxi back for departure, staying in the pattern.",
+            situation: "Towered field, you are Concord Ground (Buchanan Field: parallel 32L/32R crossed by 19L/19R; the route back crosses 19L at charted hot spot two). Grade the REQUEST — who they're calling, aircraft, position (clear of three two left at hotel), and the request to taxi back for departure (closed traffic / another departure). The pilot has been in the pattern, so no ATIS code is needed. The pilot does NOT pick their runway — YOU assign it; don't require a runway in their request. (You'll assign three two left with a hold short of one niner left; the readback is graded next, then a second exchange once they're holding short.)",
+            aircraft: rv12, airport: concord, callType: .taxi, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, Concord Ground, runway three two left, taxi via juliet, hold short of runway one niner left.",
+            ],
+            followUpScene: FollowUpScene(
+                setup: "You've taxied up juliet and are holding short of runway one niner left — hot spot two, right by the tower. Ground hasn't said anything further. Make your call.",
+                situation: "Towered field, you are Concord Ground. The pilot is holding short of one niner left and has NOT been cleared to cross — crossing without explicit clearance is a runway incursion. Grade the call: 'Concord Ground, RV seven juliet alpha, holding short runway one niner left' (explicitly requesting to cross is fine too) plus the callsign. Silence or a bare position report with no callsign is incomplete — coach them to speak up rather than just wait and hope Ground remembers them.",
+                title: "Ask to cross",
+                callType: .taxi,
+                instructionVariants: [
+                    "RV seven juliet alpha, cross runway one niner left, continue via papa to runway three two left.",
+                ]
+            )
         ),
         Drill(
             id: "t-ccr-taxiback",
@@ -896,7 +919,8 @@ public enum DrillLibrary {
             id: "ff-bravo-denied",
             scenario: .flightFollowing,
             title: "Denied Bravo entry — acknowledge",
-            setup: "NorCal Approach tells you: remain clear of the Class Bravo. Acknowledge and state how you'll avoid it.",
+            setup: "You're northbound near San Bruno, clear of San Francisco's Class Bravo.",
+            radioOpener: "RV seven three seven juliet alpha, remain clear of the Class Bravo.",
             situation: "You are NorCal Approach. You just told the pilot to remain clear of the Class Bravo. Grade their response: they must read back / acknowledge 'remain clear of the Bravo' with their callsign, and it's good practice to state their plan (e.g. 'will stay south' or 'descending to remain clear / staying below'). Confirm only if needed. The teaching point is that the pilot understands they may NOT enter without an explicit clearance.",
             aircraft: rv12, airport: sfoBravo
         ),
@@ -929,7 +953,8 @@ public enum DrillLibrary {
             id: "ff-squawk-verify",
             scenario: .flightFollowing,
             title: "Squawk assignment readback",
-            setup: "NorCal Approach assigns: RV seven three seven juliet alpha, squawk four five two one and ident. Read it back.",
+            setup: "You're on flight following with NorCal Approach.",
+            radioOpener: "RV seven three seven juliet alpha, squawk four five two one and ident.",
             situation: "You are NorCal Approach. You assigned 'squawk four five two one and ident'. Grade the readback: the four digits plus callsign ('four five two one and ident, seven three seven juliet alpha'). If they read back wrong digits, correct them immediately — a wrong squawk is how you become somebody else on the scope. Advance on a correct readback; after it, reply 'radar contact'.",
             aircraft: rv12, airport: watsonville, callType: .flightFollowing
         ),
@@ -955,7 +980,8 @@ public enum DrillLibrary {
             id: "ff-service-denied",
             scenario: .flightFollowing,
             title: "Flight following unavailable",
-            setup: "You call NorCal Approach for flight following and they answer: RV seven three seven juliet alpha, unable flight following at this time, radar services not available, squawk VFR. Respond, and know what you'll do next.",
+            setup: "You called NorCal Approach requesting flight following. Know what you'll do next.",
+            radioOpener: "RV seven three seven juliet alpha, unable flight following at this time, radar services not available, squawk VFR.",
             situation: "You are NorCal Approach and you just DENIED flight following due to workload ('unable, squawk VFR'). Grade the pilot's response: acknowledge with callsign and 'squawk VFR' (returning to one two zero zero), no argument, and good form is stating they'll continue VFR on their own navigation. In coaching, remind them: denial isn't personal — it's workload; they can try again with the next sector in ten minutes, and they should tighten up their own traffic scan since nobody is calling traffic for them now.",
             aircraft: rv12, airport: watsonville, callType: .flightFollowing
         ),
