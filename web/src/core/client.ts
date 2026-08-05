@@ -212,8 +212,12 @@ async function voiceRequest(
   headers: Record<string, string>,
   body: BodyInit
 ): Promise<Response> {
+  // Backoff between attempts so a brief Workers-AI outage (MeloTTS AiError 3043)
+  // has time to recover instead of us hammering it while it's down.
+  const backoffMs = [0, 600, 1500, 2500];
   let last: Response | null = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < backoffMs.length; attempt++) {
+    if (backoffMs[attempt]) await new Promise((r) => setTimeout(r, backoffMs[attempt]));
     try {
       const res = await voiceFetch(url, { method: "POST", headers, body });
       if (res.ok || (res.status < 500 && res.status !== 429)) return res;

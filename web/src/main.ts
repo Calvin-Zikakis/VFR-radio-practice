@@ -28,6 +28,18 @@ let stopRequested = false;
 // Recomputed per session: true if the mic works via the browser OR the Worker.
 let voiceInputAvailable = false;
 
+/** One graded transmission, for the end-of-session debrief scorecard. */
+interface LogEntry {
+  label: string;
+  pass: boolean;
+  coaching: string;
+  corrections: string[];
+}
+let sessionLog: LogEntry[] = [];
+// The current "You" transcript line, so grading can replace the raw STT text
+// with Claude's cleaned interpretation (verdict.heard).
+let lastYouText: HTMLElement | null = null;
+
 function graderConfig(): GraderConfig {
   const key: KeyMode =
     settings.keyMode === "byo"
@@ -186,7 +198,8 @@ function startSession(types: Set<CallType>) {
     renderHome();
     return;
   }
-  session = new PracticeSession(drills, graderConfig());
+  sessionLog = [];
+  session = new PracticeSession(drills, graderConfig(), settings.gradingMode);
   renderSession();
   briefCurrent();
 }
@@ -194,6 +207,7 @@ function startSession(types: Set<CallType>) {
 let transcriptEl: HTMLElement;
 let sceneEl: HTMLElement;
 let statusEl: HTMLElement;
+let bannerEl: HTMLElement;
 let talkBtn: HTMLButtonElement;
 let textInput: HTMLTextAreaElement;
 
@@ -209,6 +223,9 @@ function renderSession() {
   skip.onclick = skipCurrent;
   header.append(skip);
   app.append(header);
+
+  bannerEl = el("div", "banner");
+  app.append(bannerEl);
 
   sceneEl = el("div", "scene");
   app.append(sceneEl);
@@ -265,7 +282,7 @@ function renderSession() {
   send.onclick = () => {
     const t = textInput.value.trim();
     if (t) {
-      addLine("you", t);
+      lastYouText = addLine("you", t);
       textInput.value = "";
       submit(t);
     }
@@ -279,7 +296,7 @@ function renderSession() {
 }
 
 type Role = "scene" | "instructor" | "you" | "radio" | "note";
-function addLine(role: Role, text: string) {
+function addLine(role: Role, text: string): HTMLElement {
   const line = el("div", `line ${role}`);
   const labels: Record<Role, string> = {
     scene: "Scene",
@@ -289,9 +306,11 @@ function addLine(role: Role, text: string) {
     note: "Note",
   };
   line.append(el("div", "line-role", labels[role]));
-  line.append(el("div", "line-text", text));
+  const textEl = el("div", "line-text", text);
+  line.append(textEl);
   transcriptEl.append(line);
   transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  return textEl;
 }
 
 async function briefCurrent() {
@@ -300,6 +319,8 @@ async function briefCurrent() {
     finish();
     return;
   }
+  const a = drill.aircraft;
+  bannerEl.textContent = `${a.callsign}  ·  ${a.type}  ·  “${a.phoneticCallsign}”`;
   sceneEl.textContent = drill.setup;
   if (drill.injectedReadback === true) {
     addLine("instructor", drill.setup);
@@ -314,14 +335,22 @@ function status(s: string) {
   statusEl.textContent = s;
 }
 
+/** Normalize text for TTS pronunciation. Voice engines read "RV" as a word
+ *  ("rerv"); the spaced form makes them say the letters. The transcript keeps
+ *  the original spelling — this only affects what's spoken. */
+function forSpeech(text: string): string {
+  return text.replace(/\bRV\b/g, "R V");
+}
+
 /** Speak text aloud, honoring the Speak setting. Uses the Worker's TTS when
  *  configured (good voice in every browser), else browser speechSynthesis. */
 async function say(text: string, role: Voice) {
   if (!settings.speakReplies) return;
+  const spoken = forSpeech(text);
   const cfg = graderConfig();
   if (workerVoiceConfigured(cfg)) {
     try {
-      const clip = await synthesize(cfg, text);
+      const clip = await synthesize(cfg, spoken);
       if (clip) {
         await playClip(clip);
         return;
@@ -331,7 +360,7 @@ async function say(text: string, role: Voice) {
       addLine("note", `Voice fell back to browser: ${e.message}`);
     }
   }
-  await speak(text, role);
+  await speak(spoken, role);
 }
 
 async function beginTalk() {
@@ -378,7 +407,7 @@ function beginBrowserListen() {
       talkBtn.classList.remove("live");
       listening = null;
       if (said) {
-        addLine("you", said);
+        lastYouText = addLine("you", said);
         submit(said);
       } else {
         status("Didn't catch that — hold the button and try again, or type it.");
@@ -397,7 +426,7 @@ async function finishWorkerCapture(blob: Blob) {
   try {
     const said = await transcribe(graderConfig(), blob);
     if (said) {
-      addLine("you", said);
+      lastYouText = addLine("you", said);
       submit(said);
     } else {
       status("Didn't catch that — hold the button and try again, or type it.");
@@ -425,12 +454,24 @@ async function submit(text: string) {
   if (!session) return;
   status("Grading…");
   talkBtn.disabled = true;
+  const label = session.currentDrill?.title ?? "";
   try {
     const result = await session.submit(text);
     if (!result) {
       finish();
       return;
     }
+    const v0 = result.verdict;
+    sessionLog.push({
+      label,
+      pass: v0.correct || v0.phaseAdvance,
+      coaching: v0.coaching,
+      corrections: v0.corrections,
+    });
+    // Replace the raw STT "You" line with Claude's cleaned interpretation, which
+    // corrects mis-heard callsigns/numbers. (Typed input reads back near-identical.)
+    if (lastYouText && v0.heard) lastYouText.textContent = v0.heard;
+    lastYouText = null;
     showVerdict(result.verdict);
     if (result.spokenInstruction) {
       addLine("radio", result.spokenInstruction);
@@ -466,10 +507,12 @@ function renderSessionHeaderProgress() {
 }
 
 function showVerdict(v: Verdict) {
-  if (v.heard) addLine("note", `Heard: ${v.heard}`);
+  // (The "You" line already shows v.heard — no separate "Heard" note needed.)
   if (v.correct || v.phaseAdvance) {
-    if (v.coaching) addLine("note", `✓ ${v.coaching}`);
+    // In debrief mode, hold the positive coaching until the end scorecard.
+    if (settings.gradingMode === "live" && v.coaching) addLine("note", `✓ ${v.coaching}`);
   } else {
+    // A miss always shows what to fix — you need it to retry, in either mode.
     if (v.coaching) addLine("instructor", v.coaching);
     for (const c of v.corrections) addLine("note", `• ${c}`);
     if (v.expectedExample) addLine("note", `Model call: ${v.expectedExample}`);
@@ -495,7 +538,37 @@ function finish() {
   const header = el("header", "topbar");
   header.append(el("div", "brand", "Session complete"));
   app.append(header);
-  app.append(el("p", "muted", "Nice work. Ready for another round?"));
+
+  // Debrief scorecard: everything worth a second look — misses, calls with
+  // corrections, and (in debrief mode) the coaching held back from each pass.
+  const review = sessionLog.filter(
+    (e) =>
+      !e.pass ||
+      e.corrections.length > 0 ||
+      (settings.gradingMode === "debrief" && !!e.coaching)
+  );
+  const n = sessionLog.length;
+  if (n === 0) {
+    app.append(el("p", "muted", "Nice work. Ready for another round?"));
+  } else if (review.length === 0) {
+    app.append(
+      el("p", "muted", `Clean run — ${n} call${n === 1 ? "" : "s"}, nothing to review.`)
+    );
+  } else {
+    app.append(
+      el("p", "muted", `${n} call${n === 1 ? "" : "s"} — ${review.length} to review:`)
+    );
+    const list = el("div", "debrief");
+    for (const e of review) {
+      const item = el("div", "line");
+      item.append(el("div", "line-role", `${e.pass ? "✓" : "✗"} ${e.label}`));
+      if (e.coaching) item.append(el("div", "line-text", e.coaching));
+      for (const c of e.corrections) item.append(el("div", "line-text", `• ${c}`));
+      list.append(item);
+    }
+    app.append(list);
+  }
+
   const home = el("button", "primary", "Back to categories");
   home.onclick = renderHome;
   app.append(home);
@@ -597,6 +670,23 @@ function renderSettings() {
     persist();
   };
   form.append(diffSel);
+
+  // Coaching timing (live vs debrief-at-end)
+  form.append(el("label", "field-label", "Coaching"));
+  const gmRow = el("div", "seg");
+  for (const [val, label] of [
+    ["live", "After each call"],
+    ["debrief", "At the end"],
+  ] as const) {
+    const b = el("button", settings.gradingMode === val ? "seg-on" : "seg-off", label);
+    b.onclick = () => {
+      settings.gradingMode = val;
+      persist();
+      renderSettings();
+    };
+    gmRow.append(b);
+  }
+  form.append(gmRow);
 
   // Speak toggle
   const speakRow = el("label", "checkrow");

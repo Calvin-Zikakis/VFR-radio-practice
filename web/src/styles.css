@@ -112,6 +112,16 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .foot { margin-top: 28px; }
 
 /* Session */
+.banner {
+  font-size: 0.85rem;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 12px;
+  margin-bottom: 10px;
+  text-align: center;
+}
 .scene {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -146,6 +156,9 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .line.note .line-text { color: var(--muted); font-size: 0.92rem; }
 
 .status { min-height: 1.4em; padding: 8px 4px; }
+
+.debrief { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 16px; }
+.debrief .line-role { color: var(--text); }
 
 .controls { position: sticky; bottom: 0; padding-top: 8px; }
 .talk {

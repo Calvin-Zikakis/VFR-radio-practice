@@ -1,7 +1,7 @@
 // Local, in-browser settings. The BYO key never leaves the browser; shared mode
 // stores only the class passcode (the key lives in the Worker).
 
-import type { Difficulty } from "./core/types";
+import type { Difficulty, GradingMode } from "./core/types";
 import { DEFAULT_MODEL } from "./core/client";
 
 export interface Settings {
@@ -11,6 +11,7 @@ export interface Settings {
   workerUrl: string; // shared only
   model: string;
   difficulty: Difficulty;
+  gradingMode: GradingMode; // live coaching vs debrief at end
   speakReplies: boolean;
   speechRate: number; // 0.7–1.4, applies to controller/scene voices
   instructorName: string; // label shown for the coaching voice
@@ -27,6 +28,7 @@ const DEFAULTS: Settings = {
   workerUrl: (import.meta.env.VITE_WORKER_URL as string) ?? "",
   model: DEFAULT_MODEL,
   difficulty: "checkride",
+  gradingMode: "live",
   speakReplies: true,
   speechRate: 1,
   instructorName: "Instructor",
