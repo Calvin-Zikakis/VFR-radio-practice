@@ -99,6 +99,11 @@ function renderHome() {
   }
   app.append(grid);
 
+  const mixBtn = el("button", "ghost mixlink", "＋  Build a mix of several types →") as HTMLButtonElement;
+  mixBtn.disabled = !keyReady();
+  mixBtn.onclick = renderMix;
+  app.append(mixBtn);
+
   const foot = el("footer", "foot");
   const built = new Date(generatedAt);
   foot.append(
@@ -109,6 +114,68 @@ function renderHome() {
     )
   );
   app.append(foot);
+}
+
+// ------------------------------------------------------------- Mix builder
+
+function renderMix() {
+  stopSpeaking();
+  app.innerHTML = "";
+  const header = el("header", "topbar");
+  const back = el("button", "ghost", "← Back");
+  back.onclick = renderHome;
+  header.append(back);
+  header.append(el("div", "brand", "Build a mix"));
+  app.append(header);
+
+  app.append(
+    el(
+      "p",
+      "muted",
+      "Pick the call types to practice. Drills from every selected type are shuffled into one session."
+    )
+  );
+
+  const selected = new Set<CallType>();
+  const summary = el("div", "notice");
+  const startBtn = el("button", "primary", "Start mix") as HTMLButtonElement;
+
+  const refresh = () => {
+    let total = 0;
+    selected.forEach((t) => (total += categoryCount(t)));
+    summary.textContent = selected.size
+      ? `${total} drill${total === 1 ? "" : "s"} from ${selected.size} type${selected.size === 1 ? "" : "s"}`
+      : "Select at least one type.";
+    startBtn.disabled = selected.size === 0;
+  };
+
+  const grid = el("div", "grid");
+  for (const cat of CATEGORIES) {
+    const n = categoryCount(cat.type);
+    if (n === 0) continue;
+    const tile = el("button", "tile") as HTMLButtonElement;
+    tile.append(el("div", "tile-title", cat.label));
+    tile.append(el("div", "tile-count", `${n} drill${n === 1 ? "" : "s"}`));
+    tile.onclick = () => {
+      if (selected.has(cat.type)) {
+        selected.delete(cat.type);
+        tile.classList.remove("sel");
+      } else {
+        selected.add(cat.type);
+        tile.classList.add("sel");
+      }
+      refresh();
+    };
+    grid.append(tile);
+  }
+  app.append(grid);
+  app.append(summary);
+
+  startBtn.onclick = () => {
+    if (selected.size) startSession(new Set(selected));
+  };
+  app.append(startBtn);
+  refresh();
 }
 
 // ---------------------------------------------------------------- Session

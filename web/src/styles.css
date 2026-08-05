@@ -104,8 +104,10 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   min-height: 84px;
 }
 .tile:hover:not(:disabled) { border-color: var(--accent); }
+.tile.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--panel)); }
 .tile-title { font-weight: 600; }
 .tile-count { color: var(--muted); font-size: 0.85rem; }
+.mixlink { margin-top: 12px; width: 100%; text-align: center; color: var(--accent); }
 
 .foot { margin-top: 28px; }
 
