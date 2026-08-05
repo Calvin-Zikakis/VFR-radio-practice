@@ -20,8 +20,8 @@ use worker::*;
 
 const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/messages";
 // Per IP. A full practice turn is up to 3 calls (grade + STT + TTS), so this is
-// ~50 turns/hour — plenty for a session, still a guard on the shared balance.
-const MAX_PER_HOUR: u32 = 150;
+// ~65 turns/hour — plenty for a long session, still a guard on the shared balance.
+const MAX_PER_HOUR: u32 = 200;
 const WHISPER_MODEL: &str = "@cf/openai/whisper";
 const TTS_MODEL: &str = "@cf/myshell-ai/melotts";
 
