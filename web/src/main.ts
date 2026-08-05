@@ -134,6 +134,16 @@ function renderHome() {
     app.append(discard);
   }
 
+  app.append(sectionLabel("Ways to practice"));
+  const actions = el("div", "actions");
+  actions.append(
+    actionCard(ICON_MIX, "Build a mix", "Several call types, shuffled", renderMix, !keyReady()),
+    actionCard(ICON_MAP, "Plan a route", "Fly a cross-country on the map", renderMap, !keyReady()),
+    actionCard(ICON_CHART, "Progress", "Stats & weak spots", renderStats, false),
+    actionCard(ICON_LIST, "Browse drills", "Start from any single call", renderBrowse, !keyReady())
+  );
+  app.append(actions);
+
   app.append(sectionLabel("Practice by category"));
   const grid = el("div", "grid");
   for (const cat of CATEGORIES) {
@@ -148,22 +158,20 @@ function renderHome() {
   }
   app.append(grid);
 
-  app.append(sectionLabel("More ways to practice"));
-  const actions = el("div", "actions");
-  actions.append(
-    actionCard(ICON_MIX, "Build a mix", "Several call types, shuffled", renderMix, !keyReady()),
-    actionCard(ICON_MAP, "Plan a route", "Fly a cross-country on the map", renderMap, !keyReady()),
-    actionCard(ICON_CHART, "Progress", "Stats & weak spots", renderStats, false),
-    actionCard(ICON_LIST, "Browse drills", "Start from any single call", renderBrowse, !keyReady())
-  );
-  app.append(actions);
-
   app.append(sectionLabel("Voice"));
   app.append(kokoroRow());
 
   const foot = el("footer", "foot");
+  const gh = document.createElement("a");
+  gh.className = "githublink";
+  gh.href = GITHUB_URL;
+  gh.target = "_blank";
+  gh.rel = "noopener";
+  gh.title = "Source on GitHub";
+  gh.innerHTML = ICON_GITHUB;
   const built = new Date(generatedAt);
   foot.append(
+    gh,
     el(
       "span",
       "muted",
@@ -171,6 +179,27 @@ function renderHome() {
     )
   );
   app.append(foot);
+
+  // Dismissable getting-started banner (bottom of the page).
+  if (localStorage.getItem("vfr.web.introDismissed") !== "1") {
+    const intro = el("div", "intro-banner");
+    intro.append(el("div", "intro-title", "New here? Getting started"));
+    intro.append(
+      el(
+        "p",
+        "muted small",
+        "1) In Settings, add your Anthropic API key (or the class passcode). 2) Pick a category — or build a mix / plan a route on the map. 3) Hold the mic and make your radio call out loud; the controller replies and your phraseology is graded. Enable the higher-quality voice above for the best sound, and set the Instructor / Scene volumes in Settings to control how much is read aloud."
+      )
+    );
+    const x = el("button", "intro-x", "×") as HTMLButtonElement;
+    x.title = "Dismiss";
+    x.onclick = () => {
+      localStorage.setItem("vfr.web.introDismissed", "1");
+      intro.remove();
+    };
+    intro.append(x);
+    app.append(intro);
+  }
 }
 
 // ------------------------------------------------------------- Mix builder
@@ -564,6 +593,8 @@ const ICON_MAP = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="curren
 const ICON_CHART = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
 const ICON_LIST = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`;
 const ICON_GEAR = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+const ICON_GITHUB = `<svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>`;
+const GITHUB_URL = "https://github.com/Calvin-Zikakis/VFR-radio-practice";
 
 /** Set a button's contents to an inline icon plus a text label. */
 function setBtn(btn: HTMLElement, icon: string, label: string) {

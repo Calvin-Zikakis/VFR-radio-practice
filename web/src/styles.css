@@ -444,3 +444,31 @@ button:active:not(:disabled) { transform: translateY(1px); }
 
 .kokoro-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
 .kokoro-status:not(:empty) { margin-top: 6px; color: var(--accent); }
+
+/* Footer GitHub link + getting-started banner */
+.foot { margin-top: 28px; display: flex; align-items: center; gap: 8px; }
+.githublink { color: var(--muted); display: inline-flex; align-items: center; transition: color 0.15s ease; }
+.githublink:hover { color: var(--text); }
+.intro-banner {
+  position: relative;
+  margin-top: 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 40px 14px 16px;
+}
+.intro-title { font-weight: 600; margin-bottom: 4px; }
+.intro-x {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+.intro-x:hover { color: var(--text); }
