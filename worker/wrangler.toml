@@ -1,0 +1,19 @@
+name = "vfr-radio-proxy"
+main = "build/worker/shim.mjs"
+compatibility_date = "2024-11-01"
+
+# workers-rs build step (compiles Rust → WASM). `worker-build` is fetched on
+# first deploy; nothing to install by hand.
+[build]
+command = "cargo install -q worker-build && worker-build --release"
+
+# Per-IP rate-limit counters. Create the namespace once with:
+#   wrangler kv namespace create RATE_LIMIT
+# then paste the printed id below.
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# Secrets are NOT stored here (that's the whole point). Set them with:
+#   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler secret put CLASS_PASSCODE

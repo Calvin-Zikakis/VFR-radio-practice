@@ -1,0 +1,170 @@
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel2: #1c232d;
+  --border: #2b333d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #2f81f7;
+  --green: #2ea043;
+  --amber: #d29922;
+  --purple: #a371f7;
+  --teal: #2bb0c7;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f6f8fa;
+    --panel: #ffffff;
+    --panel2: #f0f3f6;
+    --border: #d0d7de;
+    --text: #1f2328;
+    --muted: #656d76;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+#app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 16px 48px;
+  min-height: 100%;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0 16px;
+}
+.brand { font-weight: 700; font-size: 1.05rem; }
+.muted { color: var(--muted); }
+.small { font-size: 0.85rem; }
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  padding: 8px 14px;
+}
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+.ghost:hover { color: var(--text); }
+.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+.notice {
+  background: color-mix(in srgb, var(--amber) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin: 8px 0 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 16px;
+  background: var(--panel);
+  min-height: 84px;
+}
+.tile:hover:not(:disabled) { border-color: var(--accent); }
+.tile-title { font-weight: 600; }
+.tile-count { color: var(--muted); font-size: 0.85rem; }
+
+.foot { margin-top: 28px; }
+
+/* Session */
+.scene {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--teal);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding: 4px;
+}
+.line { background: var(--panel); border-radius: 10px; padding: 8px 12px; }
+.line-role {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.line.scene .line-role { color: var(--teal); }
+.line.instructor .line-role { color: var(--purple); }
+.line.you { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.line.you .line-role { color: var(--accent); }
+.line.radio .line-role { color: var(--green); }
+.line.note { background: transparent; padding: 2px 12px; }
+.line.note .line-role { color: var(--muted); }
+.line.note .line-text { color: var(--muted); font-size: 0.92rem; }
+
+.status { min-height: 1.4em; padding: 8px 4px; }
+
+.controls { position: sticky; bottom: 0; padding-top: 8px; }
+.talk {
+  width: 100%;
+  padding: 18px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  background: var(--panel2);
+  margin-bottom: 8px;
+  user-select: none;
+}
+.talk.live { background: var(--accent); border-color: var(--accent); color: #fff; }
+.typed { display: flex; gap: 8px; }
+.text {
+  flex: 1;
+  font: inherit;
+  resize: vertical;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+/* Settings / forms */
+.form { display: flex; flex-direction: column; gap: 14px; max-width: 480px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field-label { font-weight: 600; font-size: 0.9rem; }
+.input, .select {
+  font: inherit;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  padding: 10px 12px;
+}
+.seg { display: flex; gap: 8px; }
+.seg button { flex: 1; }
+.seg-on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.seg-off { background: var(--panel); }
+.checkrow { display: flex; align-items: center; gap: 10px; }

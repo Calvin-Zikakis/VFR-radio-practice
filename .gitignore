@@ -13,3 +13,13 @@ Packages/VFRCore/.build/
 
 # Never commit secrets (API key lives in the device Keychain at runtime)
 *.env
+
+# Web client (Vite + TS)
+web/node_modules/
+web/dist/
+web/.vite/
+
+# Cloudflare Worker (Rust → WASM)
+worker/target/
+worker/build/
+worker/.wrangler/
