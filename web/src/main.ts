@@ -8,12 +8,14 @@ import {
   generatedAt,
   routableAirports,
   defaultAircraft,
+  fleet,
 } from "./core/drills";
 import { tripDrills } from "./core/trip";
 import { vary } from "./core/randomizer";
+import { retarget } from "./core/aircraft";
 import { AIRPORT_COORDS } from "./core/geo";
 import { PracticeSession } from "./core/session";
-import type { CallType, Verdict, Airport, Drill } from "./core/types";
+import type { CallType, Verdict, Airport, Aircraft, Drill } from "./core/types";
 import { MODELS, workerVoiceConfigured, transcribe, synthesize } from "./core/client";
 import type { GraderConfig, KeyMode } from "./core/client";
 import { loadSettings, saveSettings, type Settings } from "./settings";
@@ -349,6 +351,13 @@ function renderMap() {
 
 // ---------------------------------------------------------------- Session
 
+/** The airplane to fly this session: a pinned fleet plane, a random one ("all"),
+ *  or the default. */
+function chosenAircraft(): Aircraft {
+  if (settings.aircraft === "all") return fleet[Math.floor(Math.random() * fleet.length)];
+  return fleet.find((a) => a.callsign === settings.aircraft) ?? defaultAircraft;
+}
+
 function runDrills(drills: Drill[]) {
   if (drills.length === 0) {
     renderHome();
@@ -356,7 +365,11 @@ function runDrills(drills: Drill[]) {
   }
   sessionLog = [];
   voiceNoticeShown = false;
-  const prepared = settings.randomize ? vary(drills) : drills;
+  // Fly one consistent airplane (retarget FIRST so the randomizer shields the
+  // chosen callsign), then vary incidental details.
+  const plane = chosenAircraft();
+  let prepared = drills.map((d) => retarget(d, plane));
+  if (settings.randomize) prepared = vary(prepared);
   session = new PracticeSession(prepared, graderConfig(), settings.gradingMode);
   renderSession();
   briefCurrent();
@@ -870,6 +883,28 @@ function renderSettings() {
   };
   form.append(modelSel);
   form.append(el("p", "muted small", "Sonnet 5 is the default (best balance). Haiku is cheaper/faster; Opus is strictest."));
+
+  // Aircraft
+  form.append(el("label", "field-label", "Aircraft"));
+  const acSel = el("select", "select") as HTMLSelectElement;
+  const acOptions: [string, string][] = [
+    ["", `${defaultAircraft.type} (${defaultAircraft.callsign}) — default`],
+    ...fleet
+      .filter((a) => a.callsign !== defaultAircraft.callsign)
+      .map((a) => [a.callsign, `${a.type} (${a.callsign})`] as [string, string]),
+    ["all", "All — a random plane each session"],
+  ];
+  for (const [val, label] of acOptions) {
+    const o = el("option", undefined, label) as HTMLOptionElement;
+    o.value = val;
+    if (val === settings.aircraft) o.selected = true;
+    acSel.append(o);
+  }
+  acSel.onchange = () => {
+    settings.aircraft = acSel.value;
+    persist();
+  };
+  form.append(acSel);
 
   // Difficulty
   form.append(el("label", "field-label", "Difficulty"));

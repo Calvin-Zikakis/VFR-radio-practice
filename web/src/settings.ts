@@ -12,6 +12,7 @@ export interface Settings {
   model: string;
   difficulty: Difficulty;
   gradingMode: GradingMode; // live coaching vs debrief at end
+  aircraft: string; // fleet callsign to fly, "all" for random, "" for default
   randomize: boolean; // vary ATIS/runway/altitude/squawk per session
   speakReplies: boolean;
   speechRate: number; // 0.7–1.4, applies to controller/scene voices
@@ -30,6 +31,7 @@ const DEFAULTS: Settings = {
   model: DEFAULT_MODEL,
   difficulty: "checkride",
   gradingMode: "live",
+  aircraft: "",
   randomize: true,
   speakReplies: true,
   speechRate: 1,

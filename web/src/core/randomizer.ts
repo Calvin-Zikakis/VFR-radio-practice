@@ -4,24 +4,11 @@
 // to setup (spoken) and situation (grader) so they never disagree. Runway and
 // altitude are decided once per session so a whole trip stays coherent.
 
-import type { Aircraft, Airport, Drill } from "./types";
+import type { Airport, Drill } from "./types";
 import { spokenRunway } from "./trip";
+import { bareCallsign, shortCallsign } from "./aircraft";
 
 type Sub = [string, string];
-
-const digitWords = new Set([
-  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "niner",
-]);
-
-function bareCallsign(a: Aircraft): string {
-  const words = a.phoneticCallsign.split(" ");
-  if (!words.length || digitWords.has(words[0].toLowerCase())) return a.phoneticCallsign;
-  return words.slice(1).join(" ");
-}
-function shortCallsign(a: Aircraft): string {
-  const words = a.phoneticCallsign.split(" ");
-  return words.length < 3 ? a.phoneticCallsign : words.slice(-3).join(" ");
-}
 
 function pick<T>(xs: T[]): T {
   return xs[Math.floor(Math.random() * xs.length)];
