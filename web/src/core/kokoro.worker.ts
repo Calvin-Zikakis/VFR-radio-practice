@@ -47,6 +47,34 @@ async function build(): Promise<any> {
   return await KokoroTTS.from_pretrained(MODEL, { dtype: "q8", device: "wasm", progress_callback });
 }
 
+// Only ONE tts.generate() may run at a time: onnxruntime-web's threaded WASM
+// backend spins up real worker threads per inference, so overlapping calls
+// (e.g. the user spamming "skip") multiply that thread count and crash the
+// tab. If a new request arrives while one is running, it REPLACES whatever
+// was queued next — we only ever care about the latest request, never a
+// backlog of stale ones from drills the pilot has already skipped past.
+let busy = false;
+let queued: { id: number; text: string } | null = null;
+
+async function runGenerate(id: number, text: string) {
+  busy = true;
+  try {
+    const tts = await ttsPromise;
+    const audio = await tts.generate(text, { voice: "af_heart" });
+    const buf: ArrayBuffer = audio.toWav();
+    ctx.postMessage({ type: "audio", id, buf }, [buf]); // transfer, zero-copy
+  } catch (err: any) {
+    ctx.postMessage({ type: "error", id, message: String(err?.message ?? err) });
+  } finally {
+    busy = false;
+    if (queued) {
+      const next = queued;
+      queued = null;
+      runGenerate(next.id, next.text);
+    }
+  }
+}
+
 ctx.onmessage = async (e: MessageEvent) => {
   const { type, id, text } = e.data ?? {};
   try {
@@ -66,10 +94,11 @@ ctx.onmessage = async (e: MessageEvent) => {
       await ttsPromise;
       ctx.postMessage({ type: "ready", id });
     } else if (type === "generate") {
-      const tts = await ttsPromise;
-      const audio = await tts.generate(text, { voice: "af_heart" });
-      const buf: ArrayBuffer = audio.toWav();
-      ctx.postMessage({ type: "audio", id, buf }, [buf]); // transfer, zero-copy
+      if (busy) {
+        queued = { id, text }; // supersedes anything previously queued
+      } else {
+        runGenerate(id, text);
+      }
     }
   } catch (err: any) {
     ctx.postMessage({ type: "error", id, message: String(err?.message ?? err) });

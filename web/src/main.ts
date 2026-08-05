@@ -814,6 +814,7 @@ function addLine(role: Role, text: string): HTMLElement {
 }
 
 async function briefCurrent() {
+  sessionGen++; // a new drill is being briefed — invalidate any in-flight say()
   const drill = session!.currentDrill;
   if (!drill) {
     finish();
@@ -881,6 +882,12 @@ type SayRole = "scene" | "controller" | "instructor" | "note";
 // volumes live in Settings; the radio/controller reply is always audible.
 let masterMuted = false;
 
+// Bumped every time a new drill is about to be briefed (skip, advance, resume,
+// session start). say() captures it on entry and bails after each await if a
+// newer drill has since superseded it — otherwise spamming "skip" queues up
+// every skipped drill's narration and reads them back to back.
+let sessionGen = 0;
+
 function volumeFor(role: SayRole): number {
   if (masterMuted) return 0;
   switch (role) {
@@ -896,8 +903,10 @@ function volumeFor(role: SayRole): number {
 }
 
 /** Speak text aloud at the role's volume (0 = on-screen only). Uses the Worker's
- *  TTS when configured (good voice everywhere), else browser speechSynthesis. */
+ *  TTS when configured (good voice everywhere), else browser speechSynthesis.
+ *  Abandons itself if superseded by a newer drill (see sessionGen). */
 async function say(text: string, role: SayRole) {
+  const gen = sessionGen;
   const vol = volumeFor(role);
   if (vol < 0.02) return; // muted role
   const spoken = forSpeech(text);
@@ -905,6 +914,7 @@ async function say(text: string, role: SayRole) {
   if (settings.kokoroEnabled && kokoroReady()) {
     try {
       const clip = await kokoroSpeak(spoken);
+      if (gen !== sessionGen) return; // a newer drill has already taken over
       if (clip) {
         await playClip(clip, undefined, vol);
         return;
@@ -913,11 +923,13 @@ async function say(text: string, role: SayRole) {
       /* fall through to the Worker / browser voice */
     }
   }
+  if (gen !== sessionGen) return;
   const cfg = graderConfig();
   // 2. Class server voice (MeloTTS on the Worker).
   if (workerVoiceConfigured(cfg)) {
     try {
       const clip = await synthesize(cfg, spoken);
+      if (gen !== sessionGen) return;
       if (clip) {
         await playClip(clip, undefined, vol);
         return;
@@ -929,6 +941,7 @@ async function say(text: string, role: SayRole) {
       noteVoiceFallback();
     }
   }
+  if (gen !== sessionGen) return;
   // 3. Browser built-in.
   await speak(spoken, role === "note" ? "instructor" : role, vol);
 }

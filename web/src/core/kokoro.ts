@@ -85,13 +85,28 @@ export async function loadKokoro(onStatus?: (text: string) => void): Promise<voi
   }
 }
 
-/** Synthesize text to a WAV Blob in the worker, or null if not loaded. */
+// The generate request currently in flight, if any — a new call supersedes it
+// (see kokoroSpeak). Skipping several drills in a row should speak only the
+// last one, not queue all of them up back to back.
+let currentGenerateId: number | null = null;
+
+/** Synthesize text to a WAV Blob in the worker, or null if not loaded / if
+ *  superseded by a newer call before the worker got to it. */
 export async function kokoroSpeak(text: string): Promise<Blob | null> {
   if (!ready || !worker) return null;
+  // Abandon whatever was still in flight — resolve it as "no audio" right
+  // away so its caller doesn't sit waiting on a stale drill, and the worker
+  // drops it too if it hadn't started running yet.
+  if (currentGenerateId !== null) {
+    pending.get(currentGenerateId)?.resolve(null);
+    pending.delete(currentGenerateId);
+  }
   const id = ++seq;
-  const buf: ArrayBuffer = await new Promise((resolve, reject) => {
+  currentGenerateId = id;
+  const buf: ArrayBuffer | null = await new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject });
     worker!.postMessage({ type: "generate", id, text });
   });
-  return new Blob([buf], { type: "audio/wav" });
+  if (currentGenerateId === id) currentGenerateId = null;
+  return buf ? new Blob([buf], { type: "audio/wav" }) : null;
 }
