@@ -25,7 +25,7 @@ Then open **Settings** and either:
 - **Class passcode** — use the shared class key via the Worker (see below). Only
   works once a Worker is deployed and `VITE_WORKER_URL` is configured.
 
-Pick a category, hold **🎙 Hold to talk** (or type), and make your call.
+Pick a category, hold **Hold to talk** (or type), and make your call.
 
 ## The drill content is generated from Swift
 
