@@ -447,10 +447,13 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         a runway crossing, a hold short, a frequency, a clearance — \
         `phaseAdvance` MUST be false: the exchange is not over until that \
         readback comes back and is graded. \
-        The inverse also holds: if your reply confirms completion ("readback \
-        correct", "radar contact", a clearance with nothing further needed), you \
-        MUST set `phaseAdvance` true — never confirm completion and then hold the \
-        pilot on the same step.
+        The inverse also holds: if your reply confirms completion ("radar \
+        contact", a clearance with nothing further needed), you MUST set \
+        `phaseAdvance` true — never confirm completion and then hold the pilot on \
+        the same step. A controller does NOT acknowledge a correct readback: when \
+        the pilot reads an instruction back correctly and nothing more is needed, \
+        leave `radioReplyText` EMPTY and set `phaseAdvance` true; never say \
+        "readback correct".
 
         MULTI-STEP EXCHANGES: when the SITUATION describes numbered steps, count \
         which step the conversation is on before you reply. After a correct \
@@ -470,8 +473,16 @@ public struct ATCBrain: ATCEvaluating, Sendable {
 
         GRADING FIELDS:
         `correct` is true only if the intended phraseology was appropriate and \
-        complete for this situation. List concrete issues in `corrections` (at \
-        most three, each a short phrase, e.g. "Missing your altitude"). \
+        complete for this situation. Your VERDICT and your COACHING must AGREE: \
+        if the call has every element this situation requires and your coaching \
+        is essentially praise, set `correct` true and `phaseAdvance` true — never \
+        praise a call and then fail it, and never fail it over a nuance you admit \
+        is already covered ("inbound to land" IS the request to land — do not \
+        demand a separate landing request). A complete, correct call gets an \
+        EMPTY `corrections`; corrections are for genuinely missing or wrong \
+        items, never "could be clearer" polish. List concrete issues in \
+        `corrections` (at most three, each a short phrase, e.g. "Missing your \
+        altitude"). \
         `expectedExample` is one ideal version of THE SINGLE CALL just graded — \
         one short transmission, never a multi-step script, stage directions, or \
         commentary; in a multi-step drill, show only the immediate next call. \
