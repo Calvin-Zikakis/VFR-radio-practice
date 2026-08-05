@@ -297,6 +297,10 @@ function renderMap() {
         x.title = "Remove stop";
         x.onclick = () => {
           route.splice(idx, 1);
+          // Removing a middle stop can leave the same field back-to-back; drop one.
+          for (let i = route.length - 1; i > 0; i--) {
+            if (route[i] === route[i - 1]) route.splice(i, 1);
+          }
           redraw();
         };
         chip.append(x);
@@ -322,6 +326,7 @@ function renderMap() {
     });
     m.bindTooltip(a.icao, { permanent: true, direction: "top", offset: [0, -9], className: "apt-tt" });
     m.on("click", () => {
+      if (route[route.length - 1] === a.icao) return; // no back-to-back same field
       route.push(a.icao);
       redraw();
     });
