@@ -901,7 +901,8 @@ final class SequenceBrain: ATCEvaluating, @unchecked Sendable {
         [DrillLibrary.all.first { $0.id == "t-ccr-holdshort-request" }!])[0]
     #expect(request.followUpReadback == true)
     let holdShort = try #require(request.instruction)
-    let scene = try #require(request.followUpScene)
+    let scenes = try #require(request.followUpScenes)
+    let scene = try #require(scenes.first)
     let crossing = try #require(scene.instruction)
     #expect(holdShort != crossing)
 
@@ -917,7 +918,7 @@ final class SequenceBrain: ATCEvaluating, @unchecked Sendable {
     #expect(rb1.injectedReadback == true)
     #expect(rb1.instruction == holdShort)
     #expect(rb1.amendment == nil)
-    #expect(rb1.followUpScene?.setup == scene.setup)   // carried through to fire next
+    #expect(rb1.followUpScenes?.first?.setup == scene.setup)   // carried through to fire next
 
     // 2) Read back the hold-short → no amendment pending, so the FOLLOW-UP
     // SCENE is injected: a fresh request drill with the new setup, not a
@@ -936,17 +937,75 @@ final class SequenceBrain: ATCEvaluating, @unchecked Sendable {
     let rb2 = try #require(await session.currentDrill)
     #expect(rb2.injectedReadback == true)
     #expect(rb2.instruction == crossing)
-    #expect(rb2.followUpScene == nil)   // the scene already fired — no further chain
+    #expect(rb2.followUpScenes == nil)   // the queue is empty — no further chain
 
     // 4) Read back the crossing clearance → done.
     _ = try await session.submit("cross one niner left, 7JA")
     #expect(await session.currentDrill == nil)
 }
 
+@Test func followUpSceneQueuePopsInOrder() async throws {
+    // Not a real library drill — a synthetic 2-entry queue to prove
+    // drill 1 -> sub-drill A -> sub-drill B traversal, not just one hop.
+    let plane = DrillLibrary.defaultAircraft
+    let airport = DrillLibrary.all.first { $0.id == "t-ccr-holdshort-request" }!.airport
+    let request = Drill(
+        id: "test-chain", scenario: .towered, title: "Chain root",
+        setup: "root setup", situation: "root situation",
+        aircraft: plane, airport: airport, callType: .taxi, followUpReadback: true,
+        instructionVariants: ["root clearance"],
+        followUpScenes: [
+            FollowUpScene(setup: "scene A setup", situation: "scene A situation",
+                          title: "Scene A", callType: .taxi,
+                          instructionVariants: ["scene A clearance"]),
+            FollowUpScene(setup: "scene B setup", situation: "scene B situation",
+                          title: "Scene B", callType: .taxi,
+                          instructionVariants: ["scene B clearance"]),
+        ])
+    let resolved = DrillRandomizer.resolveInstructions([request])[0]
+    #expect(resolved.followUpScenes?.count == 2)
+
+    let brain = FixedBrain(verdict: Verdict(
+        heard: "x", speaker: "Ground", radioReplyText: "", correct: true,
+        corrections: [], expectedExample: "", phaseAdvance: true, coaching: ""))
+    let session = PracticeSession(brain: brain, mode: .live, drills: [resolved])
+
+    // Root request -> root clearance -> readback #1 (carries both queued scenes).
+    _ = try await session.submit("root call")
+    let rb1 = try #require(await session.currentDrill)
+    #expect(rb1.followUpScenes?.map(\.title) == ["Scene A", "Scene B"])
+
+    // Readback #1 done -> pop scene A, carrying only scene B onward.
+    _ = try await session.submit("root readback")
+    let sceneA = try #require(await session.currentDrill)
+    #expect(sceneA.setup == "scene A setup")
+    #expect(sceneA.followUpScenes?.map(\.title) == ["Scene B"])
+
+    // Scene A's call -> its clearance -> readback #2 (carries scene B).
+    _ = try await session.submit("scene A call")
+    let rbA = try #require(await session.currentDrill)
+    #expect(rbA.followUpScenes?.map(\.title) == ["Scene B"])
+
+    // Readback #2 done -> pop scene B, nothing left to carry.
+    _ = try await session.submit("scene A readback")
+    let sceneB = try #require(await session.currentDrill)
+    #expect(sceneB.setup == "scene B setup")
+    #expect(sceneB.followUpScenes == nil)
+
+    // Scene B's call -> its clearance -> readback #3 (queue now empty).
+    _ = try await session.submit("scene B call")
+    let rbB = try #require(await session.currentDrill)
+    #expect(rbB.followUpScenes == nil)
+
+    // Readback #3 done -> queue empty -> session ends.
+    _ = try await session.submit("scene B readback")
+    #expect(await session.currentDrill == nil)
+}
+
 @Test func pendingReadbackStillHoldsNonChainedDrills() async throws {
     // Without the follow-up flag, advancing while the reply demands a
     // readback (cross/hold short) is a contradiction — the step holds.
-    // (t-ccr-holdshort-request now chains via followUpReadback + followUpScene —
+    // (t-ccr-holdshort-request now chains via followUpReadback + followUpScenes —
     // see chainedHoldShortThenCrossingRequestFlow — so use a plain drill here.)
     let drill = DrillLibrary.all.first { $0.id == "t-goaround" }!
     #expect(drill.followUpReadback != true)

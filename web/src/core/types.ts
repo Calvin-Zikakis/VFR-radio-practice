@@ -50,14 +50,13 @@ export interface Drill {
   injectedReadback?: boolean | null;
   amendmentVariants?: string[] | null;
   amendment?: string | null;
-  /** A second exchange chained after the readback chain completes, starting
-   *  from a NEW scene (time passed, position changed) rather than a
+  /** A queue of follow-on scenes, fired one at a time in order: each starts
+   *  fresh from a NEW scene (time passed, position changed) rather than a
    *  same-frequency continuation. See `FollowUpScene`. */
-  followUpScene?: FollowUpScene | null;
+  followUpScenes?: FollowUpScene[] | null;
 }
 
-/** A scene-and-exchange chained after a drill's initial readback chain
- *  completes — see `Drill.followUpScene`. */
+/** One entry in a drill's follow-on scene queue — see `Drill.followUpScenes`. */
 export interface FollowUpScene {
   setup: string;
   situation: string;

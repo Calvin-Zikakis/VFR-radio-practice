@@ -142,31 +142,36 @@ public actor PracticeSession {
                 let followUp = readbackFollowUp(for: drill, verdict: verdict,
                                                 instruction: issueText,
                                                 amendment: carryAmendment,
-                                                followUpScene: drill.followUpScene)
+                                                followUpScenes: drill.followUpScenes)
                 drills.insert(followUp, at: index + 1)
                 vfrLog("injected readback drill for '\(drill.id)'\(carryAmendment != nil ? " (amendment to follow)" : "")")
-            } else if drill.injectedReadback == true, let scene = drill.followUpScene {
+            } else if drill.injectedReadback == true, var scenes = drill.followUpScenes, !scenes.isEmpty {
                 // The readback chain (instruction, then amendment if any) is
-                // fully read back — time to break the scene: a fresh request →
-                // app-issued clearance → readback chain, starting from a new
-                // Scene card rather than a same-frequency continuation.
-                drills.insert(followUpSceneDrill(for: drill, scene: scene), at: index + 1)
-                vfrLog("injected follow-up scene for '\(drill.id)'")
+                // fully read back — pop the next scene off the queue: a fresh
+                // request → app-issued clearance → readback chain, starting
+                // from a new Scene card. Whatever's left in the queue rides
+                // along on the injected drill so IT pops the next one in turn.
+                let scene = scenes.removeFirst()
+                drills.insert(followUpSceneDrill(for: drill, scene: scene, remaining: scenes), at: index + 1)
+                vfrLog("injected follow-up scene for '\(drill.id)' (\(scenes.count) more queued)")
             }
             advance()
         }
         return verdict
     }
 
-    /// The request drill that opens the follow-up scene chained after a
-    /// `Drill.followUpScene` — same shape as an authored `followUpReadback`
-    /// drill, just built at runtime from the parent's scene data.
-    private func followUpSceneDrill(for drill: Drill, scene: FollowUpScene) -> Drill {
+    /// The request drill that opens one entry of the follow-up scene queue
+    /// (`Drill.followUpScenes`) — same shape as an authored `followUpReadback`
+    /// drill, just built at runtime from the parent's scene data, carrying
+    /// whatever scenes remain in the queue.
+    private func followUpSceneDrill(for drill: Drill, scene: FollowUpScene,
+                                    remaining: [FollowUpScene]) -> Drill {
         Drill(id: "\(drill.id)-followup", scenario: drill.scenario, title: scene.title,
               setup: scene.setup, situation: scene.situation,
               aircraft: drill.aircraft, airport: drill.airport,
               callType: scene.callType, followUpReadback: true,
-              instructionVariants: scene.instructionVariants, instruction: scene.instruction)
+              instructionVariants: scene.instructionVariants, instruction: scene.instruction,
+              followUpScenes: remaining.isEmpty ? nil : remaining)
     }
 
     /// The synthesized drill that grades the pilot's readback of the exact
@@ -174,7 +179,7 @@ public actor PracticeSession {
     /// (already randomized) context; the clearance text itself is the content.
     private func readbackFollowUp(for drill: Drill, verdict: Verdict,
                                   instruction: String, amendment: String? = nil,
-                                  followUpScene: FollowUpScene? = nil) -> Drill {
+                                  followUpScenes: [FollowUpScene]? = nil) -> Drill {
         let voice: String
         switch verdict.speaker {
         case "Ground", "Tower": voice = "\(drill.airport.name) \(verdict.speaker)"
@@ -203,9 +208,10 @@ public actor PracticeSession {
             // the instruction above, then injects a second readback drill for it
             // (request → clearance → readback → amendment → readback).
             amendment: amendment,
-            // Carried through so it fires once THIS readback (or its amendment
-            // readback, if any) completes with nothing left to issue.
-            followUpScene: followUpScene)
+            // Carried through so the queue keeps popping once THIS readback
+            // (or its amendment readback, if any) completes with nothing left
+            // to issue.
+            followUpScenes: followUpScenes)
     }
 
     /// Skip the current drill without grading (e.g. voice command "skip").

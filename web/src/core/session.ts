@@ -41,8 +41,11 @@ export function resolveInstructions(drill: Drill): Drill {
     d.instruction = pick(d.instructionVariants);
   if (d.amendment == null && d.amendmentVariants?.length)
     d.amendment = pick(d.amendmentVariants);
-  if (d.followUpScene && d.followUpScene.instruction == null && d.followUpScene.instructionVariants?.length)
-    d.followUpScene = { ...d.followUpScene, instruction: pick(d.followUpScene.instructionVariants) };
+  d.followUpScenes = d.followUpScenes?.map((scene) =>
+    scene.instruction == null && scene.instructionVariants?.length
+      ? { ...scene, instruction: pick(scene.instructionVariants) }
+      : scene
+  );
   return d;
 }
 
@@ -170,13 +173,16 @@ export class PracticeSession {
         this.drills.splice(
           this.index + 1,
           0,
-          this.readbackFollowUp(drill, verdict, issueText, carryAmendment, drill.followUpScene ?? null)
+          this.readbackFollowUp(drill, verdict, issueText, carryAmendment, drill.followUpScenes ?? null)
         );
-      } else if (drill.injectedReadback === true && drill.followUpScene) {
+      } else if (drill.injectedReadback === true && drill.followUpScenes?.length) {
         // The readback chain (instruction, then amendment if any) is fully
-        // read back — break the scene: a fresh request → app-issued clearance
-        // → readback chain, starting from a new Scene card.
-        this.drills.splice(this.index + 1, 0, this.followUpSceneDrill(drill, drill.followUpScene));
+        // read back — pop the next scene off the queue: a fresh request →
+        // app-issued clearance → readback chain, starting from a new Scene
+        // card. Whatever's left in the queue rides along on the injected
+        // drill so IT pops the next one in turn.
+        const [scene, ...remaining] = drill.followUpScenes;
+        this.drills.splice(this.index + 1, 0, this.followUpSceneDrill(drill, scene, remaining));
       }
       this.index += 1;
       this.history = [];
@@ -185,10 +191,15 @@ export class PracticeSession {
     return { verdict, spokenInstruction, finished: this.isFinished };
   }
 
-  /** The request drill that opens the follow-up scene chained after
-   *  `Drill.followUpScene` — same shape as an authored `followUpReadback`
-   *  drill, just built at runtime from the parent's scene data. */
-  private followUpSceneDrill(drill: Drill, scene: NonNullable<Drill["followUpScene"]>): Drill {
+  /** The request drill that opens one entry of the follow-up scene queue
+   *  (`Drill.followUpScenes`) — same shape as an authored `followUpReadback`
+   *  drill, just built at runtime from the parent's scene data, carrying
+   *  whatever scenes remain in the queue. */
+  private followUpSceneDrill(
+    drill: Drill,
+    scene: NonNullable<Drill["followUpScenes"]>[number],
+    remaining: NonNullable<Drill["followUpScenes"]>
+  ): Drill {
     return {
       id: `${drill.id}-followup`,
       scenario: drill.scenario,
@@ -201,6 +212,7 @@ export class PracticeSession {
       followUpReadback: true,
       instructionVariants: scene.instructionVariants ?? null,
       instruction: scene.instruction ?? null,
+      followUpScenes: remaining.length ? remaining : null,
     };
   }
 
@@ -209,7 +221,7 @@ export class PracticeSession {
     verdict: Verdict,
     instruction: string,
     amendment: string | null,
-    followUpScene: Drill["followUpScene"] = null
+    followUpScenes: Drill["followUpScenes"] = null
   ): Drill {
     let voice: string;
     switch (verdict.speaker) {
@@ -240,7 +252,7 @@ export class PracticeSession {
       instruction,
       injectedReadback: true,
       amendment,
-      followUpScene,
+      followUpScenes,
     };
   }
 }

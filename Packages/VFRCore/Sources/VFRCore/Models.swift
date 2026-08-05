@@ -166,14 +166,17 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
     /// The chosen amendment for this session (resolved + varied like
     /// `instruction`); nil when the drill has no amendment.
     public var amendment: String?
-    /// A second exchange that starts from a NEW scene — time has passed and the
-    /// pilot's situation changed (e.g. taxied up and now holding short) — rather
-    /// than a same-frequency continuation. Fires once the readback chain above
-    /// (instruction, then amendment if any) is fully read back: the app injects
-    /// a fresh request → app-issued clearance → readback drill built from this,
-    /// so the scene break is a real card on screen, not prose buried in
+    /// A queue of follow-on scenes — each starts fresh from a NEW scene (time
+    /// has passed, the pilot's situation changed, e.g. taxied up and now
+    /// holding short) rather than a same-frequency continuation. They fire ONE
+    /// AT A TIME, in order: once the readback chain above (instruction, then
+    /// amendment if any) is fully read back, the app pops the front entry and
+    /// injects a fresh request → app-issued clearance → readback drill built
+    /// from it, carrying the remaining queue onto THAT drill so the next entry
+    /// fires the same way once it completes — drill 1 → sub-drill A → sub-drill
+    /// B → … in order, each a real scene card on screen, never prose buried in
     /// `situation`. Only meaningful on a drill that also sets `followUpReadback`.
-    public var followUpScene: FollowUpScene?
+    public var followUpScenes: [FollowUpScene]?
 
     public init(id: String, scenario: ScenarioType, title: String, setup: String,
                 radioOpener: String? = nil, situation: String,
@@ -182,7 +185,7 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
                 instructionVariants: [String]? = nil, instruction: String? = nil,
                 injectedReadback: Bool? = nil,
                 amendmentVariants: [String]? = nil, amendment: String? = nil,
-                followUpScene: FollowUpScene? = nil) {
+                followUpScenes: [FollowUpScene]? = nil) {
         self.id = id
         self.scenario = scenario
         self.title = title
@@ -198,12 +201,11 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
         self.injectedReadback = injectedReadback
         self.amendmentVariants = amendmentVariants
         self.amendment = amendment
-        self.followUpScene = followUpScene
+        self.followUpScenes = followUpScenes
     }
 }
 
-/// A second scene-and-exchange chained after a drill's initial readback chain
-/// completes — see `Drill.followUpScene`.
+/// One entry in a drill's follow-on scene queue — see `Drill.followUpScenes`.
 public struct FollowUpScene: Codable, Sendable, Equatable {
     /// Spoken to the pilot to set the new scene (what changed, where they are now).
     public var setup: String

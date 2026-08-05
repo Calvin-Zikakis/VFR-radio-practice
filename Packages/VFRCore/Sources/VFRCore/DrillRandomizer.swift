@@ -50,9 +50,10 @@ public enum DrillRandomizer {
         // briefing, grader script, and spoken clearances can never disagree.
         if d.instruction == nil { d.instruction = d.instructionVariants?.randomElement() }
         if d.amendment == nil { d.amendment = d.amendmentVariants?.randomElement() }
-        if var scene0 = d.followUpScene, scene0.instruction == nil {
-            scene0.instruction = scene0.instructionVariants?.randomElement()
-            d.followUpScene = scene0
+        d.followUpScenes = d.followUpScenes?.map { scene in
+            var s = scene
+            if s.instruction == nil { s.instruction = s.instructionVariants?.randomElement() }
+            return s
         }
         // Identity mappings FIRST: `applying` placeholders pair lefts in
         // order, so these shield every form of the flown callsign from all
@@ -87,11 +88,12 @@ public enum DrillRandomizer {
         d.radioOpener = d.radioOpener.map { applying(subs, to: $0) }
         d.instruction = d.instruction.map { applying(subs, to: $0) }
         d.amendment = d.amendment.map { applying(subs, to: $0) }
-        if var scene = d.followUpScene {
-            scene.setup = applying(subs, to: scene.setup)
-            scene.situation = applying(subs, to: scene.situation)
-            scene.instruction = scene.instruction.map { applying(subs, to: $0) }
-            d.followUpScene = scene
+        d.followUpScenes = d.followUpScenes?.map { scene in
+            var s = scene
+            s.setup = applying(subs, to: s.setup)
+            s.situation = applying(subs, to: s.situation)
+            s.instruction = s.instruction.map { applying(subs, to: $0) }
+            return s
         }
         return d
     }
@@ -104,9 +106,10 @@ public enum DrillRandomizer {
             var d = $0
             if d.instruction == nil { d.instruction = d.instructionVariants?.first }
             if d.amendment == nil { d.amendment = d.amendmentVariants?.first }
-            if var scene = d.followUpScene, scene.instruction == nil {
-                scene.instruction = scene.instructionVariants?.first
-                d.followUpScene = scene
+            d.followUpScenes = d.followUpScenes?.map { scene in
+                var s = scene
+                if s.instruction == nil { s.instruction = s.instructionVariants?.first }
+                return s
             }
             return d
         }
@@ -246,10 +249,12 @@ public enum DrillRandomizer {
     /// Everything a substitution trigger may scan — the authored squawk or a
     /// route's taxiway letters can live in the chosen instruction or amendment.
     private static func scannableText(of drill: Drill) -> String {
-        drill.setup + " " + drill.situation + " " + (drill.radioOpener ?? "") + " "
-            + (drill.instruction ?? "") + " " + (drill.amendment ?? "") + " "
-            + (drill.followUpScene?.setup ?? "") + " " + (drill.followUpScene?.situation ?? "") + " "
-            + (drill.followUpScene?.instruction ?? "")
+        var t = drill.setup + " " + drill.situation + " " + (drill.radioOpener ?? "") + " "
+            + (drill.instruction ?? "") + " " + (drill.amendment ?? "")
+        for scene in drill.followUpScenes ?? [] {
+            t += " " + scene.setup + " " + scene.situation + " " + (scene.instruction ?? "")
+        }
+        return t
     }
 
     private static func taxiwaySubstitutions(for drill: Drill) -> [(String, String)] {

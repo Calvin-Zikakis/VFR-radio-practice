@@ -183,14 +183,15 @@ public enum DrillLibrary {
             d.amendmentVariants = d.amendmentVariants?.map {
                 $0.replacingOccurrences(of: from, with: to)
             }
-            if var scene = d.followUpScene {
-                scene.setup = scene.setup.replacingOccurrences(of: from, with: to)
-                scene.situation = scene.situation.replacingOccurrences(of: from, with: to)
-                scene.instruction = scene.instruction?.replacingOccurrences(of: from, with: to)
-                scene.instructionVariants = scene.instructionVariants?.map {
+            d.followUpScenes = d.followUpScenes?.map { scene in
+                var s = scene
+                s.setup = s.setup.replacingOccurrences(of: from, with: to)
+                s.situation = s.situation.replacingOccurrences(of: from, with: to)
+                s.instruction = s.instruction?.replacingOccurrences(of: from, with: to)
+                s.instructionVariants = s.instructionVariants?.map {
                     $0.replacingOccurrences(of: from, with: to)
                 }
-                d.followUpScene = scene
+                return s
             }
         }
         return d
@@ -631,7 +632,7 @@ public enum DrillLibrary {
             instructionVariants: [
                 "RV seven three seven juliet alpha, Concord Ground, runway three two left, taxi via juliet, hold short of runway one niner left.",
             ],
-            followUpScene: FollowUpScene(
+            followUpScenes: [FollowUpScene(
                 setup: "You've taxied up juliet and are holding short of runway one niner left — hot spot two, right by the tower. Ground hasn't said anything further. Make your call.",
                 situation: "Towered field, you are Concord Ground. The pilot is holding short of one niner left and has NOT been cleared to cross — crossing without explicit clearance is a runway incursion. Grade the call: 'Concord Ground, RV seven juliet alpha, holding short runway one niner left' (explicitly requesting to cross is fine too) plus the callsign. Silence or a bare position report with no callsign is incomplete — coach them to speak up rather than just wait and hope Ground remembers them.",
                 title: "Ask to cross",
@@ -639,7 +640,7 @@ public enum DrillLibrary {
                 instructionVariants: [
                     "RV seven juliet alpha, cross runway one niner left, continue via papa to runway three two left.",
                 ]
-            )
+            )]
         ),
         Drill(
             id: "t-ccr-taxiback",
