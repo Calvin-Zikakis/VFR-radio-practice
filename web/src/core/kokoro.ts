@@ -1,13 +1,19 @@
-// Optional in-browser neural TTS (Kokoro-82M via kokoro-js / transformers.js).
-// Opt-in from the home screen: downloads the model once (~80 MB, cached by the
-// browser) so the voice is high-quality and reliable in every browser with no
-// server. Loaded lazily via dynamic import, so it never touches — or bloats the
-// bundle for — users who don't enable it. Every entry point is failure-safe: on
-// any error the caller falls back to the Worker voice, then the browser voice.
+// Optional in-browser neural TTS (Kokoro-82M). Opt-in from the home screen:
+// downloads the model once (~80 MB, cached) so the voice is high-quality and
+// reliable in every browser with no server. The heavy inference runs in a Web
+// Worker (see kokoro.worker.ts) so it never freezes the UI. The worker chunk —
+// which carries kokoro-js / transformers.js — is only created on opt-in, so it
+// never touches or bloats the experience for users who don't enable it. Every
+// entry point is failure-safe: on any error the caller falls back to the Worker
+// voice, then the browser voice.
 
-let ttsPromise: Promise<any> | null = null;
+let worker: Worker | null = null;
 let ready = false;
 let loading = false;
+let seq = 0;
+const pending = new Map<number, { resolve: (v: any) => void; reject: (e: any) => void }>();
+let progressCb: ((fraction: number) => void) | null = null;
+const files: Record<string, { loaded: number; total: number }> = {};
 
 export function kokoroReady(): boolean {
   return ready;
@@ -16,48 +22,62 @@ export function kokoroLoading(): boolean {
   return loading;
 }
 
-/** Download + initialize the model (idempotent). onProgress reports 0–1. */
-export async function loadKokoro(onProgress?: (fraction: number) => void): Promise<void> {
-  if (ready) return;
-  if (!ttsPromise) {
-    loading = true;
-    ttsPromise = (async () => {
-      const mod: any = await import("kokoro-js");
-      const files: Record<string, { loaded: number; total: number }> = {};
-      const tts = await mod.KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", {
-        dtype: "q8",
-        device: "wasm",
-        progress_callback: (info: any) => {
-          if (info?.status === "progress" && info.file && info.total) {
-            files[info.file] = { loaded: info.loaded ?? 0, total: info.total };
-            let loaded = 0;
-            let total = 0;
-            for (const f of Object.values(files)) {
-              loaded += f.loaded;
-              total += f.total;
-            }
-            if (total && onProgress) onProgress(Math.min(1, loaded / total));
-          }
-        },
-      });
-      ready = true;
-      loading = false;
-      return tts;
-    })();
-    ttsPromise.catch(() => {
-      loading = false;
-      ttsPromise = null; // allow a retry on the next enable
-    });
+function ensureWorker(): Worker {
+  if (!worker) {
+    worker = new Worker(new URL("./kokoro.worker.ts", import.meta.url), { type: "module" });
+    worker.onmessage = (e: MessageEvent) => {
+      const m = e.data;
+      if (m.type === "progress") {
+        files[m.file] = { loaded: m.loaded, total: m.total };
+        let loaded = 0;
+        let total = 0;
+        for (const f of Object.values(files)) {
+          loaded += f.loaded;
+          total += f.total;
+        }
+        if (total && progressCb) progressCb(Math.min(1, loaded / total));
+      } else if (m.type === "ready") {
+        ready = true;
+        loading = false;
+        pending.get(m.id)?.resolve(undefined);
+        pending.delete(m.id);
+      } else if (m.type === "audio") {
+        pending.get(m.id)?.resolve(m.buf);
+        pending.delete(m.id);
+      } else if (m.type === "error") {
+        pending.get(m.id)?.reject(new Error(m.message));
+        pending.delete(m.id);
+      }
+    };
   }
-  await ttsPromise;
+  return worker;
 }
 
-const VOICE = "af_heart"; // a clear, natural default
+/** Download + initialize the model in the worker (idempotent). onProgress 0–1. */
+export async function loadKokoro(onProgress?: (fraction: number) => void): Promise<void> {
+  if (ready) return;
+  loading = true;
+  progressCb = onProgress ?? null;
+  const w = ensureWorker();
+  const id = ++seq;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      w.postMessage({ type: "load", id });
+    });
+  } catch (e) {
+    loading = false;
+    throw e;
+  }
+}
 
-/** Synthesize text to a WAV Blob, or null if the model isn't loaded. */
+/** Synthesize text to a WAV Blob in the worker, or null if not loaded. */
 export async function kokoroSpeak(text: string): Promise<Blob | null> {
-  if (!ready || !ttsPromise) return null;
-  const tts = await ttsPromise;
-  const audio = await tts.generate(text, { voice: VOICE });
-  return audio.toBlob() as Blob;
+  if (!ready || !worker) return null;
+  const id = ++seq;
+  const buf: ArrayBuffer = await new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    worker!.postMessage({ type: "generate", id, text });
+  });
+  return new Blob([buf], { type: "audio/wav" });
 }
