@@ -34,8 +34,15 @@ if (typeof window === "undefined") {
       coepCredentialless && r.mode === "no-cors"
         ? new Request(r, { credentials: "omit" })
         : r;
+    // Navigations (loading the page itself) always go to the network, bypassing
+    // the HTTP cache — GitHub Pages serves index.html with a 10-minute
+    // Cache-Control, which would otherwise let this worker serve a stale page
+    // (pointing at an old build's hashed JS/CSS) for up to 10 minutes after a
+    // deploy. A plain Request can't have its "navigate" mode preserved once
+    // reconstructed, so this refetches by URL instead of wrapping `r`.
+    const toFetch = r.mode === "navigate" ? new Request(r.url, { cache: "reload" }) : request;
     event.respondWith(
-      fetch(request)
+      fetch(toFetch)
         .then((response) => {
           if (response.status === 0) {
             return response;
@@ -105,7 +112,10 @@ if (typeof window === "undefined") {
       return;
     }
 
-    n.serviceWorker.register(window.document.currentScript.src).then(
+    // updateViaCache: "none" — never let the HTTP cache answer the browser's
+    // own update check for this script; always hit the network for it (GitHub
+    // Pages caches it for 10 minutes same as index.html).
+    n.serviceWorker.register(window.document.currentScript.src, { updateViaCache: "none" }).then(
       (registration) => {
         !coi.quiet && console.log("COOP/COEP Service Worker registered", registration.scope);
 
