@@ -30,6 +30,18 @@ if (typeof window === "undefined") {
       return;
     }
 
+    // Only same-origin requests need this worker at all — it exists purely to
+    // stamp COOP/COEP onto the document + our own JS/WASM, since GitHub Pages
+    // can't send them natively. Cross-origin resources (map tiles, the Kokoro
+    // model download, the grading API) are left completely alone: under
+    // credentialless COEP the browser already permits third-party no-cors
+    // resources natively, but reconstructing their Response through this SW
+    // breaks that — seen live as map tiles blocked with "Cross-Origin-Resource-
+    // Policy prevented from serving the response to the client."
+    if (new URL(r.url, self.location.href).origin !== self.location.origin) {
+      return;
+    }
+
     const request =
       coepCredentialless && r.mode === "no-cors"
         ? new Request(r, { credentials: "omit" })
