@@ -120,6 +120,9 @@ function renderHome() {
     );
   }
 
+  app.append(sectionLabel("Voice"));
+  app.append(kokoroRow());
+
   if (!keyReady()) {
     const warn = el(
       "div",
@@ -172,9 +175,6 @@ function renderHome() {
     grid.append(tile);
   }
   app.append(grid);
-
-  app.append(sectionLabel("Voice"));
-  app.append(kokoroRow());
 
   // Dismissable getting-started banner.
   if (localStorage.getItem("vfr.web.introDismissed") !== "1") {
