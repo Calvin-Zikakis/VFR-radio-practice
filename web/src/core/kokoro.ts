@@ -94,19 +94,25 @@ let currentGenerateId: number | null = null;
  *  superseded by a newer call before the worker got to it. */
 export async function kokoroSpeak(text: string): Promise<Blob | null> {
   if (!ready || !worker) return null;
+  const t0 = performance.now();
   // Abandon whatever was still in flight — resolve it as "no audio" right
   // away so its caller doesn't sit waiting on a stale drill, and the worker
   // drops it too if it hadn't started running yet.
   if (currentGenerateId !== null) {
+    console.log(`[kokoro ${t0.toFixed(0)}ms] speak() abandoning previous id=${currentGenerateId}`);
     pending.get(currentGenerateId)?.resolve(null);
     pending.delete(currentGenerateId);
   }
   const id = ++seq;
   currentGenerateId = id;
+  console.log(`[kokoro ${t0.toFixed(0)}ms] speak() posting id=${id}`);
   const buf: ArrayBuffer | null = await new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject });
     worker!.postMessage({ type: "generate", id, text });
   });
+  console.log(
+    `[kokoro ${performance.now().toFixed(0)}ms] speak() id=${id} resolved after ${(performance.now() - t0).toFixed(0)}ms, got audio=${!!buf}`
+  );
   if (currentGenerateId === id) currentGenerateId = null;
   return buf ? new Blob([buf], { type: "audio/wav" }) : null;
 }

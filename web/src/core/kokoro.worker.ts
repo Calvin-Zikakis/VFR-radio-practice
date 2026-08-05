@@ -56,20 +56,32 @@ async function build(): Promise<any> {
 let busy = false;
 let queued: { id: number; text: string } | null = null;
 
+// TEMPORARY diagnostic logging (see also kokoro.ts and main.ts) — helps
+// pin down where a skip-spam delay is actually coming from. Cheap to leave
+// in; remove once the skip-lag report is resolved.
+function log(msg: string) {
+  console.log(`[kokoro-worker ${performance.now().toFixed(0)}ms] ${msg}`);
+}
+
 async function runGenerate(id: number, text: string) {
   busy = true;
+  const t0 = performance.now();
+  log(`generate START id=${id}`);
   try {
     const tts = await ttsPromise;
     const audio = await tts.generate(text, { voice: "af_heart" });
     const buf: ArrayBuffer = audio.toWav();
+    log(`generate DONE id=${id} took ${(performance.now() - t0).toFixed(0)}ms`);
     ctx.postMessage({ type: "audio", id, buf }, [buf]); // transfer, zero-copy
   } catch (err: any) {
+    log(`generate ERROR id=${id} took ${(performance.now() - t0).toFixed(0)}ms: ${err}`);
     ctx.postMessage({ type: "error", id, message: String(err?.message ?? err) });
   } finally {
     busy = false;
     if (queued) {
       const next = queued;
       queued = null;
+      log(`starting queued id=${next.id}`);
       runGenerate(next.id, next.text);
     }
   }
@@ -95,6 +107,8 @@ ctx.onmessage = async (e: MessageEvent) => {
       ctx.postMessage({ type: "ready", id });
     } else if (type === "generate") {
       if (busy) {
+        if (queued) log(`DROPPING superseded queued id=${queued.id} (replaced by id=${id})`);
+        else log(`QUEUING id=${id} — busy with another generate()`);
         queued = { id, text }; // supersedes anything previously queued
       } else {
         runGenerate(id, text);

@@ -20,7 +20,7 @@ import { loadStats, recordResult, resetStats } from "./core/stats";
 import { saveResume, loadResume, clearResume } from "./core/resume";
 import { loadKokoro, kokoroReady, kokoroLoading, kokoroStatus, kokoroSpeak } from "./core/kokoro";
 import type { CallType, Verdict, Airport, Aircraft, Drill } from "./core/types";
-import { MODELS, workerVoiceConfigured, transcribe, synthesize } from "./core/client";
+import { MODELS, DEFAULT_MODEL, workerVoiceConfigured, transcribe, synthesize } from "./core/client";
 import type { GraderConfig, KeyMode } from "./core/client";
 import { loadSettings, saveSettings, type Settings } from "./settings";
 import {
@@ -61,7 +61,13 @@ function graderConfig(): GraderConfig {
     settings.keyMode === "byo"
       ? { kind: "byo", apiKey: settings.apiKey }
       : { kind: "shared", workerUrl: settings.workerUrl, passcode: settings.passcode };
-  return { key, model: settings.model, difficulty: settings.difficulty };
+  // Opus is off-limits on the shared classroom key — it burns through the
+  // shared token budget far faster than Sonnet/Haiku. Clamped here (not just
+  // hidden in the picker) so a model chosen while on a personal key can't
+  // linger through a switch to the class passcode.
+  const model =
+    settings.keyMode === "shared" && settings.model.includes("opus") ? DEFAULT_MODEL : settings.model;
+  return { key, model, difficulty: settings.difficulty };
 }
 
 function keyReady(): boolean {
@@ -542,6 +548,7 @@ function runDrills(drills: Drill[]) {
   }
   sessionLog = [];
   voiceNoticeShown = false;
+  lastSpoken = null;
   clearResume(); // a new session invalidates any prior resume point
   // Fly one consistent airplane (retarget FIRST so the randomizer shields the
   // chosen callsign), then vary incidental details.
@@ -578,6 +585,7 @@ function resumeSession() {
   }
   sessionLog = saved.log ?? [];
   voiceNoticeShown = false;
+  lastSpoken = null;
   session = PracticeSession.from(saved.snap, graderConfig(), saved.mode);
   renderSession();
   // On a chained readback, remind the pilot what the controller last issued.
@@ -611,6 +619,7 @@ const ICON_MAP = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="curren
 const ICON_CHART = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
 const ICON_LIST = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`;
 const ICON_GEAR = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+const ICON_REPLAY = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-9.36L1 10"/></svg>`;
 const ICON_GITHUB = `<svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>`;
 const GITHUB_URL = "https://github.com/Calvin-Zikakis/VFR-radio-practice";
 
@@ -770,6 +779,16 @@ function renderSession() {
   }
   talkRow.append(talkBtn);
 
+  // Replay the last line spoken — handy after cutting the voice off to talk,
+  // or if it was missed the first time.
+  const replayBtn = el("button", "ghost replaybtn") as HTMLButtonElement;
+  setBtn(replayBtn, ICON_REPLAY, "Replay");
+  replayBtn.title = "Replay the last line";
+  replayBtn.onclick = () => {
+    if (lastSpoken) say(lastSpoken.text, lastSpoken.role);
+  };
+  talkRow.append(replayBtn);
+
   // Voice / text-only toggle (mutes spoken replies without leaving the session).
   const voiceBtn = el("button", "voicetoggle ghost") as HTMLButtonElement;
   const paintVoice = () =>
@@ -825,6 +844,7 @@ function addLine(role: Role, text: string): HTMLElement {
 
 async function briefCurrent() {
   sessionGen++; // a new drill is being briefed — invalidate any in-flight say()
+  console.log(`[voice ${performance.now().toFixed(0)}ms] briefCurrent gen=${sessionGen}`);
   const drill = session!.currentDrill;
   if (!drill) {
     finish();
@@ -893,10 +913,14 @@ type SayRole = "scene" | "controller" | "instructor" | "note";
 let masterMuted = false;
 
 // Bumped every time a new drill is about to be briefed (skip, advance, resume,
-// session start). say() captures it on entry and bails after each await if a
-// newer drill has since superseded it — otherwise spamming "skip" queues up
-// every skipped drill's narration and reads them back to back.
+// session start) or the pilot starts talking. say() captures it on entry and
+// bails after each await if it's been superseded since — otherwise spamming
+// "skip" queues up every skipped drill's narration and reads them back to
+// back, and holding the mic doesn't stop the controller talking over you.
 let sessionGen = 0;
+// The most recent line handed to say(), regardless of whether it actually
+// played (muted role, cancelled mid-flight) — what the Replay button repeats.
+let lastSpoken: { text: string; role: SayRole } | null = null;
 
 function volumeFor(role: SayRole): number {
   if (masterMuted) return 0;
@@ -917,6 +941,8 @@ function volumeFor(role: SayRole): number {
  *  Abandons itself if superseded by a newer drill (see sessionGen). */
 async function say(text: string, role: SayRole) {
   const gen = sessionGen;
+  console.log(`[voice ${performance.now().toFixed(0)}ms] say() start gen=${gen} role=${role}`);
+  lastSpoken = { text, role };
   const vol = volumeFor(role);
   if (vol < 0.02) return; // muted role
   const spoken = forSpeech(text);
@@ -958,6 +984,10 @@ async function say(text: string, role: SayRole) {
 
 async function beginTalk() {
   if (listening || recorder || startingRecorder) return;
+  // Pressing the mic always wins over the voice engine — cancel any playing
+  // or in-flight speech immediately so the pilot can talk without waiting.
+  sessionGen++;
+  stopSpeaking();
   const cfg = graderConfig();
   if (workerVoiceConfigured(cfg)) {
     // Worker/Whisper path: record now, transcribe on release.
@@ -1134,6 +1164,7 @@ function showVerdict(v: Verdict) {
 }
 
 function skipCurrent() {
+  console.log(`[voice ${performance.now().toFixed(0)}ms] skip clicked`);
   if (listening) listening.stop();
   stopSpeaking();
   if (!session) return;
@@ -1301,10 +1332,17 @@ function renderSettings() {
     form.append(textField("Anthropic API key", settings.apiKey, (v) => (settings.apiKey = v), "password"));
   }
 
-  // Model
+  // Model — Opus is hidden on the shared classroom key; it burns through the
+  // shared token budget far faster than Sonnet/Haiku (graderConfig() also
+  // clamps this server-side of the UI, so a stale choice can never sneak through).
+  const availableModels = settings.keyMode === "shared" ? MODELS.filter((m) => !m.includes("opus")) : MODELS;
+  if (settings.keyMode === "shared" && settings.model.includes("opus")) {
+    settings.model = DEFAULT_MODEL;
+    persist();
+  }
   form.append(el("label", "field-label", "Grader model"));
   const modelSel = el("select", "select") as HTMLSelectElement;
-  for (const m of MODELS) {
+  for (const m of availableModels) {
     const o = el("option", undefined, m) as HTMLOptionElement;
     o.value = m;
     if (m === settings.model) o.selected = true;
@@ -1315,7 +1353,15 @@ function renderSettings() {
     persist();
   };
   form.append(modelSel);
-  form.append(el("p", "muted small", "Sonnet 5 is the default (best balance). Haiku is cheaper/faster; Opus is strictest."));
+  form.append(
+    el(
+      "p",
+      "muted small",
+      settings.keyMode === "shared"
+        ? "Sonnet 5 is the default (best balance). Haiku is cheaper/faster. Opus isn't offered on the shared key — use your own key if you need it."
+        : "Sonnet 5 is the default (best balance). Haiku is cheaper/faster; Opus is strictest."
+    )
+  );
 
   // Aircraft
   form.append(el("label", "field-label", "Aircraft"));
