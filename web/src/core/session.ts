@@ -4,6 +4,7 @@
 
 import type { Drill, Verdict, Turn, CallType, GradingMode, Difficulty } from "./types";
 import { grade, type GraderConfig } from "./client";
+import { bareCallsign, shortCallsign } from "./aircraft";
 
 /** Classify a drill by its explicit tag or a fallback derived from its id. */
 export function callType(drill: Drill): CallType {
@@ -161,6 +162,30 @@ export class PracticeSession {
       const reply = verdict.radioReplyText.toLowerCase();
       if (reply.includes("cross runway") || reply.includes("hold short")) {
         verdict.phaseAdvance = false;
+      }
+    }
+
+    // Deterministic backstop: a readback drill's own prompt already says the
+    // callsign is required, but the grader is a probabilistic model and can
+    // forget under load — this has been seen live passing a complete-sounding
+    // readback with no callsign at all. Check `heard` for ANY spoken form
+    // (full phonetic, bare, short, or the bare tail number) before trusting a
+    // pass; if none is present, hold the step instead of advancing.
+    if (drill.injectedReadback === true && verdict.correct && verdict.phaseAdvance) {
+      const heard = verdict.heard.toLowerCase();
+      const forms = [
+        drill.aircraft.phoneticCallsign,
+        bareCallsign(drill.aircraft),
+        shortCallsign(drill.aircraft),
+        drill.aircraft.callsign,
+      ].map((s) => s.toLowerCase());
+      if (!forms.some((f) => f && heard.includes(f))) {
+        verdict.correct = false;
+        verdict.phaseAdvance = false;
+        if (!verdict.corrections.some((c) => /callsign/i.test(c))) {
+          verdict.corrections = [...verdict.corrections, "Missing your callsign"];
+        }
+        verdict.coaching = verdict.coaching || "Add your callsign to the readback.";
       }
     }
 
