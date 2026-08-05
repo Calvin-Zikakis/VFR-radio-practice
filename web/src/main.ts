@@ -9,6 +9,7 @@ import {
   routableAirports,
   defaultAircraft,
   fleet,
+  allDrills,
 } from "./core/drills";
 import { tripDrills } from "./core/trip";
 import { vary } from "./core/randomizer";
@@ -139,6 +140,10 @@ function renderHome() {
   const statsBtn = el("button", "ghost mixlink", "📊  Progress & weak spots →") as HTMLButtonElement;
   statsBtn.onclick = renderStats;
   app.append(statsBtn);
+
+  const browseBtn = el("button", "ghost mixlink", "📋  Browse all drills →") as HTMLButtonElement;
+  browseBtn.onclick = renderBrowse;
+  app.append(browseBtn);
 
   const foot = el("footer", "foot");
   const built = new Date(generatedAt);
@@ -421,6 +426,41 @@ function renderStats() {
     renderStats();
   };
   app.append(reset);
+}
+
+// ------------------------------------------------------------- Drill browser
+
+function renderBrowse() {
+  stopSpeaking();
+  session = null;
+  app.innerHTML = "";
+  app.classList.remove("session-view");
+  const header = el("header", "topbar");
+  const back = el("button", "ghost", "← Back");
+  back.onclick = renderHome;
+  header.append(back);
+  header.append(el("div", "brand", "Browse drills"));
+  app.append(header);
+  app.append(
+    el("p", "muted small", "Tap any call to practice just that one — its readbacks chain automatically.")
+  );
+  if (!keyReady()) app.append(el("div", "notice", "Add your key in Settings to start a drill."));
+
+  for (const cat of CATEGORIES) {
+    const drills = allDrills.filter((d) => callType(d) === cat.type);
+    if (!drills.length) continue;
+    app.append(el("div", "field-label browsecat", cat.label));
+    const list = el("div", "browselist");
+    for (const d of drills) {
+      const row = el("button", "browserow") as HTMLButtonElement;
+      row.append(el("span", "browsetitle", d.title));
+      row.append(el("span", "browsemeta", d.airport.icao));
+      row.disabled = !keyReady();
+      row.onclick = () => runDrills([d]);
+      list.append(row);
+    }
+    app.append(list);
+  }
 }
 
 // ---------------------------------------------------------------- Session
