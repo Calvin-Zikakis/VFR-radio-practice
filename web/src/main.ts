@@ -10,6 +10,7 @@ import {
   defaultAircraft,
 } from "./core/drills";
 import { tripDrills } from "./core/trip";
+import { vary } from "./core/randomizer";
 import { AIRPORT_COORDS } from "./core/geo";
 import { PracticeSession } from "./core/session";
 import type { CallType, Verdict, Airport, Drill } from "./core/types";
@@ -353,7 +354,8 @@ function runDrills(drills: Drill[]) {
   }
   sessionLog = [];
   voiceNoticeShown = false;
-  session = new PracticeSession(drills, graderConfig(), settings.gradingMode);
+  const prepared = settings.randomize ? vary(drills) : drills;
+  session = new PracticeSession(prepared, graderConfig(), settings.gradingMode);
   renderSession();
   briefCurrent();
 }
@@ -918,6 +920,21 @@ function renderSettings() {
   };
   speakRow.append(cb, el("span", undefined, "Speak the scene and controller replies aloud"));
   form.append(speakRow);
+
+  // Randomize details
+  const randRow = el("label", "checkrow");
+  const randCb = el("input") as HTMLInputElement;
+  randCb.type = "checkbox";
+  randCb.checked = settings.randomize;
+  randCb.onchange = () => {
+    settings.randomize = randCb.checked;
+    persist();
+  };
+  randRow.append(
+    randCb,
+    el("span", undefined, "Vary details each session (ATIS, runway, altitude, squawk)")
+  );
+  form.append(randRow);
 
   // Speech speed
   form.append(el("label", "field-label", "Speech speed"));

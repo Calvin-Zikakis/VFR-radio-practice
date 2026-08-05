@@ -12,6 +12,7 @@ export interface Settings {
   model: string;
   difficulty: Difficulty;
   gradingMode: GradingMode; // live coaching vs debrief at end
+  randomize: boolean; // vary ATIS/runway/altitude/squawk per session
   speakReplies: boolean;
   speechRate: number; // 0.7–1.4, applies to controller/scene voices
   instructorName: string; // label shown for the coaching voice
@@ -29,6 +30,7 @@ const DEFAULTS: Settings = {
   model: DEFAULT_MODEL,
   difficulty: "checkride",
   gradingMode: "live",
+  randomize: true,
   speakReplies: true,
   speechRate: 1,
   instructorName: "Instructor",
