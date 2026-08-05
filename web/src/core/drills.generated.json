@@ -970,7 +970,7 @@
       "callType" : "taxi",
       "id" : "t-ccr-holdshort-request",
       "scenario" : "towered",
-      "setup" : "You call Concord Ground to taxi for departure on three two left, and they come back with: RV seven three seven juliet alpha, runway three two left, taxi via juliet, hold short of runway one niner left. Read it back. Then, when you've taxied up juliet and are holding short of one niner left — hot spot two, right by the tower — with nothing further said to you, make the call that keeps you moving.",
+      "setup" : "You call Concord Ground to taxi for departure on three two left, and they come back with: RV seven three seven juliet alpha, runway three two left, taxi via juliet, hold short of runway one niner left. Read it back. Then, when you've taxied up juliet and are holding short of one niner left — hot spot two, right by the tower — with nothing further said to you, make your next call.",
       "situation" : "Towered field, you are Concord Ground. Step 1: you issued 'runway three two left, taxi via juliet, hold short of runway one niner left'. Grade the readback: the hold short VERBATIM with its runway, the assigned runway three two left, and the callsign — strict at every difficulty. Step 2: the pilot is now holding short of one niner left and has NOT been cleared to cross — crossing without explicit clearance is a runway incursion. The right call: 'Concord Ground, RV seven juliet alpha, holding short runway one niner left' (explicitly requesting crossing is fine too). Reply: 'RV seven juliet alpha, cross runway one niner left, continue via papa to runway three two left', then grade the crossing readback ('cross runway one niner left' plus callsign). Set phaseAdvance true only after the crossing clearance has been read back.",
       "title" : "Hold short of the crossing runway — then ask"
     },
@@ -1232,7 +1232,7 @@
       "callType" : "emergency",
       "id" : "t-sayagain",
       "scenario" : "towered",
-      "setup" : "You're inbound to Monterey and tower fires off a long, fast instruction — you only caught part of it. You are NOT sure what they said. Make the right call.",
+      "setup" : "You're inbound to Monterey and tower fires off a long, fast instruction — you only caught part of it. You are NOT sure what they said. Make your call.",
       "situation" : "Towered field, you are Monterey Tower. You just issued a fast, complex pattern-entry instruction and the pilot missed it. The RIGHT answer is to ask rather than guess: callsign plus 'say again' (adding 'say again slower' or identifying as a student pilot is even better — controllers slow down for students). Grade whether they asked for a repeat instead of read back something they didn't hear; guessing or a vague 'roger' is WRONG and dangerous. When they ask, repeat the instruction slowly: 'enter left downwind runway two eight right, report midfield'.",
       "title" : "Missed a rapid instruction — say again"
     },
@@ -1278,7 +1278,7 @@
       "callType" : "arrival",
       "id" : "t-rhv-parallel",
       "scenario" : "towered",
-      "setup" : "You're 10 miles south of Reid-Hillview at two thousand five hundred, inbound to land with information Whiskey. Reid-Hillview has parallel runways three one left and three one right. Call the tower — and listen carefully for WHICH parallel you get.",
+      "setup" : "You're 10 miles south of Reid-Hillview at two thousand five hundred, inbound to land with information Whiskey. Reid-Hillview has parallel runways three one left and three one right. Call the tower.",
       "situation" : "Towered field, you are Reid-Hillview Tower (KRHV, parallel runways 31L/31R; current ATIS is information Whiskey). After the pilot's inbound call, clear them: 'make right traffic runway three one right, report midfield'. The readback MUST name the correct parallel — 'three one right', not just 'three one'. If they read back the wrong parallel or drop the left/right, correct them immediately ('negative, runway three one RIGHT') and don't advance. Mention traffic landing the parallel ('traffic is a Cessna on final for the left') to exercise parallel awareness. Advance once they've read back the correct full runway.",
       "title" : "Parallel runways — Reid-Hillview"
     },
@@ -1470,7 +1470,7 @@
       "callType" : "advisory",
       "id" : "ff-negative-contact",
       "scenario" : "flightFollowing",
-      "setup" : "You're on flight following at four thousand five hundred. NorCal calls: RV seven three seven juliet alpha, traffic one o'clock, five miles, converging, a Bonanza, altitude indicates four thousand five hundred. You scan hard and see nothing. Respond — and when the traffic keeps closing, don't just keep hoping.",
+      "setup" : "You're on flight following at four thousand five hundred. NorCal calls: RV seven three seven juliet alpha, traffic one o'clock, five miles, converging, a Bonanza, altitude indicates four thousand five hundred. You scan hard and see nothing. Respond.",
       "situation" : "You are NorCal Approach. Step 1: you issued a traffic advisory — 1 o'clock, 5 miles, converging, a Bonanza at 4,500, the pilot's own altitude. Expect 'negative contact' or 'looking' plus callsign. Step 2: update the traffic — 'seven juliet alpha, traffic now one o'clock, two miles, converging, same altitude' — and grade the response: still not seeing converging same-altitude traffic inside two miles, the right answer is 'negative contact, request vectors' (asking for a turn away is equally good); a bare 'still looking' earns coaching. If they request vectors, reply 'turn left heading three one zero' and expect a readback of the heading with callsign. Set phaseAdvance true after the step-2 response, plus the readback if you issued a vector. Coach: converging, same altitude, can't see it — maneuver or ask, never just hope it misses.",
       "title" : "Can't find the traffic — ask for help"
     },
@@ -1779,7 +1779,7 @@
       "callType" : "flightFollowing",
       "id" : "ff-restriction-handoff",
       "scenario" : "flightFollowing",
-      "setup" : "On flight following, NorCal assigns: RV seven three seven juliet alpha, maintain at or below two thousand five hundred for crossing traffic; contact NorCal Approach on one two seven point one five. Read it back, then check in on the new frequency — and tell the new controller about your restriction.",
+      "setup" : "On flight following, NorCal assigns: RV seven three seven juliet alpha, maintain at or below two thousand five hundred for crossing traffic; contact NorCal Approach on one two seven point one five. Read it back, then check in on the new frequency.",
       "situation" : "You are NorCal Approach. Step 1: you issued an altitude restriction ('maintain at or below two thousand five hundred') plus a frequency change ('contact NorCal Approach on one two seven point one five'). Grade the readback: the restriction, the frequency, and the callsign. Step 2: on the new frequency the pilot checks in and MUST announce the restriction so the new controller knows — e.g. 'NorCal Approach, RV seven three seven juliet alpha, two thousand three hundred, assigned at or below two thousand five hundred'. If they check in without stating the assigned restriction, reply 'say assigned altitude' and do not advance. Set phaseAdvance true only after both the readback and the restricted check-in.",
       "title" : "Altitude restriction + handoff — announce it"
     },
@@ -1871,7 +1871,7 @@
       "callType" : "emergency",
       "id" : "ff-min-fuel",
       "scenario" : "flightFollowing",
-      "setup" : "Headwinds ate your reserve: you'll land at Salinas with about thirty minutes of fuel — legal, but with no margin for delays. You're on flight following with NorCal. Make the call that tells them — and know the difference between 'minimum fuel' and an emergency.",
+      "setup" : "Headwinds ate your reserve: you'll land at Salinas with about thirty minutes of fuel — legal, but with no margin for delays. You're on flight following with NorCal. Make the call that tells them.",
       "situation" : "You are NorCal Approach. The pilot should declare MINIMUM FUEL: callsign plus 'minimum fuel' (e.g. 'RV seven three seven juliet alpha, minimum fuel'). Reply: 'RV seven juliet alpha, roger, no delay expected, Salinas is twelve o'clock, one five miles'. KEY TEACHING POINT — grade their understanding of the distinction: 'minimum fuel' is an ADVISORY that they can accept no undue delay; it grants NO priority. If they need priority handling, they must declare 'emergency fuel' (or mayday), which does. If the pilot declares an emergency here, that's acceptable too if they characterize it correctly — grade the phraseology either way. If they just tell you their fuel state without the words 'minimum fuel', ask 'say intentions' and coach the standard phrase. Advance after a correct declaration.",
       "title" : "Minimum fuel vs emergency fuel"
     },
@@ -1949,7 +1949,7 @@
       "type" : "Beechcraft Bonanza"
     }
   ],
-  "generatedAt" : "2026-08-05T04:16:49Z",
+  "generatedAt" : "2026-08-05T18:49:29Z",
   "routableAirports" : [
     {
       "ctafOrTower" : "one two two point eight",
