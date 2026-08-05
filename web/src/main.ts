@@ -327,10 +327,13 @@ function renderMap() {
     return !!p;
   });
 
-  const mapDiv = el("div", "routemap");
   // Drive the box off the image's own dimensions so marker percentages line up
-  // no matter how the map is sized.
-  mapDiv.style.setProperty("--map-ar", String(SECTIONAL_W / SECTIONAL_H));
+  // no matter how the map is sized. Everything from the chart down lives in this
+  // wrapper, so the credit, the route chips and the start button all sit on the
+  // chart's own column rather than sprawling across the page behind it.
+  const mapWrap = el("div", "routemap-wrap");
+  mapWrap.style.setProperty("--map-ar", String(SECTIONAL_W / SECTIONAL_H));
+  const mapDiv = el("div", "routemap");
   const img = el("img", "routemap-img") as HTMLImageElement;
   img.src = sectionalUrl;
   img.alt = "San Francisco sectional chart, Concord south to Monterey";
@@ -344,16 +347,17 @@ function renderMap() {
   poly.setAttribute("vector-effect", "non-scaling-stroke");
   line.append(poly);
   mapDiv.append(img, line);
-  app.append(mapDiv);
-  app.append(
+  mapWrap.append(
+    mapDiv,
     el(
       "p",
-      "muted tiny",
+      "muted tiny routemap-note",
       "FAA San Francisco Sectional (public domain). For practice only — not for navigation."
     )
   );
+  app.append(mapWrap);
   const routeBar = el("div", "routebar");
-  app.append(routeBar);
+  mapWrap.append(routeBar);
 
   const ffCb = el("input") as HTMLInputElement;
   ffCb.type = "checkbox";
@@ -368,7 +372,7 @@ function renderMap() {
   const startBtn = el("button", "primary", "Start route") as HTMLButtonElement;
   const opts = el("div", "form");
   opts.append(ffRow, pwRow, startBtn);
-  app.append(opts);
+  mapWrap.append(opts);
 
   const route: string[] = []; // ordered, repeats allowed (round trips)
   const byIcao = (icao: string) => airports.find((a) => a.icao === icao)!;

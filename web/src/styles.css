@@ -290,15 +290,17 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
    The box carries the image's aspect ratio (set inline), so every marker's
    left/top percentage stays correct at any size, with no layout maths at
    runtime and nothing to invalidate on resize. */
+/* Cap the width rather than the height: clamping height on an aspect-ratio box
+   leaves the width definite and stretches the chart. The cap lives on the
+   wrapper so the credit, chips and start button share the chart's column. */
+.routemap-wrap { max-width: calc(70vh * var(--map-ar)); margin: 0 auto; }
+.routemap-note { text-align: center; margin: 0 0 12px; }
+/* The generic form cap would leave the start button short of the chart's edge. */
+.routemap-wrap .form { max-width: none; }
 .routemap {
   position: relative;
   aspect-ratio: var(--map-ar);
   width: 100%;
-  /* Cap the width rather than the height: clamping height on an aspect-ratio
-     box leaves the width definite and stretches the chart. */
-  max-width: calc(70vh * var(--map-ar));
-  /* Flush left with the surrounding copy — centring it leaves the chart floating
-     off the page's text column once the height cap narrows it. */
   margin: 8px 0 4px;
   border: 1px solid var(--border);
   border-radius: 12px;
