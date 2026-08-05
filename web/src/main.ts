@@ -30,7 +30,6 @@ import {
   playClip,
   setSpeechRate,
   type Recorder,
-  type Voice,
 } from "./speech";
 
 const app = document.getElementById("app")!;
@@ -584,13 +583,12 @@ function renderSession() {
   // Voice / text-only toggle (mutes spoken replies without leaving the session).
   const voiceBtn = el("button", "voicetoggle ghost") as HTMLButtonElement;
   const paintVoice = () =>
-    setBtn(voiceBtn, settings.speakReplies ? ICON_VOL_ON : ICON_VOL_OFF, settings.speakReplies ? "Voice" : "Muted");
+    setBtn(voiceBtn, masterMuted ? ICON_VOL_OFF : ICON_VOL_ON, masterMuted ? "Muted" : "Voice");
   paintVoice();
-  voiceBtn.title = "Toggle spoken replies (text-only)";
+  voiceBtn.title = "Mute all voices (this session)";
   voiceBtn.onclick = () => {
-    settings.speakReplies = !settings.speakReplies;
-    persist();
-    if (!settings.speakReplies) stopSpeaking();
+    masterMuted = !masterMuted;
+    if (masterMuted) stopSpeaking();
     paintVoice();
   };
   talkRow.append(voiceBtn);
@@ -645,6 +643,7 @@ async function briefCurrent() {
   bannerEl.textContent = `${a.callsign}  ·  ${a.type}  ·  “${a.phoneticCallsign}”`;
   if (drill.injectedReadback === true) {
     addLine("instructor", drill.setup);
+    await say(drill.setup, "instructor");
   } else {
     addLine("scene", drill.setup);
     await say(drill.setup, "scene");
@@ -681,17 +680,37 @@ function noteVoiceFallback() {
   if (bannerEl?.parentElement) bannerEl.after(banner);
 }
 
-/** Speak text aloud, honoring the Speak setting. Uses the Worker's TTS when
- *  configured (good voice in every browser), else browser speechSynthesis. */
-async function say(text: string, role: Voice) {
-  if (!settings.speakReplies) return;
+type SayRole = "scene" | "controller" | "instructor" | "note";
+// Transient per-session master mute (the in-session voice toggle). Per-role
+// volumes live in Settings; the radio/controller reply is always audible.
+let masterMuted = false;
+
+function volumeFor(role: SayRole): number {
+  if (masterMuted) return 0;
+  switch (role) {
+    case "scene":
+      return settings.sceneVolume;
+    case "instructor":
+      return settings.instructorVolume;
+    case "note":
+      return settings.passNotesVolume;
+    case "controller":
+      return 1;
+  }
+}
+
+/** Speak text aloud at the role's volume (0 = on-screen only). Uses the Worker's
+ *  TTS when configured (good voice everywhere), else browser speechSynthesis. */
+async function say(text: string, role: SayRole) {
+  const vol = volumeFor(role);
+  if (vol < 0.02) return; // muted role
   const spoken = forSpeech(text);
   const cfg = graderConfig();
   if (workerVoiceConfigured(cfg)) {
     try {
       const clip = await synthesize(cfg, spoken);
       if (clip) {
-        await playClip(clip);
+        await playClip(clip, undefined, vol);
         return;
       }
       addLine("note", "Voice: Worker returned no audio — using browser voice.");
@@ -701,7 +720,7 @@ async function say(text: string, role: Voice) {
       noteVoiceFallback();
     }
   }
-  await speak(spoken, role);
+  await speak(spoken, role === "note" ? "instructor" : role, vol);
 }
 
 async function beginTalk() {
@@ -822,6 +841,8 @@ async function submit(text: string) {
       addLine("radio", `${result.verdict.speaker}: ${result.verdict.radioReplyText}`);
       await say(result.verdict.radioReplyText, "controller");
     }
+    // Instructor coaching on a miss; polish notes on a pass — each at its volume.
+    if (v0.coaching) await say(v0.coaching, passed ? "note" : "instructor");
     if (result.verdict.phaseAdvance) {
       if (result.finished) {
         finish();
@@ -1059,17 +1080,40 @@ function renderSettings() {
   }
   form.append(gmRow);
 
-  // Speak toggle
-  const speakRow = el("label", "checkrow");
-  const cb = el("input") as HTMLInputElement;
-  cb.type = "checkbox";
-  cb.checked = settings.speakReplies;
-  cb.onchange = () => {
-    settings.speakReplies = cb.checked;
-    persist();
-  };
-  speakRow.append(cb, el("span", undefined, "Speak the scene and controller replies aloud"));
-  form.append(speakRow);
+  // Per-role volumes (the radio / controller reply is always audible)
+  form.append(
+    volumeField(
+      "Scene voice",
+      settings.sceneVolume,
+      (v) => {
+        settings.sceneVolume = v;
+        persist();
+      },
+      "The instructor setting up each drill. Keep this up so you always hear the scene."
+    )
+  );
+  form.append(
+    volumeField(
+      "Instructor voice",
+      settings.instructorVolume,
+      (v) => {
+        settings.instructorVolume = v;
+        persist();
+      },
+      "Coaching and the ‘read it back’ prompt after your call. Zero lets you answer the controller yourself — the help stays on screen only."
+    )
+  );
+  form.append(
+    volumeField(
+      "Notes on passed calls",
+      settings.passNotesVolume,
+      (v) => {
+        settings.passNotesVolume = v;
+        persist();
+      },
+      "Polish notes when a call passes. Zero (default) keeps passes snappy; the notes still show on screen and in the debrief."
+    )
+  );
 
   // Randomize details
   const randRow = el("label", "checkrow");
@@ -1132,6 +1176,34 @@ function renderSettings() {
   form.append(done);
 
   app.append(form);
+}
+
+/** A 0–100% volume slider with a caption. Persistence is handled by onChange. */
+function volumeField(
+  label: string,
+  value: number,
+  onChange: (v: number) => void,
+  help: string
+): HTMLElement {
+  const wrap = el("div", "field");
+  wrap.append(el("label", "field-label", label));
+  const row = el("div", "sliderrow");
+  const slider = el("input") as HTMLInputElement;
+  slider.type = "range";
+  slider.min = "0";
+  slider.max = "1";
+  slider.step = "0.05";
+  slider.value = String(value);
+  const val = el("span", "muted small", `${Math.round(value * 100)}%`);
+  slider.oninput = () => {
+    const v = parseFloat(slider.value);
+    val.textContent = `${Math.round(v * 100)}%`;
+    onChange(v);
+  };
+  row.append(slider, val);
+  wrap.append(row);
+  wrap.append(el("p", "muted small", help));
+  return wrap;
 }
 
 function textField(

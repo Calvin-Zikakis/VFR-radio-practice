@@ -104,15 +104,16 @@ export function setSpeechRate(r: number) {
 
 /** Speak text, resolving when the utterance finishes. A watchdog guarantees it
  *  always resolves even if the browser never fires `onend`. */
-export function speak(text: string, voice: Voice = "controller"): Promise<void> {
+export function speak(text: string, voice: Voice = "controller", volume = 1): Promise<void> {
   const trimmed = text.replace(/[{}[\]]/g, "").trim();
-  if (!trimmed) return Promise.resolve();
+  if (!trimmed || volume <= 0.001) return Promise.resolve();
   return new Promise((resolve) => {
     try {
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(trimmed);
       const v = bestVoice();
       if (v) u.voice = v;
+      u.volume = Math.max(0, Math.min(1, volume));
       u.rate = Math.min(2, (voice === "controller" ? 1.02 : 0.98) * speechRate);
       u.pitch = voice === "instructor" ? 1.05 : 1.0;
       let done = false;
@@ -259,12 +260,14 @@ function encodeWav(chunks: Float32Array[], inRate: number, outRate: number): Arr
 let currentClip: HTMLAudioElement | null = null;
 
 /** Play an audio Blob (the Worker's TTS mp3), resolving when it finishes. */
-export function playClip(blob: Blob, rate = speechRate): Promise<void> {
+export function playClip(blob: Blob, rate = speechRate, volume = 1): Promise<void> {
+  if (volume <= 0.001) return Promise.resolve();
   return new Promise((resolve) => {
     stopClip();
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     audio.playbackRate = rate;
+    audio.volume = Math.max(0, Math.min(1, volume));
     currentClip = audio;
     const done = () => {
       URL.revokeObjectURL(url);

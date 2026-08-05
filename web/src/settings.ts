@@ -14,8 +14,12 @@ export interface Settings {
   gradingMode: GradingMode; // live coaching vs debrief at end
   aircraft: string; // fleet callsign to fly, "all" for random, "" for default
   randomize: boolean; // vary ATIS/runway/altitude/squawk per session
-  speakReplies: boolean;
-  speechRate: number; // 0.7–1.4, applies to controller/scene voices
+  // Per-role volumes (0–1); 0 mutes that role (on-screen only). The radio/
+  // controller reply is always audible. Mirrors the iOS app.
+  sceneVolume: number; // the scene/setup voice
+  instructorVolume: number; // coaching + "read it back" prompt, after your call
+  passNotesVolume: number; // polish notes on PASSED calls (default off)
+  speechRate: number; // 0.7–1.4, applies to all spoken voices
   instructorName: string; // label shown for the coaching voice
   theme: "system" | "light" | "dark";
 }
@@ -33,7 +37,9 @@ const DEFAULTS: Settings = {
   gradingMode: "live",
   aircraft: "",
   randomize: true,
-  speakReplies: true,
+  sceneVolume: 1,
+  instructorVolume: 1,
+  passNotesVolume: 0,
   speechRate: 1,
   instructorName: "Instructor",
   theme: "system",
