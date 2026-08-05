@@ -297,7 +297,9 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   /* Cap the width rather than the height: clamping height on an aspect-ratio
      box leaves the width definite and stretches the chart. */
   max-width: calc(70vh * var(--map-ar));
-  margin: 8px auto 4px;
+  /* Flush left with the surrounding copy — centring it leaves the chart floating
+     off the page's text column once the height cap narrows it. */
+  margin: 8px 0 4px;
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
