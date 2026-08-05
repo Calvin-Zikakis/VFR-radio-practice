@@ -9,9 +9,19 @@
 
 /// <reference lib="webworker" />
 import { KokoroTTS } from "kokoro-js";
+import { env } from "@huggingface/transformers";
 
 const ctx: DedicatedWorkerGlobalScope = self as unknown as DedicatedWorkerGlobalScope;
 const MODEL = "onnx-community/Kokoro-82M-v1.0-ONNX";
+
+// Multi-threaded WASM: only possible when the page is crossOriginIsolated
+// (COOP/COEP, set by coi-serviceworker.js). Each thread roughly halves inference
+// time up to the core count, which is the big win on Firefox/Safari where there's
+// no WebGPU. Set before any model session is created; harmless on the WebGPU path.
+if ((ctx as any).crossOriginIsolated && env.backends.onnx.wasm) {
+  const cores = ctx.navigator?.hardwareConcurrency ?? 4;
+  env.backends.onnx.wasm.numThreads = Math.max(2, Math.min(cores, 8));
+}
 
 let ttsPromise: Promise<any> | null = null;
 
