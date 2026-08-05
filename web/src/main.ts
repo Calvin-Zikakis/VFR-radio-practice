@@ -1,6 +1,5 @@
 import "./styles.css";
-import "leaflet/dist/leaflet.css";
-import L from "leaflet";
+import sectionalUrl from "./assets/sectional-bay.webp";
 import {
   CATEGORIES,
   categoryCount,
@@ -15,6 +14,7 @@ import { tripDrills } from "./core/trip";
 import { vary } from "./core/randomizer";
 import { retarget } from "./core/aircraft";
 import { AIRPORT_COORDS } from "./core/geo";
+import { sectionalPos, SECTIONAL_W, SECTIONAL_H } from "./core/sectional";
 import { PracticeSession, callType } from "./core/session";
 import { loadStats, recordResult, resetStats } from "./core/stats";
 import { saveResume, loadResume, clearResume } from "./core/resume";
@@ -75,6 +75,8 @@ function keyReady(): boolean {
     : settings.workerUrl.trim().length > 0 && settings.passcode.trim().length > 0;
 }
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+
 function el(tag: string, cls?: string, text?: string): HTMLElement {
   const e = document.createElement(tag);
   // Buttons default to type="submit". With a password field on the page,
@@ -120,9 +122,6 @@ function renderHome() {
     );
   }
 
-  app.append(sectionLabel("Voice"));
-  app.append(kokoroRow());
-
   if (!keyReady()) {
     const warn = el(
       "div",
@@ -151,6 +150,9 @@ function renderHome() {
     };
     app.append(discard);
   }
+
+  app.append(sectionLabel("Voice"));
+  app.append(kokoroRow());
 
   app.append(sectionLabel("Ways to practice"));
   const actions = el("div", "actions");
@@ -289,11 +291,14 @@ function renderMix() {
 
 // ------------------------------------------------------------- Map route builder
 
-function isDarkTheme(): boolean {
-  if (settings.theme === "dark") return true;
-  if (settings.theme === "light") return false;
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
-}
+// Which side of its dot each airport's label sits on. Default is above; these
+// are the fields where above would collide with a neighbour or run off the edge.
+const LABEL_SIDE: Record<string, "top" | "bottom" | "left" | "right"> = {
+  KCCR: "bottom", // hard against the top edge of the chart crop
+  KOAR: "left", // Marina and Salinas sit almost level with each other
+  KSNS: "right",
+  KMRY: "left",
+};
 
 function renderMap() {
   stopSpeaking();
@@ -313,9 +318,40 @@ function renderMap() {
     )
   );
 
-  const airports = routableAirports.filter((a) => AIRPORT_COORDS[a.icao]);
+  // Only fields we can both fly and place on the sectional backdrop.
+  const placed = new Map<string, { fx: number; fy: number }>();
+  const airports = routableAirports.filter((a) => {
+    const c = AIRPORT_COORDS[a.icao];
+    const p = c && sectionalPos(c.lat, c.lon);
+    if (p) placed.set(a.icao, p);
+    return !!p;
+  });
+
   const mapDiv = el("div", "routemap");
+  // Drive the box off the image's own dimensions so marker percentages line up
+  // no matter how the map is sized.
+  mapDiv.style.setProperty("--map-ar", String(SECTIONAL_W / SECTIONAL_H));
+  const img = el("img", "routemap-img") as HTMLImageElement;
+  img.src = sectionalUrl;
+  img.alt = "San Francisco sectional chart, Concord south to Monterey";
+  img.draggable = false;
+  const line = document.createElementNS(SVG_NS, "svg");
+  line.setAttribute("class", "routemap-line");
+  line.setAttribute("viewBox", "0 0 100 100");
+  line.setAttribute("preserveAspectRatio", "none"); // coordinates are plain percentages
+  const poly = document.createElementNS(SVG_NS, "polyline");
+  // Non-scaling stroke keeps the line an even width despite the stretched viewBox.
+  poly.setAttribute("vector-effect", "non-scaling-stroke");
+  line.append(poly);
+  mapDiv.append(img, line);
   app.append(mapDiv);
+  app.append(
+    el(
+      "p",
+      "muted tiny",
+      "FAA San Francisco Sectional (public domain). For practice only — not for navigation."
+    )
+  );
   const routeBar = el("div", "routebar");
   app.append(routeBar);
 
@@ -336,32 +372,27 @@ function renderMap() {
 
   const route: string[] = []; // ordered, repeats allowed (round trips)
   const byIcao = (icao: string) => airports.find((a) => a.icao === icao)!;
-  const ll = (icao: string): [number, number] => [
-    AIRPORT_COORDS[icao].lat,
-    AIRPORT_COORDS[icao].lon,
-  ];
 
-  const map = L.map(mapDiv, { attributionControl: true });
-  L.tileLayer(
-    isDarkTheme()
-      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-    { attribution: "© OpenStreetMap, © CARTO", subdomains: "abcd", maxZoom: 18 }
-  ).addTo(map);
-
-  const routeLine = L.polyline([], { color: "#d29922", weight: 4, opacity: 0.9 }).addTo(map);
-  const markerByIcao: Record<string, L.CircleMarker> = {};
+  const dotByIcao: Record<string, HTMLButtonElement> = {};
+  const labelByIcao: Record<string, HTMLElement> = {};
 
   const redraw = () => {
-    routeLine.setLatLngs(route.map(ll));
+    poly.setAttribute(
+      "points",
+      route.map((icao) => `${placed.get(icao)!.fx * 100},${placed.get(icao)!.fy * 100}`).join(" ")
+    );
     for (const a of airports) {
       const positions = route.map((r, i) => (r === a.icao ? i + 1 : 0)).filter(Boolean);
       const inRoute = positions.length > 0;
-      markerByIcao[a.icao].setStyle({
-        fillColor: inRoute ? "#d29922" : a.isTowered ? "#2f81f7" : "#2ea043",
-        color: inRoute ? "#ffffff" : "rgba(0,0,0,0.45)",
-      });
-      markerByIcao[a.icao].setTooltipContent(inRoute ? `${a.icao} · ${positions.join("/")}` : a.icao);
+      dotByIcao[a.icao].classList.toggle("in-route", inRoute);
+      dotByIcao[a.icao].classList.toggle("towered", a.isTowered);
+      labelByIcao[a.icao].textContent = inRoute
+        ? `${a.icao} · ${positions.join("/")}`
+        : a.icao;
+      dotByIcao[a.icao].setAttribute(
+        "aria-label",
+        inRoute ? `${a.name}, stop ${positions.join(" and ")}` : `Add ${a.name} to the route`
+      );
     }
     routeBar.innerHTML = "";
     if (route.length === 0) {
@@ -394,35 +425,27 @@ function renderMap() {
   };
 
   for (const a of airports) {
-    const m = L.circleMarker(ll(a.icao), {
-      radius: 9,
-      weight: 2,
-      fillOpacity: 1,
-      color: "rgba(0,0,0,0.45)",
-      fillColor: a.isTowered ? "#2f81f7" : "#2ea043",
-    });
-    m.bindTooltip(a.icao, { permanent: true, direction: "top", offset: [0, -9], className: "apt-tt" });
-    m.on("click", () => {
+    const p = placed.get(a.icao)!;
+    const dot = el("button", "apt-dot") as HTMLButtonElement;
+    dot.style.left = `${(p.fx * 100).toFixed(3)}%`;
+    dot.style.top = `${(p.fy * 100).toFixed(3)}%`;
+    dot.title = `${a.name} (${a.icao})`;
+    const label = el("span", `apt-label ${LABEL_SIDE[a.icao] ?? "top"}`, a.icao);
+    dot.append(label);
+    dot.onclick = () => {
       if (route[route.length - 1] === a.icao) return; // no back-to-back same field
       route.push(a.icao);
       redraw();
-    });
-    m.addTo(map);
-    markerByIcao[a.icao] = m;
+    };
+    mapDiv.append(dot);
+    dotByIcao[a.icao] = dot;
+    labelByIcao[a.icao] = label;
   }
 
-  map.fitBounds(L.latLngBounds(airports.map((a) => ll(a.icao))), { padding: [40, 40] });
-  setTimeout(() => map.invalidateSize(), 60);
-
-  back.onclick = () => {
-    map.remove();
-    renderHome();
-  };
+  back.onclick = renderHome;
   startBtn.onclick = () => {
     if (route.length < 2) return;
-    const stops = route.map(byIcao);
-    map.remove();
-    startTripSession(stops, ffCb.checked, pwCb.checked);
+    startTripSession(route.map(byIcao), ffCb.checked, pwCb.checked);
   };
   redraw();
 }

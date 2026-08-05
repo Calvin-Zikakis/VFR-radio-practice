@@ -10,6 +10,9 @@
   --amber: #d29922;
   --purple: #a371f7;
   --teal: #2bb0c7;
+  /* Sectionals are printed for paper — knock the backdrop back so it doesn't
+     glare in dark mode and the route line stays the brightest thing on it. */
+  --chart-dim: brightness(0.82) saturate(0.88) contrast(0.96);
 }
 @media (prefers-color-scheme: light) {
   :root {
@@ -19,6 +22,7 @@
     --border: #d0d7de;
     --text: #1f2328;
     --muted: #656d76;
+    --chart-dim: none;
   }
 }
 /* Explicit Appearance override (Settings). Wins over the media query above. */
@@ -29,6 +33,7 @@
   --border: #d0d7de;
   --text: #1f2328;
   --muted: #656d76;
+  --chart-dim: none;
 }
 :root[data-theme="dark"] {
   --bg: #0d1117;
@@ -37,6 +42,7 @@
   --border: #2b333d;
   --text: #e6edf3;
   --muted: #8b949e;
+  --chart-dim: brightness(0.82) saturate(0.88) contrast(0.96);
 }
 
 * { box-sizing: border-box; }
@@ -87,6 +93,7 @@ body {
 .brand { font-weight: 700; font-size: 1.05rem; }
 .muted { color: var(--muted); }
 .small { font-size: 0.85rem; }
+.tiny { font-size: 0.72rem; }
 
 button {
   font: inherit;
@@ -279,28 +286,101 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .sliderrow { display: flex; align-items: center; gap: 12px; }
 .sliderrow input[type="range"] { flex: 1; }
 
-/* Route map (Leaflet) */
+/* Route map — a static sectional crop with markers positioned by percentage.
+   The box carries the image's aspect ratio (set inline), so every marker's
+   left/top percentage stays correct at any size, with no layout maths at
+   runtime and nothing to invalidate on resize. */
 .routemap {
-  height: 52vh;
-  min-height: 300px;
+  position: relative;
+  aspect-ratio: var(--map-ar);
+  width: 100%;
+  /* Cap the width rather than the height: clamping height on an aspect-ratio
+     box leaves the width definite and stretches the chart. */
+  max-width: calc(70vh * var(--map-ar));
+  margin: 8px auto 4px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  margin: 8px 0 12px;
-  z-index: 0;
+  overflow: hidden;
+  background: var(--panel2);
+  touch-action: manipulation;
 }
-.leaflet-container { background: var(--panel2); font: inherit; }
-.leaflet-tooltip.apt-tt {
-  background: rgba(13, 17, 23, 0.72);
+.routemap-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  filter: var(--chart-dim);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.routemap-line {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.routemap-line polyline {
+  fill: none;
+  stroke: #d29922;
+  stroke-width: 3.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.55));
+}
+.apt-dot {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.5);
+  background: #2ea043; /* non-towered */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+/* The dot is deliberately small so it doesn't bury the chart symbol under it;
+   this gives it a finger-sized hit area without growing the visible marker. */
+.apt-dot::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+}
+.apt-dot.towered { background: #2f81f7; }
+.apt-dot.in-route { background: #d29922; border-color: #fff; }
+.apt-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.apt-label {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
+  background: rgba(13, 17, 23, 0.78);
   color: #fff;
-  border: none;
-  box-shadow: none;
   border-radius: 4px;
   padding: 1px 5px;
   font-size: 11px;
   font-weight: 700;
+  line-height: 1.35;
   white-space: nowrap;
+  pointer-events: none;
 }
-.leaflet-tooltip.apt-tt::before { display: none; }
+.apt-label.bottom { bottom: auto; top: calc(100% + 4px); }
+.apt-label.left {
+  bottom: auto;
+  top: 50%;
+  left: auto;
+  right: calc(100% + 5px);
+  transform: translateY(-50%);
+}
+.apt-label.right {
+  bottom: auto;
+  top: 50%;
+  left: calc(100% + 5px);
+  transform: translateY(-50%);
+}
 .routebar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 12px; }
 .chip {
   display: inline-flex;
