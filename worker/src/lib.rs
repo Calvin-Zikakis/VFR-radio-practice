@@ -145,6 +145,19 @@ async fn handle_grade(req: &mut Request, env: &Env) -> Result<Response> {
     }
 }
 
+// Workers AI inputs MUST be typed structs, not serde_json::Value: serde-wasm-
+// bindgen serializes a JSON object as a JS Map (which the model ignores),
+// whereas a #[derive(Serialize)] struct becomes a real JS object.
+#[derive(serde::Serialize)]
+struct WhisperInput {
+    audio: Vec<u8>,
+}
+#[derive(serde::Serialize)]
+struct MeloInput<'a> {
+    prompt: &'a str,
+    lang: &'a str,
+}
+
 /// Speech-to-text: audio bytes in the POST body → { "text": "..." }.
 async fn handle_stt(req: &mut Request, env: &Env) -> Result<Response> {
     let ai = match env.ai("AI") {
@@ -156,13 +169,15 @@ async fn handle_stt(req: &mut Request, env: &Env) -> Result<Response> {
         return deny(400, "Empty audio.");
     }
     // Whisper takes the audio file as an array of byte values.
-    let input = serde_json::json!({ "audio": audio });
-    match ai.run::<_, serde_json::Value>(WHISPER_MODEL, input).await {
+    match ai
+        .run::<_, serde_json::Value>(WHISPER_MODEL, WhisperInput { audio })
+        .await
+    {
         Ok(v) => {
             let text = v.get("text").and_then(|t| t.as_str()).unwrap_or("").trim();
             json_ok(serde_json::json!({ "text": text }))
         }
-        Err(_) => deny(502, "Transcription failed."),
+        Err(e) => deny(502, &format!("Transcription failed: {e}")),
     }
 }
 
@@ -177,8 +192,10 @@ async fn handle_tts(req: &mut Request, env: &Env) -> Result<Response> {
     if text.trim().is_empty() {
         return deny(400, "Empty text.");
     }
-    let input = serde_json::json!({ "prompt": text, "lang": "en" });
-    match ai.run::<_, serde_json::Value>(TTS_MODEL, input).await {
+    match ai
+        .run::<_, serde_json::Value>(TTS_MODEL, MeloInput { prompt: text, lang: "en" })
+        .await
+    {
         // MeloTTS returns { audio: "<base64 mp3>" }; pass it straight through.
         Ok(v) => {
             let audio = v.get("audio").and_then(|a| a.as_str()).unwrap_or("");
@@ -187,6 +204,6 @@ async fn handle_tts(req: &mut Request, env: &Env) -> Result<Response> {
             }
             json_ok(serde_json::json!({ "audio": audio }))
         }
-        Err(_) => deny(502, "Speech synthesis failed."),
+        Err(e) => deny(502, &format!("Speech synthesis failed: {e}")),
     }
 }
