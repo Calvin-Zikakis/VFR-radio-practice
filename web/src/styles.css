@@ -439,3 +439,5 @@ button:active:not(:disabled) { transform: translateY(1px); }
   text-overflow: ellipsis;
 }
 .discardbtn { margin: 0 0 6px; padding-left: 2px; }
+
+.debrief-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 16px; }

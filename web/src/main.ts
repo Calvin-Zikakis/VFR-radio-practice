@@ -1017,9 +1017,58 @@ function finish() {
     app.append(list);
   }
 
+  if (n > 0) {
+    const actions = el("div", "debrief-actions");
+    const copyBtn = el("button", "ghost small", "Copy debrief") as HTMLButtonElement;
+    copyBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(debriefText());
+        copyBtn.textContent = "Copied ✓";
+        setTimeout(() => (copyBtn.textContent = "Copy debrief"), 1500);
+      } catch {
+        downloadDebrief();
+      }
+    };
+    actions.append(copyBtn);
+    const dlBtn = el("button", "ghost small", "Download") as HTMLButtonElement;
+    dlBtn.onclick = downloadDebrief;
+    actions.append(dlBtn);
+    if ("share" in navigator) {
+      const shareBtn = el("button", "ghost small", "Share") as HTMLButtonElement;
+      shareBtn.onclick = () =>
+        navigator.share({ title: "VFR Radio debrief", text: debriefText() }).catch(() => {});
+      actions.append(shareBtn);
+    }
+    app.append(actions);
+  }
+
   const home = el("button", "primary", "Back to categories");
   home.onclick = renderHome;
   app.append(home);
+}
+
+/** A plain-text summary of the session for copy / download / share. */
+function debriefText(): string {
+  const lines: string[] = ["VFR Radio — session debrief", new Date().toLocaleString()];
+  const total = sessionLog.length;
+  const clean = sessionLog.filter((e) => e.pass && e.corrections.length === 0).length;
+  lines.push(`${total} call${total === 1 ? "" : "s"} · ${clean} clean`, "");
+  sessionLog.forEach((e, i) => {
+    lines.push(`${i + 1}. ${e.pass ? "PASS" : "MISS"} — ${e.label}`);
+    if (e.coaching) lines.push(`   ${e.coaching}`);
+    for (const c of e.corrections) lines.push(`   • ${c}`);
+  });
+  return lines.join("\n");
+}
+
+function downloadDebrief() {
+  const blob = new Blob([debriefText()], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `vfr-debrief-${new Date().toISOString().slice(0, 10)}.txt`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ---------------------------------------------------------------- Settings
