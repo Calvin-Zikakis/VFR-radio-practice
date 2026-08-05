@@ -201,7 +201,8 @@ export async function transcribe(config: GraderConfig, audio: Blob): Promise<str
   });
   if (!res.ok) {
     if (res.status === 429) throw new Error("Voice is busy — try again in a moment.");
-    throw new Error(`Transcription failed (${res.status}).`);
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Transcription failed (${res.status})${detail ? ": " + detail.slice(0, 300) : ""}`);
   }
   const json = await res.json();
   return String(json?.text ?? "").trim();
@@ -221,7 +222,10 @@ export async function synthesize(
     },
     body: JSON.stringify({ text }),
   });
-  if (!res.ok) throw new Error(`Speech failed (${res.status}).`);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Speech failed (${res.status})${detail ? ": " + detail.slice(0, 300) : ""}`);
+  }
   const json = await res.json();
   const b64 = String(json?.audio ?? "");
   if (!b64) return null;
