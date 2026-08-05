@@ -30,7 +30,6 @@ import {
   stopSpeaking,
   startRecording,
   playClip,
-  setSpeechRate,
   type Recorder,
 } from "./speech";
 
@@ -936,6 +935,18 @@ function volumeFor(role: SayRole): number {
   }
 }
 
+function rateFor(role: SayRole): number {
+  switch (role) {
+    case "scene":
+      return settings.sceneRate;
+    case "instructor":
+    case "note":
+      return settings.instructorRate;
+    case "controller":
+      return settings.controllerRate;
+  }
+}
+
 /** Speak text aloud at the role's volume (0 = on-screen only). Uses the Worker's
  *  TTS when configured (good voice everywhere), else browser speechSynthesis.
  *  Abandons itself if superseded by a newer drill (see sessionGen). */
@@ -945,6 +956,7 @@ async function say(text: string, role: SayRole) {
   lastSpoken = { text, role };
   const vol = volumeFor(role);
   if (vol < 0.02) return; // muted role
+  const rate = rateFor(role);
   const spoken = forSpeech(text);
   // 1. In-browser neural voice (opt-in), once it's downloaded.
   if (settings.kokoroEnabled && kokoroReady()) {
@@ -952,7 +964,7 @@ async function say(text: string, role: SayRole) {
       const clip = await kokoroSpeak(spoken);
       if (gen !== sessionGen) return; // a newer drill has already taken over
       if (clip) {
-        await playClip(clip, undefined, vol);
+        await playClip(clip, rate, vol);
         return;
       }
     } catch {
@@ -967,7 +979,7 @@ async function say(text: string, role: SayRole) {
       const clip = await synthesize(cfg, spoken);
       if (gen !== sessionGen) return;
       if (clip) {
-        await playClip(clip, undefined, vol);
+        await playClip(clip, rate, vol);
         return;
       }
       addLine("note", "Voice: Worker returned no audio — using browser voice.");
@@ -979,7 +991,7 @@ async function say(text: string, role: SayRole) {
   }
   if (gen !== sessionGen) return;
   // 3. Browser built-in.
-  await speak(spoken, role === "note" ? "instructor" : role, vol);
+  await speak(spoken, role === "note" ? "instructor" : role, vol, rate);
 }
 
 async function beginTalk() {
@@ -1499,23 +1511,25 @@ function renderSettings() {
   );
   form.append(busyRow);
 
-  // Speech speed
-  form.append(el("label", "field-label", "Speech speed"));
-  const speedRow = el("div", "sliderrow");
-  const speed = el("input") as HTMLInputElement;
-  speed.type = "range";
-  speed.min = "0.7";
-  speed.max = "1.4";
-  speed.step = "0.05";
-  speed.value = String(settings.speechRate);
-  const speedVal = el("span", "muted small", `${settings.speechRate.toFixed(2)}×`);
-  speed.oninput = () => {
-    settings.speechRate = parseFloat(speed.value);
-    speedVal.textContent = `${settings.speechRate.toFixed(2)}×`;
-    persist();
-  };
-  speedRow.append(speed, speedVal);
-  form.append(speedRow);
+  // Per-role speech speed
+  form.append(
+    rateField("Scene speed", settings.sceneRate, (v) => {
+      settings.sceneRate = v;
+      persist();
+    })
+  );
+  form.append(
+    rateField("Instructor speed", settings.instructorRate, (v) => {
+      settings.instructorRate = v;
+      persist();
+    })
+  );
+  form.append(
+    rateField("Controller speed", settings.controllerRate, (v) => {
+      settings.controllerRate = v;
+      persist();
+    })
+  );
 
   // Instructor name (shown as the coaching voice's label in the transcript)
   form.append(
@@ -1575,6 +1589,28 @@ function volumeField(
   return wrap;
 }
 
+/** A 0.7–1.4× speech-rate slider with a caption. Persistence is handled by onChange. */
+function rateField(label: string, value: number, onChange: (v: number) => void): HTMLElement {
+  const wrap = el("div", "field");
+  wrap.append(el("label", "field-label", label));
+  const row = el("div", "sliderrow");
+  const slider = el("input") as HTMLInputElement;
+  slider.type = "range";
+  slider.min = "0.7";
+  slider.max = "1.4";
+  slider.step = "0.05";
+  slider.value = String(value);
+  const val = el("span", "muted small", `${value.toFixed(2)}×`);
+  slider.oninput = () => {
+    const v = parseFloat(slider.value);
+    val.textContent = `${v.toFixed(2)}×`;
+    onChange(v);
+  };
+  row.append(slider, val);
+  wrap.append(row);
+  return wrap;
+}
+
 function textField(
   label: string,
   value: string,
@@ -1615,7 +1651,6 @@ function persist() {
 
 /** Apply display/voice preferences that live outside a session. */
 function applyPrefs() {
-  setSpeechRate(settings.speechRate);
   if (settings.theme === "system") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = settings.theme;
 }

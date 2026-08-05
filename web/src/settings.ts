@@ -22,7 +22,10 @@ export interface Settings {
   sceneVolume: number; // the scene/setup voice
   instructorVolume: number; // coaching + "read it back" prompt, after your call
   passNotesVolume: number; // polish notes on PASSED calls (default off)
-  speechRate: number; // 0.7–1.4, applies to all spoken voices
+  // Per-role speech speed (0.7–1.4). Notes speak at the instructor rate.
+  sceneRate: number;
+  instructorRate: number;
+  controllerRate: number;
   instructorName: string; // label shown for the coaching voice
   theme: "system" | "light" | "dark";
 }
@@ -46,7 +49,9 @@ const DEFAULTS: Settings = {
   sceneVolume: 1,
   instructorVolume: 0,
   passNotesVolume: 0,
-  speechRate: 1,
+  sceneRate: 1,
+  instructorRate: 1,
+  controllerRate: 1,
   instructorName: "Instructor",
   theme: "system",
 };
