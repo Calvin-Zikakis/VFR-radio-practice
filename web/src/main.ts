@@ -566,6 +566,18 @@ function setBtn(btn: HTMLElement, icon: string, label: string) {
   btn.innerHTML = `${icon}<span>${label}</span>`;
 }
 
+// Other aircraft on frequency, for the "busy frequency" realism option.
+const CHATTER = [
+  "Watsonville traffic, Cessna five one two, left downwind runway two zero, Watsonville.",
+  "NorCal Approach, Skyhawk eight three x-ray, request flight following.",
+  "Reid-Hillview Tower, Cherokee four papa, holding short runway three one right.",
+  "Palo Alto traffic, Cirrus niner delta, departing runway three one, northbound.",
+  "NorCal, Bonanza seven quebec, level four thousand five hundred.",
+  "Watsonville traffic, experimental six two mike, ten miles south, inbound full stop.",
+  "Livermore Tower, Diamond two romeo, ready for departure runway two five right.",
+];
+const randomChatter = () => CHATTER[Math.floor(Math.random() * CHATTER.length)];
+
 /** A small uppercase section heading (Apple grouped-list style). */
 function sectionLabel(text: string): HTMLElement {
   return el("div", "section-label", text);
@@ -717,6 +729,12 @@ async function briefCurrent() {
   }
   const a = drill.aircraft;
   bannerEl.textContent = `${a.callsign}  ·  ${a.type}  ·  “${a.phoneticCallsign}”`;
+  // Busy frequency: occasional chatter from other aircraft before the scene.
+  if (settings.busyFrequency && drill.injectedReadback !== true && Math.random() < 0.3) {
+    const c = randomChatter();
+    addLine("radio", c);
+    await say(c, "controller");
+  }
   if (drill.injectedReadback === true) {
     addLine("instructor", drill.setup);
     await say(drill.setup, "instructor");
@@ -888,6 +906,13 @@ async function endTalk() {
 
 async function submit(text: string) {
   if (!session) return;
+  // Busy frequency: occasionally your call gets stepped on — say it again.
+  if (settings.busyFrequency && Math.random() < 0.15) {
+    addLine("radio", "Two aircraft calling at the same time — say again.");
+    await say("Two aircraft calling at the same time, say again.", "controller");
+    status("Stepped on — say it again.");
+    return;
+  }
   status("Grading…");
   talkBtn.disabled = true;
   gradeAbort = new AbortController();
@@ -919,6 +944,10 @@ async function submit(text: string) {
     }
     // Instructor coaching on a miss; polish notes on a pass — each at its volume.
     if (v0.coaching) await say(v0.coaching, passed ? "note" : "instructor");
+    // Echo/shadow: read the ideal call aloud after a miss so you can shadow it.
+    if (!passed && settings.echoModelCall && v0.expectedExample) {
+      await say(`Here's the model call. ${v0.expectedExample}`, "instructor");
+    }
     if (result.verdict.phaseAdvance) {
       if (result.finished) {
         finish();
@@ -1256,6 +1285,34 @@ function renderSettings() {
     el("span", undefined, "Vary details each session (ATIS, runway, altitude, squawk)")
   );
   form.append(randRow);
+
+  const echoRow = el("label", "checkrow");
+  const echoCb = el("input") as HTMLInputElement;
+  echoCb.type = "checkbox";
+  echoCb.checked = settings.echoModelCall;
+  echoCb.onchange = () => {
+    settings.echoModelCall = echoCb.checked;
+    persist();
+  };
+  echoRow.append(
+    echoCb,
+    el("span", undefined, "Read the model call aloud after a miss (shadow practice)")
+  );
+  form.append(echoRow);
+
+  const busyRow = el("label", "checkrow");
+  const busyCb = el("input") as HTMLInputElement;
+  busyCb.type = "checkbox";
+  busyCb.checked = settings.busyFrequency;
+  busyCb.onchange = () => {
+    settings.busyFrequency = busyCb.checked;
+    persist();
+  };
+  busyRow.append(
+    busyCb,
+    el("span", undefined, "Busy frequency — other aircraft, and your call sometimes gets stepped on")
+  );
+  form.append(busyRow);
 
   // Speech speed
   form.append(el("label", "field-label", "Speech speed"));
