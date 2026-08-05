@@ -742,6 +742,11 @@ async function briefCurrent() {
     addLine("scene", drill.setup);
     await say(drill.setup, "scene");
   }
+  // ATC-initiated drills: the controller opens with its own radio call.
+  if (drill.radioOpener) {
+    addLine("radio", drill.radioOpener);
+    await say(drill.radioOpener, "controller");
+  }
   status("Make your call.");
 }
 
@@ -753,7 +758,12 @@ function status(s: string) {
  *  ("rerv"); the spaced form makes them say the letters. The transcript keeps
  *  the original spelling — this only affects what's spoken. */
 function forSpeech(text: string): string {
-  return text.replace(/\bRV\b/g, "R V");
+  // "RV" → letters ("R V"), and force "read"/"readback" to the present-tense
+  // "reed" (both engines default it to "red"). Transcript keeps the originals.
+  return text
+    .replace(/\bRV\b/g, "R V")
+    .replace(/\breadback\b/gi, "reed back")
+    .replace(/\bread\b/gi, "reed");
 }
 
 function isChromeLike(): boolean {

@@ -80,6 +80,7 @@ public enum DrillRandomizer {
 
         d.setup = applying(subs, to: d.setup)
         d.situation = applying(subs, to: d.situation)
+        d.radioOpener = d.radioOpener.map { applying(subs, to: $0) }
         d.instruction = d.instruction.map { applying(subs, to: $0) }
         d.amendment = d.amendment.map { applying(subs, to: $0) }
         return d
@@ -231,7 +232,7 @@ public enum DrillRandomizer {
     /// Everything a substitution trigger may scan — the authored squawk or a
     /// route's taxiway letters can live in the chosen instruction or amendment.
     private static func scannableText(of drill: Drill) -> String {
-        drill.setup + " " + drill.situation + " "
+        drill.setup + " " + drill.situation + " " + (drill.radioOpener ?? "") + " "
             + (drill.instruction ?? "") + " " + (drill.amendment ?? "")
     }
 

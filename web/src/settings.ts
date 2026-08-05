@@ -42,7 +42,7 @@ const DEFAULTS: Settings = {
   echoModelCall: false,
   busyFrequency: false,
   sceneVolume: 1,
-  instructorVolume: 1,
+  instructorVolume: 0,
   passNotesVolume: 0,
   speechRate: 1,
   instructorName: "Instructor",

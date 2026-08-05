@@ -464,6 +464,12 @@ final class HandsFreeController: ObservableObject {
             append(.radio, "Radio: \(line)")
             await speaker.speak(line, as: .traffic)
         }
+
+        // ATC-initiated drills: the controller opens with its own radio call.
+        if let opener = drill.radioOpener, !opener.isEmpty {
+            append(.radio, opener)
+            await speaker.speak(opener, as: .controller)
+        }
     }
 
     /// Background calls from other aircraft for the busy-frequency simulation.

@@ -38,6 +38,9 @@ export interface Drill {
   title: string;
   setup: string;
   situation: string;
+  /** ATC-initiated drills: the controller's opening call, shown as its own radio
+   *  line after the scene. Null when the pilot speaks first. */
+  radioOpener?: string | null;
   aircraft: Aircraft;
   airport: Airport;
   callType?: CallType | null;

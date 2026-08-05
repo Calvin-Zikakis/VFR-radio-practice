@@ -174,6 +174,7 @@ public enum DrillLibrary {
         for (from, to) in subs where from != to && !from.isEmpty {
             d.setup = d.setup.replacingOccurrences(of: from, with: to)
             d.situation = d.situation.replacingOccurrences(of: from, with: to)
+            d.radioOpener = d.radioOpener?.replacingOccurrences(of: from, with: to)
             d.instruction = d.instruction?.replacingOccurrences(of: from, with: to)
             d.instructionVariants = d.instructionVariants?.map {
                 $0.replacingOccurrences(of: from, with: to)
@@ -809,7 +810,8 @@ public enum DrillLibrary {
             id: "ff-traffic",
             scenario: .flightFollowing,
             title: "Traffic advisory response",
-            setup: "You're receiving flight following from NorCal Approach. NorCal calls: traffic, two o'clock, three miles, opposite direction, a Cirrus, altitude indicates three thousand five hundred. Respond appropriately.",
+            setup: "You're receiving flight following from NorCal Approach.",
+            radioOpener: "Traffic, two o'clock, three miles, opposite direction, a Cirrus, altitude indicates three thousand five hundred.",
             situation: "You are NorCal Approach. You just issued a traffic advisory (2 o'clock, 3 miles, opposite direction, a Cirrus at 3,500). Grade the pilot's response: they should reply with their callsign plus 'looking', 'traffic in sight', or 'negative contact'. Reply only if a follow-up is warranted (e.g. confirming, or a safety alert).",
             aircraft: rv12, airport: watsonville
         ),
@@ -817,7 +819,8 @@ public enum DrillLibrary {
             id: "ff-negative-contact",
             scenario: .flightFollowing,
             title: "Can't find the traffic — ask for help",
-            setup: "You're on flight following at four thousand five hundred. NorCal calls: RV seven three seven juliet alpha, traffic one o'clock, five miles, converging, a Bonanza, altitude indicates four thousand five hundred. You scan hard and see nothing. Respond.",
+            setup: "You're on flight following at four thousand five hundred. You scan hard and see nothing.",
+            radioOpener: "RV seven three seven juliet alpha, traffic one o'clock, five miles, converging, a Bonanza, altitude indicates four thousand five hundred.",
             situation: "You are NorCal Approach. Step 1: you issued a traffic advisory — 1 o'clock, 5 miles, converging, a Bonanza at 4,500, the pilot's own altitude. Expect 'negative contact' or 'looking' plus callsign. Step 2: update the traffic — 'seven juliet alpha, traffic now one o'clock, two miles, converging, same altitude' — and grade the response: still not seeing converging same-altitude traffic inside two miles, the right answer is 'negative contact, request vectors' (asking for a turn away is equally good); a bare 'still looking' earns coaching. If they request vectors, reply 'turn left heading three one zero' and expect a readback of the heading with callsign. Set phaseAdvance true after the step-2 response, plus the readback if you issued a vector. Coach: converging, same altitude, can't see it — maneuver or ask, never just hope it misses.",
             aircraft: rv12, airport: watsonville, callType: .advisory
         ),
@@ -825,7 +828,8 @@ public enum DrillLibrary {
             id: "ff-traffic-alert",
             scenario: .flightFollowing,
             title: "Traffic alert — act now",
-            setup: "You're on flight following at three thousand five hundred when NorCal calls, urgent: traffic alert, RV seven three seven juliet alpha, twelve o'clock, one mile, opposite direction, same altitude — advise you turn right immediately. Act.",
+            setup: "You're on flight following at three thousand five hundred.",
+            radioOpener: "Traffic alert, RV seven three seven juliet alpha, twelve o'clock, one mile, opposite direction, same altitude — advise you turn right immediately.",
             situation: "You are NorCal Approach and you just issued a SAFETY ALERT — urgent, not a routine advisory. The right response is immediate action plus a short acknowledgment: 'turning right, seven three seven juliet alpha' ('traffic in sight' also works if they pick it up in the turn). Grade for brevity and an action word — a long careful readback wastes the second that matters, and a bare 'roger' with no stated action is not enough. Advance on a correct urgent response and reply 'traffic no longer a factor, resume own navigation'. Coach: a traffic alert means maneuver FIRST — the controller is telling you a collision is possible right now.",
             aircraft: rv12, airport: watsonville, callType: .advisory
         ),
@@ -853,7 +857,8 @@ public enum DrillLibrary {
             id: "ff-handoff",
             scenario: .flightFollowing,
             title: "Frequency handoff (new sector)",
-            setup: "You're on flight following with NorCal Approach. NorCal calls: seven three seven juliet alpha, contact NorCal Approach now on one three four point five. Read back the handoff, then check in on the new frequency.",
+            setup: "You're on flight following with NorCal Approach.",
+            radioOpener: "Seven three seven juliet alpha, contact NorCal Approach now on one three four point five.",
             situation: "You are NorCal Approach handing the pilot to the next sector. Step 1: the pilot should read back the new frequency and their callsign ('one three four point five, seven three seven juliet alpha'). Step 2, on the new frequency, they check in briefly: facility, callsign, and current altitude (e.g. 'NorCal Approach, seven three seven juliet alpha, level four thousand five hundred') — they do NOT re-request flight following. Only set phaseAdvance true once they've both read back the handoff and checked in on the new frequency; if they only did one, ask for the other.",
             aircraft: rv12, airport: watsonville
         ),
@@ -926,7 +931,8 @@ public enum DrillLibrary {
             id: "ff-vector",
             scenario: .flightFollowing,
             title: "Traffic vector — turn, then resume own nav",
-            setup: "You're on flight following at four thousand five hundred. NorCal calls: RV seven three seven juliet alpha, traffic twelve o'clock, five miles, opposite direction — turn right heading zero four zero. Read back the vector; NorCal will put you back on course once the traffic is clear.",
+            setup: "You're on flight following at four thousand five hundred.",
+            radioOpener: "RV seven three seven juliet alpha, traffic twelve o'clock, five miles, opposite direction — turn right heading zero four zero.",
             situation: "You are NorCal Approach. Step 1: you issued 'turn right heading zero four zero' for traffic. Grade the readback: the heading plus callsign ('right heading zero four zero, seven three seven juliet alpha'). A bare 'roger' is NOT acceptable for a heading — ask for the readback. Step 2: after a correct readback, call 'traffic no longer a factor, resume own navigation' and grade the acknowledgment ('resume own navigation' or 'own nav' plus callsign). Set phaseAdvance true only after both the vector readback and the resume acknowledgment.",
             aircraft: rv12, airport: watsonville, callType: .flightFollowing
         ),
@@ -934,7 +940,8 @@ public enum DrillLibrary {
             id: "ff-restriction-handoff",
             scenario: .flightFollowing,
             title: "Altitude restriction + handoff — announce it",
-            setup: "On flight following, NorCal assigns: RV seven three seven juliet alpha, maintain at or below two thousand five hundred for crossing traffic; contact NorCal Approach on one two seven point one five. Read it back, then check in on the new frequency.",
+            setup: "You're on flight following.",
+            radioOpener: "RV seven three seven juliet alpha, maintain at or below two thousand five hundred for crossing traffic; contact NorCal Approach on one two seven point one five.",
             situation: "You are NorCal Approach. Step 1: you issued an altitude restriction ('maintain at or below two thousand five hundred') plus a frequency change ('contact NorCal Approach on one two seven point one five'). Grade the readback: the restriction, the frequency, and the callsign. Step 2: on the new frequency the pilot checks in and MUST announce the restriction so the new controller knows — e.g. 'NorCal Approach, RV seven three seven juliet alpha, two thousand three hundred, assigned at or below two thousand five hundred'. If they check in without stating the assigned restriction, reply 'say assigned altitude' and do not advance. Set phaseAdvance true only after both the readback and the restricted check-in.",
             aircraft: rv12, airport: watsonville, callType: .flightFollowing
         ),

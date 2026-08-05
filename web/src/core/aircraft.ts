@@ -46,6 +46,7 @@ export function retarget(drill: Drill, plane: Aircraft): Drill {
 
   d.setup = rewrite(d.setup);
   d.situation = rewrite(d.situation);
+  if (d.radioOpener != null) d.radioOpener = rewrite(d.radioOpener);
   if (d.instruction != null) d.instruction = rewrite(d.instruction);
   if (d.instructionVariants) d.instructionVariants = d.instructionVariants.map(rewrite);
   if (d.amendment != null) d.amendment = rewrite(d.amendment);

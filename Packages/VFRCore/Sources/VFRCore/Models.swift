@@ -125,6 +125,11 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
     public var setup: String
     /// Extra situational facts handed to the ATC brain (not spoken to the pilot).
     public var situation: String
+    /// For ATC-INITIATED drills: the controller's opening transmission, shown as
+    /// its own radio call box (controller voice) right after the scene — e.g. a
+    /// traffic advisory, a vector, a restriction. Keeps the scene to background
+    /// context. nil when the pilot speaks first.
+    public var radioOpener: String?
     public var aircraft: Aircraft
     public var airport: Airport
     /// Explicit call-type tag. When nil, `DrillLibrary.callType(for:)` derives
@@ -163,7 +168,8 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
     public var amendment: String?
 
     public init(id: String, scenario: ScenarioType, title: String, setup: String,
-                situation: String, aircraft: Aircraft, airport: Airport,
+                radioOpener: String? = nil, situation: String,
+                aircraft: Aircraft, airport: Airport,
                 callType: CallType? = nil, followUpReadback: Bool? = nil,
                 instructionVariants: [String]? = nil, instruction: String? = nil,
                 injectedReadback: Bool? = nil,
@@ -173,6 +179,7 @@ public struct Drill: Codable, Sendable, Identifiable, Equatable {
         self.title = title
         self.setup = setup
         self.situation = situation
+        self.radioOpener = radioOpener
         self.aircraft = aircraft
         self.airport = airport
         self.callType = callType

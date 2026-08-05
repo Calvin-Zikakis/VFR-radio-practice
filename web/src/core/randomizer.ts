@@ -72,6 +72,7 @@ function varyOne(drill: Drill, runway: string | null, altitudeOffset: number): D
 
   d.setup = applying(subs, d.setup);
   d.situation = applying(subs, d.situation);
+  if (d.radioOpener != null) d.radioOpener = applying(subs, d.radioOpener);
   if (d.instruction != null) d.instruction = applying(subs, d.instruction);
   if (d.amendment != null) d.amendment = applying(subs, d.amendment);
   return d;
@@ -136,7 +137,7 @@ function digitsAltitude(feet: number): string {
 // ---- Incidental (ATIS, distance, squawk) --------------------------------
 
 function scannableText(d: Drill): string {
-  return `${d.setup} ${d.situation} ${d.instruction ?? ""} ${d.amendment ?? ""}`;
+  return `${d.setup} ${d.situation} ${d.radioOpener ?? ""} ${d.instruction ?? ""} ${d.amendment ?? ""}`;
 }
 
 function incidentalSubstitutions(d: Drill): Sub[] {
