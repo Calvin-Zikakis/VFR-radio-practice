@@ -635,9 +635,9 @@ function kokoroRow(): HTMLElement {
     persist();
     paint();
     if (cb.checked && !kokoroReady()) {
-      status.textContent = "Downloading… 0%";
+      status.textContent = "Starting…";
       try {
-        await loadKokoro((f) => (status.textContent = `Downloading… ${Math.round(f * 100)}%`));
+        await loadKokoro((t) => (status.textContent = t));
         status.textContent = "Voice ready.";
       } catch {
         status.textContent = "Download failed — using the standard voice.";

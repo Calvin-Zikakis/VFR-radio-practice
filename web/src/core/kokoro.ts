@@ -12,7 +12,7 @@ let ready = false;
 let loading = false;
 let seq = 0;
 const pending = new Map<number, { resolve: (v: any) => void; reject: (e: any) => void }>();
-let progressCb: ((fraction: number) => void) | null = null;
+let statusCb: ((text: string) => void) | null = null;
 const files: Record<string, { loaded: number; total: number }> = {};
 
 export function kokoroReady(): boolean {
@@ -35,7 +35,9 @@ function ensureWorker(): Worker {
           loaded += f.loaded;
           total += f.total;
         }
-        if (total && progressCb) progressCb(Math.min(1, loaded / total));
+        if (total && statusCb) statusCb(`Downloading… ${Math.round((loaded / total) * 100)}%`);
+      } else if (m.type === "warming") {
+        statusCb?.("Preparing voice…");
       } else if (m.type === "ready") {
         ready = true;
         loading = false;
@@ -53,11 +55,12 @@ function ensureWorker(): Worker {
   return worker;
 }
 
-/** Download + initialize the model in the worker (idempotent). onProgress 0–1. */
-export async function loadKokoro(onProgress?: (fraction: number) => void): Promise<void> {
+/** Download + initialize + warm the model in the worker (idempotent). onStatus
+ *  reports human-readable phases ("Downloading… 42%", "Preparing voice…"). */
+export async function loadKokoro(onStatus?: (text: string) => void): Promise<void> {
   if (ready) return;
   loading = true;
-  progressCb = onProgress ?? null;
+  statusCb = onStatus ?? null;
   const w = ensureWorker();
   const id = ++seq;
   try {
