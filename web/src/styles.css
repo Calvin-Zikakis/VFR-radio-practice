@@ -441,3 +441,6 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .discardbtn { margin: 0 0 6px; padding-left: 2px; }
 
 .debrief-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 16px; }
+
+.kokoro-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+.kokoro-status:not(:empty) { margin-top: 6px; color: var(--accent); }

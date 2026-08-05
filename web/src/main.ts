@@ -18,6 +18,7 @@ import { AIRPORT_COORDS } from "./core/geo";
 import { PracticeSession, callType } from "./core/session";
 import { loadStats, recordResult, resetStats } from "./core/stats";
 import { saveResume, loadResume, clearResume } from "./core/resume";
+import { loadKokoro, kokoroReady, kokoroLoading, kokoroSpeak } from "./core/kokoro";
 import type { CallType, Verdict, Airport, Aircraft, Drill } from "./core/types";
 import { MODELS, workerVoiceConfigured, transcribe, synthesize } from "./core/client";
 import type { GraderConfig, KeyMode } from "./core/client";
@@ -156,6 +157,9 @@ function renderHome() {
     actionCard(ICON_LIST, "Browse drills", "Start from any single call", renderBrowse, !keyReady())
   );
   app.append(actions);
+
+  app.append(sectionLabel("Voice"));
+  app.append(kokoroRow());
 
   const foot = el("footer", "foot");
   const built = new Date(generatedAt);
@@ -602,6 +606,48 @@ function actionCard(
   return b;
 }
 
+/** Home-screen opt-in for the in-browser neural voice (downloads on enable). */
+function kokoroRow(): HTMLElement {
+  const wrap = el("div", "field kokoro-card");
+  const label = el("label", "checkrow");
+  const cb = el("input") as HTMLInputElement;
+  cb.type = "checkbox";
+  cb.checked = settings.kokoroEnabled;
+  label.append(cb, el("span", undefined, "Higher-quality voice"));
+  const help = el(
+    "p",
+    "muted small",
+    "Downloads a better speech model (~80 MB) once, then runs in your browser — reliable everywhere, no server. Best on Wi-Fi; otherwise it falls back to the standard voice."
+  );
+  const status = el("div", "muted small kokoro-status");
+  const paint = () => {
+    status.textContent = !settings.kokoroEnabled
+      ? ""
+      : kokoroReady()
+        ? "Voice ready."
+        : kokoroLoading()
+          ? "Downloading…"
+          : "";
+  };
+  paint();
+  cb.onchange = async () => {
+    settings.kokoroEnabled = cb.checked;
+    persist();
+    paint();
+    if (cb.checked && !kokoroReady()) {
+      status.textContent = "Downloading… 0%";
+      try {
+        await loadKokoro((f) => (status.textContent = `Downloading… ${Math.round(f * 100)}%`));
+        status.textContent = "Voice ready.";
+      } catch {
+        status.textContent = "Download failed — using the standard voice.";
+      }
+    }
+  };
+  wrap.append(label, help, status);
+  return wrap;
+}
+
 function renderSession() {
   app.innerHTML = "";
   app.classList.add("session-view");
@@ -809,7 +855,20 @@ async function say(text: string, role: SayRole) {
   const vol = volumeFor(role);
   if (vol < 0.02) return; // muted role
   const spoken = forSpeech(text);
+  // 1. In-browser neural voice (opt-in), once it's downloaded.
+  if (settings.kokoroEnabled && kokoroReady()) {
+    try {
+      const clip = await kokoroSpeak(spoken);
+      if (clip) {
+        await playClip(clip, undefined, vol);
+        return;
+      }
+    } catch {
+      /* fall through to the Worker / browser voice */
+    }
+  }
   const cfg = graderConfig();
+  // 2. Class server voice (MeloTTS on the Worker).
   if (workerVoiceConfigured(cfg)) {
     try {
       const clip = await synthesize(cfg, spoken);
@@ -824,6 +883,7 @@ async function say(text: string, role: SayRole) {
       noteVoiceFallback();
     }
   }
+  // 3. Browser built-in.
   await speak(spoken, role === "note" ? "instructor" : role, vol);
 }
 
@@ -1446,4 +1506,6 @@ function applyPrefs() {
 }
 
 applyPrefs();
+// Returning opt-in users: warm the neural voice from cache in the background.
+if (settings.kokoroEnabled) loadKokoro().catch(() => {});
 renderHome();

@@ -16,6 +16,7 @@ export interface Settings {
   randomize: boolean; // vary ATIS/runway/altitude/squawk per session
   echoModelCall: boolean; // read the ideal call aloud after a miss (shadow)
   busyFrequency: boolean; // background chatter + occasional stepped-on call
+  kokoroEnabled: boolean; // opt-in in-browser neural voice (downloads ~80 MB)
   // Per-role volumes (0–1); 0 mutes that role (on-screen only). The radio/
   // controller reply is always audible. Mirrors the iOS app.
   sceneVolume: number; // the scene/setup voice
@@ -41,6 +42,7 @@ const DEFAULTS: Settings = {
   randomize: true,
   echoModelCall: false,
   busyFrequency: false,
+  kokoroEnabled: false,
   sceneVolume: 1,
   instructorVolume: 0,
   passNotesVolume: 0,
