@@ -95,6 +95,13 @@ function bestVoice(): SpeechSynthesisVoice | null {
 
 export type Voice = "controller" | "scene" | "instructor";
 
+// Global speech rate multiplier (0.7–1.4), set from Settings. Applies to both
+// the browser voice and the Worker's audio clips.
+let speechRate = 1;
+export function setSpeechRate(r: number) {
+  speechRate = Math.max(0.5, Math.min(2, r || 1));
+}
+
 /** Speak text, resolving when the utterance finishes. A watchdog guarantees it
  *  always resolves even if the browser never fires `onend`. */
 export function speak(text: string, voice: Voice = "controller"): Promise<void> {
@@ -106,7 +113,7 @@ export function speak(text: string, voice: Voice = "controller"): Promise<void> 
       const u = new SpeechSynthesisUtterance(trimmed);
       const v = bestVoice();
       if (v) u.voice = v;
-      u.rate = voice === "controller" ? 1.02 : 0.98;
+      u.rate = Math.min(2, (voice === "controller" ? 1.02 : 0.98) * speechRate);
       u.pitch = voice === "instructor" ? 1.05 : 1.0;
       let done = false;
       const finish = () => {
@@ -252,7 +259,7 @@ function encodeWav(chunks: Float32Array[], inRate: number, outRate: number): Arr
 let currentClip: HTMLAudioElement | null = null;
 
 /** Play an audio Blob (the Worker's TTS mp3), resolving when it finishes. */
-export function playClip(blob: Blob, rate = 1): Promise<void> {
+export function playClip(blob: Blob, rate = speechRate): Promise<void> {
   return new Promise((resolve) => {
     stopClip();
     const url = URL.createObjectURL(blob);

@@ -12,6 +12,9 @@ export interface Settings {
   model: string;
   difficulty: Difficulty;
   speakReplies: boolean;
+  speechRate: number; // 0.7–1.4, applies to controller/scene voices
+  instructorName: string; // label shown for the coaching voice
+  theme: "system" | "light" | "dark";
 }
 
 const KEY = "vfr.web.settings.v1";
@@ -25,6 +28,9 @@ const DEFAULTS: Settings = {
   model: DEFAULT_MODEL,
   difficulty: "checkride",
   speakReplies: true,
+  speechRate: 1,
+  instructorName: "Instructor",
+  theme: "system",
 };
 
 export function loadSettings(): Settings {

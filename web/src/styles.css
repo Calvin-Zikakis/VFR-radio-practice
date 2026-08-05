@@ -21,6 +21,23 @@
     --muted: #656d76;
   }
 }
+/* Explicit Appearance override (Settings). Wins over the media query above. */
+:root[data-theme="light"] {
+  --bg: #f6f8fa;
+  --panel: #ffffff;
+  --panel2: #f0f3f6;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --muted: #656d76;
+}
+:root[data-theme="dark"] {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel2: #1c232d;
+  --border: #2b333d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+}
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
@@ -168,3 +185,5 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .seg-on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .seg-off { background: var(--panel); }
 .checkrow { display: flex; align-items: center; gap: 10px; }
+.sliderrow { display: flex; align-items: center; gap: 12px; }
+.sliderrow input[type="range"] { flex: 1; }

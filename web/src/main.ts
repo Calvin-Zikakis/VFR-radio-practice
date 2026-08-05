@@ -12,6 +12,7 @@ import {
   stopSpeaking,
   startRecording,
   playClip,
+  setSpeechRate,
   type Recorder,
   type Voice,
 } from "./speech";
@@ -215,7 +216,7 @@ function addLine(role: Role, text: string) {
   const line = el("div", `line ${role}`);
   const labels: Record<Role, string> = {
     scene: "Scene",
-    instructor: "Instructor",
+    instructor: settings.instructorName.trim() || "Instructor",
     you: "You",
     radio: "Radio",
     note: "Note",
@@ -541,6 +542,47 @@ function renderSettings() {
   speakRow.append(cb, el("span", undefined, "Speak the scene and controller replies aloud"));
   form.append(speakRow);
 
+  // Speech speed
+  form.append(el("label", "field-label", "Speech speed"));
+  const speedRow = el("div", "sliderrow");
+  const speed = el("input") as HTMLInputElement;
+  speed.type = "range";
+  speed.min = "0.7";
+  speed.max = "1.4";
+  speed.step = "0.05";
+  speed.value = String(settings.speechRate);
+  const speedVal = el("span", "muted small", `${settings.speechRate.toFixed(2)}×`);
+  speed.oninput = () => {
+    settings.speechRate = parseFloat(speed.value);
+    speedVal.textContent = `${settings.speechRate.toFixed(2)}×`;
+    persist();
+  };
+  speedRow.append(speed, speedVal);
+  form.append(speedRow);
+
+  // Instructor name (shown as the coaching voice's label in the transcript)
+  form.append(
+    textField("Instructor name", settings.instructorName, (v) => (settings.instructorName = v))
+  );
+
+  // Appearance
+  form.append(el("label", "field-label", "Appearance"));
+  const themeRow = el("div", "seg");
+  for (const [val, label] of [
+    ["system", "System"],
+    ["light", "Light"],
+    ["dark", "Dark"],
+  ] as const) {
+    const b = el("button", settings.theme === val ? "seg-on" : "seg-off", label);
+    b.onclick = () => {
+      settings.theme = val;
+      persist();
+      renderSettings();
+    };
+    themeRow.append(b);
+  }
+  form.append(themeRow);
+
   const done = el("button", "primary", "Done");
   done.onclick = renderHome;
   form.append(done);
@@ -583,6 +625,15 @@ function textField(
 
 function persist() {
   saveSettings(settings);
+  applyPrefs();
 }
 
+/** Apply display/voice preferences that live outside a session. */
+function applyPrefs() {
+  setSpeechRate(settings.speechRate);
+  if (settings.theme === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = settings.theme;
+}
+
+applyPrefs();
 renderHome();
