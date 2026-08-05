@@ -23,3 +23,6 @@ web/.vite/
 worker/target/
 worker/build/
 worker/.wrangler/
+
+# Internal build log — kept local only; the public roadmap is ROADMAP.md
+PROJECT_STATUS.md

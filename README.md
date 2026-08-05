@@ -43,11 +43,13 @@ your call. Full details: [`web/README.md`](web/README.md).
 Open the project with XcodeGen (`project.yml`) and run on a device. Engine tests:
 `cd Packages/VFRCore && swift test`.
 
+## Roadmap
+
+Where the project is and what's planned: [`ROADMAP.md`](ROADMAP.md).
+
 ## License
 
-No license yet — add one to make it truly open source (MIT and Apache-2.0 are
-common permissive choices). Until a `LICENSE` file exists, default copyright
-applies (all rights reserved).
+[MIT](LICENSE) — use, modify, and share freely; just keep the copyright notice.
 
 > Not affiliated with the FAA. A training aid, not a substitute for a CFI or
 > official materials.
