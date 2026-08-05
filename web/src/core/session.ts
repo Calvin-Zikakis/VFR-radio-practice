@@ -44,6 +44,13 @@ export function resolveInstructions(drill: Drill): Drill {
   return d;
 }
 
+/** Serializable session state for resume-after-exit. */
+export interface SessionSnapshot {
+  drills: Drill[];
+  index: number;
+  history: Turn[];
+}
+
 export interface SubmitResult {
   verdict: Verdict;
   /** The app-composed clearance the controller spoke this turn, if any — the
@@ -67,6 +74,20 @@ export class PracticeSession {
     this.drills = drills.map(resolveInstructions);
     this.config = config;
     this.mode = mode;
+  }
+
+  /** Capture the current state (drills already resolved) for later resume. */
+  snapshot(): SessionSnapshot {
+    return { drills: this.drills, index: this.index, history: this.history };
+  }
+
+  /** Rebuild a session from a snapshot without re-resolving/re-randomizing. */
+  static from(snap: SessionSnapshot, config: GraderConfig, mode: GradingMode): PracticeSession {
+    const s = new PracticeSession([], config, mode);
+    s.drills = snap.drills;
+    s.index = snap.index;
+    s.history = snap.history;
+    return s;
   }
 
   get currentDrill(): Drill | null {

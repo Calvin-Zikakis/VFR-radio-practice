@@ -17,6 +17,7 @@ import { retarget } from "./core/aircraft";
 import { AIRPORT_COORDS } from "./core/geo";
 import { PracticeSession, callType } from "./core/session";
 import { loadStats, recordResult, resetStats } from "./core/stats";
+import { saveResume, loadResume, clearResume } from "./core/resume";
 import type { CallType, Verdict, Airport, Aircraft, Drill } from "./core/types";
 import { MODELS, workerVoiceConfigured, transcribe, synthesize } from "./core/client";
 import type { GraderConfig, KeyMode } from "./core/client";
@@ -112,6 +113,24 @@ function renderHome() {
         : "Enter the class passcode in Settings to start."
     );
     app.append(warn);
+  }
+
+  const saved = loadResume();
+  if (saved) {
+    const card = el("button", "resume-card") as HTMLButtonElement;
+    card.innerHTML =
+      `<span class="resume-body"><span class="resume-title">Resume session</span>` +
+      `<span class="resume-sub">Drill ${saved.index + 1} of ${saved.total}${saved.title ? " · " + saved.title : ""}</span></span>` +
+      `<span class="action-arrow">→</span>`;
+    card.disabled = !keyReady();
+    card.onclick = resumeSession;
+    app.append(card);
+    const discard = el("button", "ghost small discardbtn", "Discard") as HTMLButtonElement;
+    discard.onclick = () => {
+      clearResume();
+      renderHome();
+    };
+    app.append(discard);
   }
 
   app.append(sectionLabel("Practice by category"));
@@ -472,6 +491,7 @@ function runDrills(drills: Drill[]) {
   }
   sessionLog = [];
   voiceNoticeShown = false;
+  clearResume(); // a new session invalidates any prior resume point
   // Fly one consistent airplane (retarget FIRST so the randomizer shields the
   // chosen callsign), then vary incidental details.
   const plane = chosenAircraft();
@@ -479,6 +499,39 @@ function runDrills(drills: Drill[]) {
   if (settings.randomize) prepared = vary(prepared);
   session = new PracticeSession(prepared, graderConfig(), settings.gradingMode);
   renderSession();
+  briefCurrent();
+  saveSnapshot();
+}
+
+/** Persist the current session so it can be resumed after exiting. */
+function saveSnapshot() {
+  if (!session || session.isFinished) return;
+  const d = session.currentDrill;
+  const p = session.progress;
+  saveResume({
+    snap: session.snapshot(),
+    mode: settings.gradingMode,
+    log: sessionLog,
+    savedAt: Date.now(),
+    index: p.index,
+    total: p.total,
+    title: d?.title ?? "",
+  });
+}
+
+function resumeSession() {
+  const saved = loadResume();
+  if (!saved) {
+    renderHome();
+    return;
+  }
+  sessionLog = saved.log ?? [];
+  voiceNoticeShown = false;
+  session = PracticeSession.from(saved.snap, graderConfig(), saved.mode);
+  renderSession();
+  // On a chained readback, remind the pilot what the controller last issued.
+  const d = session.currentDrill;
+  if (d?.injectedReadback && d.instruction) addLine("radio", `(earlier) ${d.instruction}`);
   briefCurrent();
 }
 
@@ -876,6 +929,7 @@ async function submit(text: string) {
     } else {
       status("Try that again.");
     }
+    saveSnapshot();
   } catch (e: any) {
     if (gradeAbort?.signal.aborted) {
       status("Grading abandoned — make your call again.");
@@ -926,6 +980,7 @@ function skipCurrent() {
 
 function finish() {
   stopSpeaking();
+  clearResume();
   app.innerHTML = "";
   app.classList.remove("session-view");
   const header = el("header", "topbar");
