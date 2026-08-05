@@ -66,6 +66,13 @@ body {
   min-height: 0;
   max-height: none;
 }
+/* Keep the conversation anchored to the bottom (near the controls) when it's
+   short, so the empty space is breathing room at the top, not a mid gap. As it
+   grows the spacer collapses and it scrolls normally. */
+#app.session-view .transcript::before {
+  content: "";
+  margin-top: auto;
+}
 #app.session-view .controls {
   padding-bottom: max(12px, env(safe-area-inset-bottom));
 }
@@ -313,3 +320,94 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .chip-x:hover { color: var(--text); }
 .chip-arrow { color: var(--muted); }
+
+/* ============================================================
+   Polish pass — clean cards, subtle depth, restrained motion.
+   ============================================================ */
+
+button {
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease,
+    box-shadow 0.15s ease, color 0.12s ease;
+}
+button:active:not(:disabled) { transform: translateY(1px); }
+.ghost:active:not(:disabled) { transform: none; }
+
+.section-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 24px 2px 10px;
+}
+.topbar + .section-label,
+.notice + .section-label,
+.muted + .section-label { margin-top: 10px; }
+
+.gearbtn { display: inline-flex; align-items: center; gap: 6px; }
+.gearbtn .ic { width: 16px; height: 16px; }
+
+/* Category tiles */
+.grid { gap: 10px; }
+.tile { min-height: 74px; border-radius: 12px; }
+.tile:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 10px 22px -16px rgba(0, 0, 0, 0.55);
+}
+.tile-title { font-weight: 600; letter-spacing: -0.01em; }
+
+/* Secondary action cards */
+.actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 13px 14px;
+  border-radius: 12px;
+  background: var(--panel);
+}
+.action:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 10px 22px -16px rgba(0, 0, 0, 0.55);
+}
+.action-ic { flex: 0 0 auto; display: inline-flex; color: var(--accent); }
+.action-ic .ic { width: 22px; height: 22px; }
+.action-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.action-title { font-weight: 600; }
+.action-sub {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.action-arrow { color: var(--muted); flex: 0 0 auto; transition: transform 0.15s ease, color 0.15s ease; }
+.action:hover:not(:disabled) .action-arrow { transform: translateX(3px); color: var(--accent); }
+
+@media (max-width: 430px) {
+  .actions { grid-template-columns: 1fr; }
+}
+
+/* Motion — kept subtle, and off for reduced-motion users. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(7px); }
+    to { opacity: 1; transform: none; }
+  }
+  .tile, .action, .line, .statrow, .browserow, .scene { animation: fadeUp 0.26s ease both; }
+  .grid .tile:nth-child(3n + 2) { animation-delay: 0.03s; }
+  .grid .tile:nth-child(3n) { animation-delay: 0.06s; }
+  @keyframes livepulse {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
+    50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 28%, transparent); }
+  }
+  .talk.live { animation: livepulse 1.3s ease-in-out infinite; }
+}

@@ -90,7 +90,8 @@ function renderHome() {
 
   const header = el("header", "topbar");
   header.append(el("div", "brand", "VFR Radio — Practice"));
-  const gear = el("button", "ghost", "⚙ Settings");
+  const gear = el("button", "ghost gearbtn") as HTMLButtonElement;
+  setBtn(gear, ICON_GEAR, "Settings");
   gear.onclick = renderSettings;
   header.append(gear);
   app.append(header);
@@ -113,6 +114,7 @@ function renderHome() {
     app.append(warn);
   }
 
+  app.append(sectionLabel("Practice by category"));
   const grid = el("div", "grid");
   for (const cat of CATEGORIES) {
     const n = categoryCount(cat.type);
@@ -126,23 +128,15 @@ function renderHome() {
   }
   app.append(grid);
 
-  const mixBtn = el("button", "ghost mixlink", "＋  Build a mix of several types →") as HTMLButtonElement;
-  mixBtn.disabled = !keyReady();
-  mixBtn.onclick = renderMix;
-  app.append(mixBtn);
-
-  const mapBtn = el("button", "ghost mixlink", "🗺  Plan a route on the map →") as HTMLButtonElement;
-  mapBtn.disabled = !keyReady();
-  mapBtn.onclick = renderMap;
-  app.append(mapBtn);
-
-  const statsBtn = el("button", "ghost mixlink", "📊  Progress & weak spots →") as HTMLButtonElement;
-  statsBtn.onclick = renderStats;
-  app.append(statsBtn);
-
-  const browseBtn = el("button", "ghost mixlink", "📋  Browse all drills →") as HTMLButtonElement;
-  browseBtn.onclick = renderBrowse;
-  app.append(browseBtn);
+  app.append(sectionLabel("More ways to practice"));
+  const actions = el("div", "actions");
+  actions.append(
+    actionCard(ICON_MIX, "Build a mix", "Several call types, shuffled", renderMix, !keyReady()),
+    actionCard(ICON_MAP, "Plan a route", "Fly a cross-country on the map", renderMap, !keyReady()),
+    actionCard(ICON_CHART, "Progress", "Stats & weak spots", renderStats, false),
+    actionCard(ICON_LIST, "Browse drills", "Start from any single call", renderBrowse, !keyReady())
+  );
+  app.append(actions);
 
   const foot = el("footer", "foot");
   const built = new Date(generatedAt);
@@ -508,10 +502,39 @@ let gradeAbort: AbortController | null = null;
 const ICON_MIC = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>`;
 const ICON_VOL_ON = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>`;
 const ICON_VOL_OFF = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>`;
+const ICON_MIX = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>`;
+const ICON_MAP = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>`;
+const ICON_CHART = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
+const ICON_LIST = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`;
+const ICON_GEAR = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
 
 /** Set a button's contents to an inline icon plus a text label. */
 function setBtn(btn: HTMLElement, icon: string, label: string) {
   btn.innerHTML = `${icon}<span>${label}</span>`;
+}
+
+/** A small uppercase section heading (Apple grouped-list style). */
+function sectionLabel(text: string): HTMLElement {
+  return el("div", "section-label", text);
+}
+
+/** A secondary action card: icon, title, and a one-line subtitle. */
+function actionCard(
+  icon: string,
+  title: string,
+  sub: string,
+  onClick: () => void,
+  disabled: boolean
+): HTMLButtonElement {
+  const b = el("button", "action") as HTMLButtonElement;
+  b.innerHTML =
+    `<span class="action-ic">${icon}</span>` +
+    `<span class="action-body"><span class="action-title">${title}</span>` +
+    `<span class="action-sub">${sub}</span></span>` +
+    `<span class="action-arrow">→</span>`;
+  b.disabled = disabled;
+  b.onclick = onClick;
+  return b;
 }
 
 function renderSession() {
