@@ -20,7 +20,14 @@ import { loadStats, recordResult, resetStats } from "./core/stats";
 import { saveResume, loadResume, clearResume } from "./core/resume";
 import { loadKokoro, kokoroReady, kokoroLoading, kokoroStatus, kokoroSpeak } from "./core/kokoro";
 import type { CallType, Verdict, Airport, Aircraft, Drill } from "./core/types";
-import { MODELS, DEFAULT_MODEL, workerVoiceConfigured, transcribe, synthesize } from "./core/client";
+import {
+  MODELS,
+  DEFAULT_MODEL,
+  workerVoiceConfigured,
+  transcribe,
+  synthesize,
+  normalizeWorkerUrl,
+} from "./core/client";
 import type { GraderConfig, KeyMode } from "./core/client";
 import { loadSettings, saveSettings, type Settings } from "./settings";
 import {
@@ -1350,7 +1357,11 @@ function renderSettings() {
       )
     );
     form.append(
-      textField("Class server URL (Worker)", settings.workerUrl, (v) => (settings.workerUrl = v.trim()))
+      textField(
+        "Class server URL (Worker)",
+        settings.workerUrl,
+        (v) => (settings.workerUrl = normalizeWorkerUrl(v))
+      )
     );
     form.append(textField("Class passcode", settings.passcode, (v) => (settings.passcode = v), "password"));
     form.append(

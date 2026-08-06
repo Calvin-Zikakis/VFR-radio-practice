@@ -90,7 +90,7 @@ async function post(
     });
   }
   // Shared mode: the Worker injects the key; we send only the passcode.
-  return fetch(config.key.workerUrl, {
+  return fetch(normalizeWorkerUrl(config.key.workerUrl), {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -193,9 +193,23 @@ export async function grade(
 // STT/TTS run on the Cloudflare Worker (Workers AI). Available only in shared
 // mode with a Worker URL + passcode; BYO mode falls back to browser speech.
 
+/** Clean up a hand-entered Worker URL.
+ *
+ *  The scheme matters more than it looks: fetch() treats a bare host like
+ *  "vfr-radio-proxy.example.workers.dev" as a RELATIVE url, so the request goes
+ *  to our own origin instead. On GitHub Pages that answers a POST with an nginx
+ *  405 page, which surfaced as a baffling "Speech failed (405)" with the Worker
+ *  itself perfectly healthy. Normalising here fixes URLs already saved in a
+ *  browser, not just newly typed ones. */
+export function normalizeWorkerUrl(raw: string): string {
+  const trimmed = raw.trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
 function workerBase(config: GraderConfig): string {
   if (config.key.kind !== "shared") return "";
-  return config.key.workerUrl.trim().replace(/\/+$/, "");
+  return normalizeWorkerUrl(config.key.workerUrl);
 }
 
 /** True when the shared Worker is configured for voice (URL + passcode set). */
@@ -242,11 +256,23 @@ async function voiceRequest(
   throw new Error("Voice request failed (network or timeout).");
 }
 
+/** Which host a voice error came from — worth naming, since the most likely
+ *  cause of a strange status is the request landing somewhere that isn't the
+ *  Worker at all. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url, location.href).host;
+  } catch {
+    return url;
+  }
+}
+
 /** Transcribe recorded audio via the Worker's /stt (Whisper). */
 export async function transcribe(config: GraderConfig, audio: Blob): Promise<string> {
   if (config.key.kind !== "shared") throw new Error("Voice needs the class Worker.");
+  const url = `${workerBase(config)}/stt`;
   const res = await voiceRequest(
-    `${workerBase(config)}/stt`,
+    url,
     {
       "content-type": audio.type || "application/octet-stream",
       "x-class-passcode": config.key.passcode.trim(),
@@ -256,20 +282,23 @@ export async function transcribe(config: GraderConfig, audio: Blob): Promise<str
   if (!res.ok) {
     if (res.status === 429) throw new Error("Voice is busy — try again in a moment.");
     const detail = await res.text().catch(() => "");
-    throw new Error(`Transcription failed (${res.status})${detail ? ": " + detail.slice(0, 300) : ""}`);
+    throw new Error(
+      `Transcription failed (${res.status}) from ${hostOf(url)}${detail ? ": " + detail.slice(0, 200) : ""}`
+    );
   }
   const json = await res.json();
   return String(json?.text ?? "").trim();
 }
 
-/** Synthesize speech via the Worker's /tts (MeloTTS). Returns an mp3 Blob. */
+/** Synthesize speech via the Worker's /tts (MeloTTS). Returns an audio Blob. */
 export async function synthesize(
   config: GraderConfig,
   text: string
 ): Promise<Blob | null> {
   if (config.key.kind !== "shared") return null;
+  const url = `${workerBase(config)}/tts`;
   const res = await voiceRequest(
-    `${workerBase(config)}/tts`,
+    url,
     {
       "content-type": "application/json",
       "x-class-passcode": config.key.passcode.trim(),
@@ -278,11 +307,18 @@ export async function synthesize(
   );
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`Speech failed (${res.status})${detail ? ": " + detail.slice(0, 300) : ""}`);
+    throw new Error(
+      `Speech failed (${res.status}) from ${hostOf(url)}${detail ? ": " + detail.slice(0, 200) : ""}`
+    );
   }
   const json = await res.json();
   const b64 = String(json?.audio ?? "");
   if (!b64) return null;
   const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-  return new Blob([bytes], { type: "audio/mpeg" });
+  // MeloTTS is documented as returning mp3 but currently hands back RIFF/WAVE.
+  // Sniff the container rather than trusting either, so the Blob carries a type
+  // the browser will actually accept.
+  const isWav =
+    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46; // "RIFF"
+  return new Blob([bytes], { type: isWav ? "audio/wav" : "audio/mpeg" });
 }
