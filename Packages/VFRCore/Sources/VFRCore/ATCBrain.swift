@@ -353,9 +353,11 @@ public struct ATCBrain: ATCEvaluating, Sendable {
         frequently mangled (e.g. "one seven two sierra papa" may arrive as \
         "172 sarah papa", "runway three one" as "runway 31" or "runway three won", \
         "niner" as "nine", "diner", or "dinner", "VFR" as "BFR" or "the FR", \
-        "juliet" as "Julia", "holding" as "Holden" — and facility names garble \
+        "juliet" as "Julia", "holding" as "Holden" — and place names garble \
         hard: "Palo Alto Ground" arrives as "pull the ground" or "ball of \
-        ground"). Reconstruct the \
+        ground", "Half Moon Bay" as "Halfman Bay", "RV seven three seven" as \
+        "RB737"). A destination or facility that is nearly right is the real one \
+        misheard, not the pilot naming somewhere else. Reconstruct the \
         pilot's INTENT charitably: no pilot says "BFR departure" — that is always \
         "VFR" misheard, and a garble where this airport's facility name belongs \
         is always the facility name. Do NOT mark a call wrong because of an obvious \
@@ -473,16 +475,21 @@ public struct ATCBrain: ATCEvaluating, Sendable {
 
         GRADING FIELDS:
         `correct` is true only if the intended phraseology was appropriate and \
-        complete for this situation. Your VERDICT and your COACHING must AGREE: \
-        if the call has every element this situation requires and your coaching \
-        is essentially praise, set `correct` true and `phaseAdvance` true — never \
-        praise a call and then fail it, and never fail it over a nuance you admit \
-        is already covered ("inbound to land" IS the request to land — do not \
-        demand a separate landing request). A complete, correct call gets an \
-        EMPTY `corrections`; corrections are for genuinely missing or wrong \
-        items, never "could be clearer" polish. List concrete issues in \
-        `corrections` (at most three, each a short phrase, e.g. "Missing your \
-        altitude"). \
+        complete for this situation. Your VERDICT and your COACHING must AGREE. \
+        Check both directions before you answer: if your coaching praises the \
+        call or says it is complete or ready to proceed, `correct` MUST be true; \
+        and if you set `correct` false, your coaching must name the thing that is \
+        actually missing. Never praise a call and then fail it, and never fail it \
+        over a nuance you admit is already covered ("inbound to land" IS the \
+        request to land — do not demand a separate landing request). A complete, \
+        correct call gets an EMPTY `corrections`; corrections are for genuinely \
+        missing or wrong items, never "could be clearer" polish. Each correction \
+        names ONE missing or wrong item in a dozen words or fewer (e.g. "Missing \
+        your altitude") — never a paragraph, never two points welded together \
+        with "but" or "however", and NEVER one that concedes the pilot already \
+        did it ("state the runway, which you did — however..."). If a correction \
+        ends up conceding the item was there, it is not a correction: delete it. \
+        At most three. \
         `expectedExample` is one ideal version of THE SINGLE CALL just graded — \
         one short transmission, never a multi-step script, stage directions, or \
         commentary; in a multi-step drill, show only the immediate next call. \

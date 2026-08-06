@@ -99,7 +99,7 @@ function el(tag: string, cls?: string, text?: string): HTMLElement {
 // ---------------------------------------------------------------- Home
 
 function renderHome() {
-  stopSpeaking();
+  silence();
   session = null;
   app.innerHTML = "";
   app.classList.remove("session-view");
@@ -237,7 +237,7 @@ function renderHome() {
 // ------------------------------------------------------------- Mix builder
 
 function renderMix() {
-  stopSpeaking();
+  silence();
   app.innerHTML = "";
   const header = el("header", "topbar");
   const back = el("button", "ghost", "← Back");
@@ -308,7 +308,7 @@ const LABEL_SIDE: Record<string, "top" | "bottom" | "left" | "right"> = {
 };
 
 function renderMap() {
-  stopSpeaking();
+  silence();
   session = null;
   app.innerHTML = "";
   const header = el("header", "topbar");
@@ -464,7 +464,7 @@ function renderMap() {
 // ------------------------------------------------------------- Progress / stats
 
 function renderStats() {
-  stopSpeaking();
+  silence();
   session = null;
   app.innerHTML = "";
   app.classList.remove("session-view");
@@ -533,7 +533,7 @@ function renderStats() {
 // ------------------------------------------------------------- Drill browser
 
 function renderBrowse() {
-  stopSpeaking();
+  silence();
   session = null;
   app.innerHTML = "";
   app.classList.remove("session-view");
@@ -833,7 +833,7 @@ function renderSession() {
   voiceBtn.title = "Mute all voices (this session)";
   voiceBtn.onclick = () => {
     masterMuted = !masterMuted;
-    if (masterMuted) stopSpeaking();
+    if (masterMuted) silence();
     paintVoice();
   };
   talkRow.append(voiceBtn);
@@ -986,6 +986,15 @@ let masterMuted = false;
 // "skip" queues up every skipped drill's narration and reads them back to
 // back, and holding the mic doesn't stop the controller talking over you.
 let sessionGen = 0;
+
+/** Stop the voice for good: cancel what is playing AND invalidate anything
+ *  still being generated. stopSpeaking() alone only stops playback, so a clip
+ *  that was mid-synthesis when you left the session would arrive afterwards and
+ *  start talking over the home screen. */
+function silence() {
+  sessionGen++;
+  stopSpeaking();
+}
 // The most recent line handed to say(), regardless of whether it actually
 // played (muted role, cancelled mid-flight) — what the Replay button repeats.
 let lastSpoken: { text: string; role: SayRole } | null = null;
@@ -1067,8 +1076,7 @@ async function beginTalk() {
   if (listening || recorder || startingRecorder) return;
   // Pressing the mic always wins over the voice engine — cancel any playing
   // or in-flight speech immediately so the pilot can talk without waiting.
-  sessionGen++;
-  stopSpeaking();
+  silence();
   const cfg = graderConfig();
   if (workerVoiceConfigured(cfg)) {
     // Worker/Whisper path: record now, transcribe on release.
@@ -1247,7 +1255,7 @@ function showVerdict(v: Verdict) {
 function skipCurrent() {
   console.log(`[voice ${performance.now().toFixed(0)}ms] skip clicked`);
   if (listening) listening.stop();
-  stopSpeaking();
+  silence();
   if (!session) return;
   session.skip();
   if (session.isFinished) {
@@ -1259,7 +1267,7 @@ function skipCurrent() {
 }
 
 function finish() {
-  stopSpeaking();
+  silence();
   clearResume();
   app.innerHTML = "";
   app.classList.remove("session-view");
@@ -1354,7 +1362,7 @@ function downloadDebrief() {
 // ---------------------------------------------------------------- Settings
 
 function renderSettings() {
-  stopSpeaking();
+  silence();
   app.innerHTML = "";
   const header = el("header", "topbar");
   const back = el("button", "ghost", "← Back");
