@@ -913,16 +913,36 @@ function status(s: string) {
   statusEl.textContent = s;
 }
 
-/** Normalize text for TTS pronunciation. Voice engines read "RV" as a word
- *  ("rerv"); the spaced form makes them say the letters. The transcript keeps
- *  the original spelling — this only affects what's spoken. */
+// Aviation shorthand that voice engines otherwise try to pronounce as a word —
+// "VFR" comes out as "viffer", "RV" as "rerv". Spelled out with spaces so the
+// engine reads the letters. This is an explicit list rather than a rule about
+// capitals, because plenty of capitalized text is a real word ("NOT") and a few
+// of these are genuinely said as words on the radio, not spelled (below).
+const SPELLED_OUT = [
+  "RV", "VFR", "IFR", "ATC", "TFR", "MOA", "AGL", "MSL",
+  "VOR", "DME", "ILS", "GPS", "FBO", "FAA", "TRSA", "PIC",
+];
+
+// Said as words on the radio, so a respelling beats either the raw letters or
+// the engine's guess. Unverified by ear — I can generate the audio but not
+// listen to it — so these are the ones to revisit if any sounds off.
+const RESPELLED: [RegExp, string][] = [
+  [/\bCTAF\b/g, "see-taff"],
+  [/\bRNAV\b/g, "are-nav"],
+  [/\bATIS\b/g, "ay-tiss"],
+];
+
+/** Normalize text for TTS pronunciation. The transcript keeps the original
+ *  spelling — this only affects what's spoken. */
 function forSpeech(text: string): string {
-  // "RV" → letters ("R V"), and force "read"/"readback" to the present-tense
-  // "reed" (both engines default it to "red"). Transcript keeps the originals.
-  return text
-    .replace(/\bRV\b/g, "R V")
-    .replace(/\breadback\b/gi, "reed back")
-    .replace(/\bread\b/gi, "reed");
+  let t = text;
+  for (const [re, say] of RESPELLED) t = t.replace(re, say);
+  for (const term of SPELLED_OUT) {
+    t = t.replace(new RegExp(`\\b${term}\\b`, "g"), term.split("").join(" "));
+  }
+  // Force "read"/"readback" to the present-tense "reed" (every engine defaults
+  // it to "red"). Must run after the acronyms so it can't split them.
+  return t.replace(/\breadback\b/gi, "reed back").replace(/\bread\b/gi, "reed");
 }
 
 function isChromeLike(): boolean {
