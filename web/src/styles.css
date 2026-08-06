@@ -234,8 +234,17 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   font-size: 1.05rem;
   font-weight: 600;
   background: var(--panel2);
+  /* Holding this button to transmit is a long press, which is also the gesture
+     for "select text" / "show callout" on phones — so suppress both, with the
+     prefixes still needed on WebKit and Gecko. */
+  -webkit-user-select: none;
+  -moz-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
 }
+/* Keep the icon and label out of hit-testing so the press always lands on the
+   button itself and never anchors a selection on the text inside it. */
+.talk * { pointer-events: none; user-select: none; }
 .talk .ic { width: 20px; height: 20px; }
 .talk.live { background: var(--accent); border-color: var(--accent); color: #fff; }
 .voicetoggle, .replaybtn {

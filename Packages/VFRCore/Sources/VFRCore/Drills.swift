@@ -999,8 +999,12 @@ public enum DrillLibrary {
             scenario: .flightFollowing,
             title: "Weather diversion on flight following",
             setup: "You're on flight following to Livermore at four thousand five hundred, but a wall of low clouds is filling the valley ahead. You've decided to divert to Salinas. Tell NorCal what you're doing.",
-            situation: "You are NorCal Approach. The pilot on flight following (destination Livermore) is diverting for weather. Expect: callsign, the request ('request direct Salinas, diverting for weather' or similar), and ideally a new altitude if they need one. A good diversion call is decisive — they tell you the new plan, they don't ask permission to stay safe. Reply: 'RV seven juliet alpha, roger, proceed direct Salinas, maintain VFR, Salinas altimeter three zero zero one' and update their destination. If they don't state a reason, ask 'say reason for the diversion' — weather info helps the next pilot. Advance once the diversion request and any readback are complete. Coach the big lesson: divert EARLY, tell ATC immediately, and never let a destination fixation argue with a cloud deck.",
-            aircraft: rv12, airport: salinas, callType: .flightFollowing
+            situation: "You are NorCal Approach. The pilot on flight following (destination Livermore) is diverting for weather. Expect: callsign, the new plan ('request direct Salinas, diverting for weather' or similar), and ideally a new altitude if they need one. They must name SALINAS as the new destination — a call that diverts to the field they were already going to, or to some other field, is wrong no matter how well it is phrased. A good diversion call is decisive: they tell you the new plan, they don't ask permission to stay safe. If they don't state a reason, mark that as missing — weather info helps the next pilot. Coach the big lesson: divert EARLY, tell ATC immediately, and never let a destination fixation argue with a cloud deck.",
+            aircraft: rv12, airport: salinas, callType: .flightFollowing, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, roger, proceed direct Salinas, maintain VFR, Salinas altimeter three zero zero one.",
+                "RV seven three seven juliet alpha, roger, cleared direct Salinas, maintain VFR, descend at your discretion, Salinas altimeter three zero zero one.",
+            ]
         ),
         Drill(
             id: "ff-min-fuel",
@@ -1023,8 +1027,16 @@ public enum DrillLibrary {
             scenario: .flightFollowing,
             title: "Lost — ask for help",
             setup: "You got turned around in haze over unfamiliar terrain and you are genuinely unsure of your position. You have NorCal's frequency. Swallow your pride and make the call.",
-            situation: "You are NorCal Approach. A VFR pilot is disoriented/lost and calling for help. Grade the call: facility, callsign, admitting they're unsure of position ('student pilot' if they choose — encourage it in coaching, controllers give students extra care), last known position or landmarks in sight, altitude, and fuel state if offered. Reply like a pro: 'squawk four five two one and ident', then after the ident, 'radar contact two zero miles southeast of Hollister; fly heading three one zero, Hollister is twelve o'clock and one five miles'. Expect a readback of the heading with callsign. Coach the big lesson: confess early — lost pilots who ask for help are a non-event; lost pilots who don't become NTSB reports. The four Cs: climb, communicate, confess, comply.",
-            aircraft: rv12, airport: hollister, callType: .emergency
+            situation: "You are NorCal Approach. A VFR pilot is disoriented/lost and calling for help. Grade the call: facility, callsign, admitting they're unsure of position ('student pilot' if they choose — encourage it in coaching, controllers give students extra care), last known position or landmarks in sight, altitude, and fuel state if offered. Coach the big lesson: confess early — lost pilots who ask for help are a non-event; lost pilots who don't become NTSB reports. The four Cs: climb, communicate, confess, comply.",
+            aircraft: rv12, airport: hollister, callType: .emergency, followUpReadback: true,
+            instructionVariants: [
+                "RV seven three seven juliet alpha, squawk four five two one and ident.",
+            ],
+            // Radar contact only comes after the ident, so the vector is a second
+            // instruction in the chain rather than part of the first reply.
+            amendmentVariants: [
+                "RV seven three seven juliet alpha, radar contact two zero miles southeast of Hollister; fly heading three one zero, Hollister is twelve o'clock and one five miles.",
+            ]
         )
     ]
 }

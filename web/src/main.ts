@@ -809,6 +809,9 @@ function renderSession() {
     };
     talkBtn.onpointerup = release;
     talkBtn.onpointercancel = release;
+    // Android's long-press menu fires off contextmenu, which arrives mid-hold
+    // and would otherwise pop a selection UI over the button you're talking on.
+    talkBtn.oncontextmenu = (e) => e.preventDefault();
   }
   talkRow.append(talkBtn);
 
