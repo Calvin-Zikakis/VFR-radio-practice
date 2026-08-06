@@ -6,8 +6,6 @@ import {
   drillsMatching,
   generatedAt,
   routableAirports,
-  defaultAircraft,
-  fleet,
   allDrills,
 } from "./core/drills";
 import { tripDrills } from "./core/trip";
@@ -30,6 +28,13 @@ import {
 } from "./core/client";
 import type { GraderConfig, KeyMode } from "./core/client";
 import { loadSettings, saveSettings, type Settings } from "./settings";
+import {
+  activeFleet,
+  chosenAircraft,
+  removeAircraft,
+  suggestPhonetic,
+  upsertAircraft,
+} from "./fleet";
 import {
   recognitionSupported,
   startListening,
@@ -567,13 +572,6 @@ function renderBrowse() {
 
 // ---------------------------------------------------------------- Session
 
-/** The airplane to fly this session: a pinned fleet plane, a random one ("all"),
- *  or the default. */
-function chosenAircraft(): Aircraft {
-  if (settings.aircraft === "all") return fleet[Math.floor(Math.random() * fleet.length)];
-  return fleet.find((a) => a.callsign === settings.aircraft) ?? defaultAircraft;
-}
-
 function runDrills(drills: Drill[]) {
   if (drills.length === 0) {
     renderHome();
@@ -585,7 +583,7 @@ function runDrills(drills: Drill[]) {
   clearResume(); // a new session invalidates any prior resume point
   // Fly one consistent airplane (retarget FIRST so the randomizer shields the
   // chosen callsign), then vary incidental details.
-  const plane = chosenAircraft();
+  const plane = chosenAircraft(settings);
   let prepared = drills.map((d) => retarget(d, plane));
   if (settings.randomize) prepared = vary(prepared);
   session = new PracticeSession(prepared, graderConfig(), settings.gradingMode);
@@ -632,7 +630,7 @@ function startSession(types: Set<CallType>) {
 }
 
 function startTripSession(stops: Airport[], flightFollowing: boolean, patternWork: boolean) {
-  runDrills(tripDrills(stops, flightFollowing, patternWork, defaultAircraft));
+  runDrills(tripDrills(stops, flightFollowing, patternWork, chosenAircraft(settings)));
 }
 
 let transcriptEl: HTMLElement;
@@ -1361,6 +1359,86 @@ function downloadDebrief() {
 
 // ---------------------------------------------------------------- Settings
 
+/** Add or edit one plane. `original` is null when adding. */
+function renderAircraftEditor(original: Aircraft | null) {
+  silence();
+  app.innerHTML = "";
+  app.classList.remove("session-view");
+  const header = el("header", "topbar");
+  const back = el("button", "ghost", "← Cancel");
+  back.onclick = renderSettings;
+  header.append(back);
+  header.append(el("div", "brand", original ? "Edit aircraft" : "Add aircraft"));
+  app.append(header);
+
+  const draft = {
+    type: original?.type ?? "",
+    callsign: original?.callsign ?? "",
+    phonetic: original?.phoneticCallsign ?? "",
+  };
+
+  const form = el("div", "form");
+  form.append(
+    textField("Make & model", draft.type, (v) => {
+      draft.type = v;
+      refresh();
+    })
+  );
+  const tailField = textField("Tail number", draft.callsign, (v) => {
+    draft.callsign = v;
+    refresh();
+  });
+  const tailInput = tailField.querySelector("input") as HTMLInputElement;
+  tailInput.setAttribute("autocapitalize", "characters");
+  tailInput.autocomplete = "off";
+  tailInput.spellcheck = false;
+  form.append(tailField);
+
+  const phonField = textField("Spoken callsign", draft.phonetic, (v) => {
+    draft.phonetic = v;
+    refresh();
+  });
+  const phonInput = phonField.querySelector("input") as HTMLInputElement;
+  form.append(phonField);
+
+  const suggest = el("button", "ghost small", "Suggest from tail number") as HTMLButtonElement;
+  suggest.onclick = () => {
+    draft.phonetic = suggestPhonetic(draft.callsign);
+    phonInput.value = draft.phonetic;
+    refresh();
+  };
+  form.append(suggest);
+  form.append(
+    el(
+      "p",
+      "muted small",
+      "How you say the callsign on the radio — grading matches against this, not the tail number."
+    )
+  );
+
+  const save = el("button", "primary", "Save") as HTMLButtonElement;
+  save.onclick = () => {
+    const plane: Aircraft = {
+      callsign: draft.callsign.trim().toUpperCase(),
+      phoneticCallsign: draft.phonetic.trim(),
+      type: draft.type.trim(),
+    };
+    settings.fleet = upsertAircraft(settings, plane, original?.callsign);
+    // Keep flying the plane you were just editing, even if you renamed it.
+    if (original && settings.aircraft === original.callsign) settings.aircraft = plane.callsign;
+    saveSettings(settings);
+    renderSettings();
+  };
+  form.append(save);
+  app.append(form);
+
+  function refresh() {
+    save.disabled = !draft.type.trim() || !draft.callsign.trim() || !draft.phonetic.trim();
+    suggest.disabled = !draft.callsign.trim();
+  }
+  refresh();
+}
+
 function renderSettings() {
   silence();
   app.innerHTML = "";
@@ -1458,18 +1536,18 @@ function renderSettings() {
 
   // Aircraft
   form.append(el("label", "field-label", "Aircraft"));
+  const planes = activeFleet(settings);
   const acSel = el("select", "select") as HTMLSelectElement;
   const acOptions: [string, string][] = [
-    ["", `${defaultAircraft.type} (${defaultAircraft.callsign}) — default`],
-    ...fleet
-      .filter((a) => a.callsign !== defaultAircraft.callsign)
-      .map((a) => [a.callsign, `${a.type} (${a.callsign})`] as [string, string]),
+    ...planes.map((a) => [a.callsign, `${a.type} (${a.callsign})`] as [string, string]),
     ["all", "All — a random plane each session"],
   ];
   for (const [val, label] of acOptions) {
     const o = el("option", undefined, label) as HTMLOptionElement;
     o.value = val;
-    if (val === settings.aircraft) o.selected = true;
+    // "" is the stored default; it resolves to the default plane.
+    if (val === settings.aircraft || (settings.aircraft === "" && val === chosenAircraft(settings).callsign))
+      o.selected = true;
     acSel.append(o);
   }
   acSel.onchange = () => {
@@ -1477,6 +1555,49 @@ function renderSettings() {
     persist();
   };
   form.append(acSel);
+
+  // Fleet editor — tap a plane to edit it, or add your own.
+  const fleetList = el("div", "fleetlist");
+  for (const a of planes) {
+    const row = el("div", "fleetrow");
+    const open = el("button", "fleetopen") as HTMLButtonElement;
+    open.append(el("span", "fleetname", `${a.type} · ${a.callsign}`));
+    open.append(el("span", "fleetphon", `"${a.phoneticCallsign}"`));
+    open.onclick = () => renderAircraftEditor(a);
+    const del = el("button", "ghost small", "Remove") as HTMLButtonElement;
+    del.onclick = () => {
+      settings.fleet = removeAircraft(settings, a.callsign);
+      if (settings.aircraft === a.callsign) settings.aircraft = "";
+      persist();
+      renderSettings();
+    };
+    row.append(open, del);
+    fleetList.append(row);
+  }
+  form.append(fleetList);
+
+  const fleetBtns = el("div", "fleetbtns");
+  const addBtn = el("button", "ghost small", "+ Add aircraft") as HTMLButtonElement;
+  addBtn.onclick = () => renderAircraftEditor(null);
+  fleetBtns.append(addBtn);
+  if (settings.fleet.length) {
+    const resetFleet = el("button", "ghost small", "Reset to built-in planes") as HTMLButtonElement;
+    resetFleet.onclick = () => {
+      settings.fleet = [];
+      settings.aircraft = "";
+      persist();
+      renderSettings();
+    };
+    fleetBtns.append(resetFleet);
+  }
+  form.append(fleetBtns);
+  form.append(
+    el(
+      "p",
+      "muted small",
+      "The spoken callsign is what ATC “hears”, so it's what grading matches against. Set the prefix to how you actually call — “RV”, “Skyhawk”, “Cirrus”, or “November”."
+    )
+  );
 
   // Difficulty
   form.append(el("label", "field-label", "Difficulty"));

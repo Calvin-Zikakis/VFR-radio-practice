@@ -1,7 +1,7 @@
 // Local, in-browser settings. The BYO key never leaves the browser; shared mode
 // stores only the class passcode (the key lives in the Worker).
 
-import type { Difficulty, GradingMode } from "./core/types";
+import type { Aircraft, Difficulty, GradingMode } from "./core/types";
 import { DEFAULT_MODEL } from "./core/client";
 
 export interface Settings {
@@ -13,6 +13,9 @@ export interface Settings {
   difficulty: Difficulty;
   gradingMode: GradingMode; // live coaching vs debrief at end
   aircraft: string; // fleet callsign to fly, "all" for random, "" for default
+  // Your planes. Empty means "use the built-in fleet"; the first edit copies the
+  // built-ins in, so a stock plane can be renamed or deleted like any other.
+  fleet: Aircraft[];
   randomize: boolean; // vary ATIS/runway/altitude/squawk per session
   echoModelCall: boolean; // read the ideal call aloud after a miss (shadow)
   busyFrequency: boolean; // background chatter + occasional stepped-on call
@@ -42,6 +45,7 @@ const DEFAULTS: Settings = {
   difficulty: "checkride",
   gradingMode: "live",
   aircraft: "",
+  fleet: [],
   randomize: true,
   echoModelCall: false,
   busyFrequency: false,

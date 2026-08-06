@@ -307,6 +307,23 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .seg button { flex: 1; }
 .seg-on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .seg-off { background: var(--panel); }
+/* Fleet editor: one row per plane, tap the name to edit. */
+.fleetlist { display: flex; flex-direction: column; gap: 6px; }
+.fleetrow { display: flex; align-items: center; gap: 8px; }
+.fleetopen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 8px 12px;
+}
+.fleetopen:hover { border-color: var(--accent); }
+.fleetname { font-weight: 600; font-size: 0.9rem; }
+.fleetphon { font-size: 0.8rem; color: var(--muted); }
+.fleetbtns { display: flex; flex-wrap: wrap; gap: 8px; }
+
 .checkrow { display: flex; align-items: center; gap: 10px; }
 .sliderrow { display: flex; align-items: center; gap: 12px; }
 .sliderrow input[type="range"] { flex: 1; }
