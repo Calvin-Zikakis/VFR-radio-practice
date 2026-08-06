@@ -930,14 +930,26 @@ function isChromeLike(): boolean {
   return /Chrome|Chromium|CriOS|Edg/i.test(ua) && !/Firefox|FxiOS/i.test(ua);
 }
 
+/** A notice the reader can close. Advisory banners eat a lot of a phone screen
+ *  once they've been read, and this one sits above the transcript for the rest
+ *  of the session. Dismissal is per-banner; a new session shows it again. */
+function dismissibleNotice(text: string, cls = "notice"): HTMLElement {
+  const banner = el("div", `${cls} dismissible`);
+  banner.append(el("span", "notice-text", text));
+  const close = el("button", "notice-x", "×") as HTMLButtonElement;
+  close.title = "Dismiss";
+  close.setAttribute("aria-label", "Dismiss this message");
+  close.onclick = () => banner.remove();
+  banner.append(close);
+  return banner;
+}
+
 /** Once per session on a non-Chrome browser, note that Chrome's built-in voice
  *  is much better — shown when the class voice server falls back. */
 function noteVoiceFallback() {
   if (voiceNoticeShown || isChromeLike()) return;
   voiceNoticeShown = true;
-  const banner = el(
-    "div",
-    "notice",
+  const banner = dismissibleNotice(
     "The class voice server is having trouble, so we've switched to your browser's built-in voice. Chrome's is much better — open this page in Chrome for the best experience."
   );
   if (bannerEl?.parentElement) bannerEl.after(banner);
